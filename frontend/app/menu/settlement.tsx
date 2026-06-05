@@ -64,10 +64,145 @@ export default function SettlementScreen() {
   });
   const [toDate, setToDate] = useState<Date>(new Date());
 
-  const [showFromPicker, setShowFromPicker] = useState(false);
-  const [showToPicker, setShowToPicker] = useState(false);
+  const [editingDateType, setEditingDateType] = useState<'FROM' | 'TO' | null>(null);
+  const [tempDate, setTempDate] = useState<Date>(new Date());
+  const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
 
   const userId = user?.userId || "0";
+
+  const formatDateTime = (date: Date) => {
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const day = pad(date.getDate());
+    const month = pad(date.getMonth() + 1);
+    const year = date.getFullYear();
+    
+    let hours = date.getHours();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const minutes = pad(date.getMinutes());
+    
+    return `${day}-${month}-${year} ${pad(hours)}:${minutes} ${ampm}`;
+  };
+
+  const getDaysInMonth = (year: number, month: number) => {
+    return new Date(year, month + 1, 0).getDate();
+  };
+
+  const getFirstDayOfMonth = (year: number, month: number) => {
+    return new Date(year, month, 1).getDay();
+  };
+
+  const openDatePicker = (type: 'FROM' | 'TO') => {
+    const baseDate = type === 'FROM' ? fromDate : toDate;
+    setTempDate(new Date(baseDate.getTime()));
+    setCalendarMonth(new Date(baseDate.getFullYear(), baseDate.getMonth(), 1));
+    setEditingDateType(type);
+  };
+
+  const handlePrevMonth = () => {
+    setCalendarMonth(prev => {
+      const year = prev.getFullYear();
+      const month = prev.getMonth();
+      return new Date(month === 0 ? year - 1 : year, month === 0 ? 11 : month - 1, 1);
+    });
+  };
+
+  const handleNextMonth = () => {
+    setCalendarMonth(prev => {
+      const year = prev.getFullYear();
+      const month = prev.getMonth();
+      return new Date(month === 11 ? year + 1 : year, month === 11 ? 0 : month + 1, 1);
+    });
+  };
+
+  const renderCalendarDays = () => {
+    const year = calendarMonth.getFullYear();
+    const month = calendarMonth.getMonth();
+    const daysInMonth = getDaysInMonth(year, month);
+    const firstDay = getFirstDayOfMonth(year, month);
+
+    const dayCells = [];
+
+    // Render empty slots for weekdays offset
+    for (let i = 0; i < firstDay; i++) {
+      dayCells.push(
+        <View key={`empty-${i}`} style={styles.calendarDayCellEmpty} />
+      );
+    }
+
+    // Render days
+    for (let day = 1; day <= daysInMonth; day++) {
+      const isSelected = tempDate.getDate() === day &&
+                         tempDate.getMonth() === month &&
+                         tempDate.getFullYear() === year;
+
+      dayCells.push(
+        <TouchableOpacity
+          key={`day-${day}`}
+          style={[
+            styles.calendarDayCell,
+            isSelected && styles.calendarDayCellActive
+          ]}
+          onPress={() => {
+            const nextTemp = new Date(tempDate.getTime());
+            nextTemp.setFullYear(year);
+            nextTemp.setMonth(month);
+            nextTemp.setDate(day);
+            setTempDate(nextTemp);
+          }}
+        >
+          <Text
+            style={[
+              styles.calendarDayText,
+              isSelected && styles.calendarDayTextActive
+            ]}
+          >
+            {day}
+          </Text>
+        </TouchableOpacity>
+      );
+    }
+
+    return dayCells;
+  };
+
+  const getHour12 = (date: Date) => {
+    const hrs = date.getHours();
+    const hrs12 = hrs % 12;
+    return hrs12 === 0 ? 12 : hrs12;
+  };
+
+  const getAmPm = (date: Date) => {
+    return date.getHours() >= 12 ? 'PM' : 'AM';
+  };
+
+  const changeHour = (amount: number) => {
+    const nextTemp = new Date(tempDate.getTime());
+    let currentHrs = nextTemp.getHours();
+    currentHrs = (currentHrs + amount + 24) % 24;
+    nextTemp.setHours(currentHrs);
+    setTempDate(nextTemp);
+  };
+
+  const changeMinute = (amount: number) => {
+    const nextTemp = new Date(tempDate.getTime());
+    let currentMins = nextTemp.getMinutes();
+    currentMins = (currentMins + amount + 60) % 60;
+    nextTemp.setMinutes(currentMins);
+    setTempDate(nextTemp);
+  };
+
+  const toggleAmPm = () => {
+    const nextTemp = new Date(tempDate.getTime());
+    const currentHrs = nextTemp.getHours();
+    if (currentHrs >= 12) {
+      nextTemp.setHours(currentHrs - 12);
+    } else {
+      nextTemp.setHours(currentHrs + 12);
+    }
+    setTempDate(nextTemp);
+  };
 
   // Hardcoded denominations
   const denominations = [100.00, 50.00, 20.00, 10.00, 5.00, 2.00, 1.00, 0.50, 0.20, 0.10, 0.05, 0.01];
@@ -549,84 +684,50 @@ export default function SettlementScreen() {
           <View style={{ marginLeft: 'auto', flexDirection: 'row', gap: 20, alignItems: 'center', marginRight: 20 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Text style={{ fontSize: 12, color: Theme.textSecondary, fontFamily: Fonts.medium }}>From:</Text>
-              {Platform.OS === 'web' ? (
-                <input
-                  type="datetime-local"
-                  value={new Date(fromDate.getTime() - fromDate.getTimezoneOffset() * 60000).toISOString().slice(0, 16)}
-                  onChange={(e) => setFromDate(new Date(e.target.value))}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: 6,
-                    border: `1px solid ${Theme.border}`,
-                    fontFamily: Fonts.medium,
-                    fontSize: 13,
-                    color: Theme.textPrimary,
-                    backgroundColor: '#fff',
-                    outline: 'none',
-                  }}
-                />
-              ) : (
-                <TouchableOpacity
-                  style={{ paddingVertical: 6, paddingHorizontal: 10, borderRadius: 6, borderWidth: 1, borderColor: Theme.border, backgroundColor: '#fff' }}
-                  onPress={() => setShowFromPicker(true)}
-                >
-                  <Text style={{ fontFamily: Fonts.medium, color: Theme.textPrimary, fontSize: 13 }}>
-                    {fromDate.toLocaleString()}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              {showFromPicker && Platform.OS !== 'web' && (
-                <DateTimePicker
-                  value={fromDate}
-                  mode="datetime"
-                  display="default"
-                  onChange={(event: any, selectedDate?: Date) => {
-                    setShowFromPicker(false);
-                    if (selectedDate) setFromDate(selectedDate);
-                  }}
-                />
-              )}
+              <TouchableOpacity
+                style={{
+                  paddingVertical: 6,
+                  paddingHorizontal: 12,
+                  borderRadius: 6,
+                  borderWidth: 1,
+                  borderColor: Theme.border,
+                  backgroundColor: '#fff',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 8,
+                  minWidth: 165
+                }}
+                onPress={() => openDatePicker('FROM')}
+              >
+                <Text style={{ fontFamily: Fonts.medium, color: Theme.textPrimary, fontSize: 13 }}>
+                  {formatDateTime(fromDate)}
+                </Text>
+                <Ionicons name="calendar-outline" size={14} color={Theme.textSecondary} />
+              </TouchableOpacity>
             </View>
 
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Text style={{ fontSize: 12, color: Theme.textSecondary, fontFamily: Fonts.medium }}>To:</Text>
-              {Platform.OS === 'web' ? (
-                <input
-                  type="datetime-local"
-                  value={new Date(toDate.getTime() - toDate.getTimezoneOffset() * 60000).toISOString().slice(0, 16)}
-                  onChange={(e) => setToDate(new Date(e.target.value))}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: 6,
-                    border: `1px solid ${Theme.border}`,
-                    fontFamily: Fonts.medium,
-                    fontSize: 13,
-                    color: Theme.textPrimary,
-                    backgroundColor: '#fff',
-                    outline: 'none',
-                  }}
-                />
-              ) : (
-                <TouchableOpacity
-                  style={{ paddingVertical: 6, paddingHorizontal: 10, borderRadius: 6, borderWidth: 1, borderColor: Theme.border, backgroundColor: '#fff' }}
-                  onPress={() => setShowToPicker(true)}
-                >
-                  <Text style={{ fontFamily: Fonts.medium, color: Theme.textPrimary, fontSize: 13 }}>
-                    {toDate.toLocaleString()}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              {showToPicker && Platform.OS !== 'web' && (
-                <DateTimePicker
-                  value={toDate}
-                  mode="datetime"
-                  display="default"
-                  onChange={(event: any, selectedDate?: Date) => {
-                    setShowToPicker(false);
-                    if (selectedDate) setToDate(selectedDate);
-                  }}
-                />
-              )}
+              <TouchableOpacity
+                style={{
+                  paddingVertical: 6,
+                  paddingHorizontal: 12,
+                  borderRadius: 6,
+                  borderWidth: 1,
+                  borderColor: Theme.border,
+                  backgroundColor: '#fff',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 8,
+                  minWidth: 165
+                }}
+                onPress={() => openDatePicker('TO')}
+              >
+                <Text style={{ fontFamily: Fonts.medium, color: Theme.textPrimary, fontSize: 13 }}>
+                  {formatDateTime(toDate)}
+                </Text>
+                <Ionicons name="calendar-outline" size={14} color={Theme.textSecondary} />
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -999,6 +1100,145 @@ export default function SettlementScreen() {
                   <Text style={styles.confirmBtnText}>Confirm</Text>
                 </TouchableOpacity>
               </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Custom DateTimePicker Modal */}
+      <Modal
+        visible={editingDateType !== null}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setEditingDateType(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={styles.modalDismiss}
+            activeOpacity={1}
+            onPress={() => setEditingDateType(null)}
+          />
+          <View style={[styles.modalContent, { maxWidth: 680, width: '90%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                Select {editingDateType === 'FROM' ? 'Start Date & Time' : 'End Date & Time'}
+              </Text>
+              <TouchableOpacity onPress={() => setEditingDateType(null)} style={styles.modalCloseBtn}>
+                <Ionicons name="close" size={20} color={Theme.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalDivider} />
+
+            <View style={styles.dateTimeContainer}>
+              {/* Left Column: Calendar */}
+              <View style={styles.calendarContainer}>
+                <View style={styles.calendarHeader}>
+                  <TouchableOpacity onPress={handlePrevMonth} style={styles.calNavBtn}>
+                    <Ionicons name="chevron-back" size={16} color={Theme.textPrimary} />
+                  </TouchableOpacity>
+                  <Text style={styles.calendarMonthText}>
+                    {calendarMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                  </Text>
+                  <TouchableOpacity onPress={handleNextMonth} style={styles.calNavBtn}>
+                    <Ionicons name="chevron-forward" size={16} color={Theme.textPrimary} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Weekday headers */}
+                <View style={styles.weekdayRow}>
+                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d, i) => (
+                    <Text key={i} style={styles.weekdayText}>{d}</Text>
+                  ))}
+                </View>
+
+                {/* Days grid */}
+                <View style={styles.daysGrid}>
+                  {renderCalendarDays()}
+                </View>
+              </View>
+
+              {/* Divider */}
+              <View style={styles.dateTimeDivider} />
+
+              {/* Right Column: Time Picker */}
+              <View style={styles.timePickerContainer}>
+                <Text style={styles.timePickerTitle}>Set Time</Text>
+                
+                <View style={styles.timeControlsRow}>
+                  {/* Hours */}
+                  <View style={styles.timeCol}>
+                    <TouchableOpacity onPress={() => changeHour(1)} style={styles.timeArrowBtn}>
+                      <Ionicons name="chevron-up" size={18} color={Theme.textPrimary} />
+                    </TouchableOpacity>
+                    <View style={styles.timeValueBox}>
+                      <Text style={styles.timeValueText}>
+                        {getHour12(tempDate).toString().padStart(2, '0')}
+                      </Text>
+                    </View>
+                    <TouchableOpacity onPress={() => changeHour(-1)} style={styles.timeArrowBtn}>
+                      <Ionicons name="chevron-down" size={18} color={Theme.textPrimary} />
+                    </TouchableOpacity>
+                    <Text style={styles.timeUnitLabel}>Hour</Text>
+                  </View>
+
+                  <Text style={styles.timeColon}>:</Text>
+
+                  {/* Minutes */}
+                  <View style={styles.timeCol}>
+                    <TouchableOpacity onPress={() => changeMinute(1)} style={styles.timeArrowBtn}>
+                      <Ionicons name="chevron-up" size={18} color={Theme.textPrimary} />
+                    </TouchableOpacity>
+                    <View style={styles.timeValueBox}>
+                      <Text style={styles.timeValueText}>
+                        {tempDate.getMinutes().toString().padStart(2, '0')}
+                      </Text>
+                    </View>
+                    <TouchableOpacity onPress={() => changeMinute(-1)} style={styles.timeArrowBtn}>
+                      <Ionicons name="chevron-down" size={18} color={Theme.textPrimary} />
+                    </TouchableOpacity>
+                    <Text style={styles.timeUnitLabel}>Min</Text>
+                  </View>
+
+                  {/* AM/PM */}
+                  <View style={[styles.timeCol, { marginLeft: 10 }]}>
+                    <TouchableOpacity onPress={toggleAmPm} style={styles.ampmBtn}>
+                      <Text style={styles.ampmBtnText}>{getAmPm(tempDate)}</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.timeUnitLabel}>AM/PM</Text>
+                  </View>
+                </View>
+
+                {/* Date display preview */}
+                <View style={styles.previewBox}>
+                  <Text style={styles.previewLabel}>Selected Date-Time:</Text>
+                  <Text style={styles.previewValue}>{formatDateTime(tempDate)}</Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.modalDivider} />
+
+            <View style={[styles.modalFooter, { flexDirection: 'row', gap: 10 }]}>
+              <TouchableOpacity
+                style={[styles.confirmBtn, { flex: 1, backgroundColor: Theme.bgMuted }]}
+                onPress={() => setEditingDateType(null)}
+              >
+                <Text style={[styles.confirmBtnText, { color: Theme.textPrimary }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmBtn, { flex: 1 }]}
+                onPress={() => {
+                  if (editingDateType === 'FROM') {
+                    setFromDate(tempDate);
+                  } else {
+                    setToDate(tempDate);
+                  }
+                  setEditingDateType(null);
+                }}
+              >
+                <Text style={styles.confirmBtnText}>Apply</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -1443,5 +1683,171 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 4,
     minWidth: 80,
     textAlign: "right",
+  },
+  // DateTimePicker Modal specific styles
+  dateTimeContainer: {
+    flexDirection: 'row',
+    gap: 20,
+    paddingVertical: 10,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+  },
+  calendarContainer: {
+    width: 300,
+    alignItems: 'center',
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 10,
+  },
+  calNavBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  calendarMonthText: {
+    fontFamily: Fonts.black,
+    fontSize: 14,
+    color: Theme.textPrimary,
+  },
+  weekdayRow: {
+    flexDirection: 'row',
+    width: '100%',
+    marginBottom: 6,
+  },
+  weekdayText: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 12,
+    fontFamily: Fonts.bold,
+    color: Theme.textMuted,
+  },
+  daysGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    width: '100%',
+  },
+  calendarDayCell: {
+    width: `${100 / 7}%`,
+    aspectRatio: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+    marginVertical: 2,
+  },
+  calendarDayCellActive: {
+    backgroundColor: Theme.primary,
+  },
+  calendarDayCellEmpty: {
+    width: `${100 / 7}%`,
+    aspectRatio: 1,
+  },
+  calendarDayText: {
+    fontFamily: Fonts.bold,
+    fontSize: 13,
+    color: Theme.textPrimary,
+  },
+  calendarDayTextActive: {
+    color: '#fff',
+  },
+  dateTimeDivider: {
+    width: 1,
+    backgroundColor: Theme.border,
+    alignSelf: 'stretch',
+  },
+  timePickerContainer: {
+    flex: 1,
+    minWidth: 260,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timePickerTitle: {
+    fontFamily: Fonts.black,
+    fontSize: 14,
+    color: Theme.textPrimary,
+    marginBottom: 16,
+    textTransform: 'uppercase',
+  },
+  timeControlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 20,
+  },
+  timeCol: {
+    alignItems: 'center',
+  },
+  timeArrowBtn: {
+    padding: 4,
+  },
+  timeValueBox: {
+    width: 50,
+    height: 50,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Theme.border,
+  },
+  timeValueText: {
+    fontSize: 20,
+    fontFamily: Fonts.black,
+    color: Theme.textPrimary,
+  },
+  timeUnitLabel: {
+    fontSize: 10,
+    fontFamily: Fonts.bold,
+    color: Theme.textMuted,
+    marginTop: 4,
+  },
+  timeColon: {
+    fontSize: 24,
+    fontFamily: Fonts.black,
+    color: Theme.textPrimary,
+    marginHorizontal: 2,
+    marginTop: -12,
+  },
+  ampmBtn: {
+    width: 60,
+    height: 50,
+    borderRadius: 10,
+    backgroundColor: Theme.primaryLight,
+    borderWidth: 1,
+    borderColor: Theme.primaryBorder,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginVertical: 28,
+  },
+  ampmBtnText: {
+    fontSize: 16,
+    fontFamily: Fonts.black,
+    color: Theme.primary,
+  },
+  previewBox: {
+    width: '100%',
+    padding: 12,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Theme.border,
+    alignItems: 'center',
+  },
+  previewLabel: {
+    fontSize: 11,
+    fontFamily: Fonts.bold,
+    color: Theme.textMuted,
+  },
+  previewValue: {
+    fontSize: 13,
+    fontFamily: Fonts.black,
+    color: Theme.primaryDark,
+    marginTop: 2,
   },
 });
