@@ -2574,6 +2574,17 @@ export default function SalesReport() {
                               </Text>
                             )}
                           </Text>
+                          {item.SongName ? (
+                            <Text
+                              style={{
+                                fontSize: 11,
+                                color: "#666",
+                                marginTop: 2,
+                              }}
+                            >
+                              🎵 {item.SongName}
+                            </Text>
+                          ) : null}
                           {item.modifiers &&
                             Array.isArray(item.modifiers) &&
                             item.modifiers.filter((m: any) => {

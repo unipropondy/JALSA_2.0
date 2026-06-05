@@ -1388,6 +1388,7 @@ router.post("/save", async (req, res) => {
             .input("SubCategoryId", sql.UniqueIdentifier, toGuidOrNull(meta.DishGroupId))
             .input("CategoryId", sql.UniqueIdentifier, toGuidOrNull(meta.CategoryId))
             .input("DishName", sql.NVarChar(255), item.dish_name || item.name || "Unknown")
+            .input("SongName", sql.NVarChar(255), item.songName || item.SongName || "")
             .input("CategoryName", sql.NVarChar(255), meta.CategoryName || item.categoryName || "Unmapped")
             .input("SubCategoryName", sql.NVarChar(255), meta.DishGroupName || "Unmapped")
             .input("Qty", sql.Int, item.qty || 1)
@@ -1402,19 +1403,19 @@ router.post("/save", async (req, res) => {
             .input("OrderDateTime", sql.DateTime, new Date())
             .input("OrderDetailId", sql.UniqueIdentifier, toGuidOrNull(item.lineItemId))
             .query(`
-              INSERT INTO SettlementItemDetail (SettlementID, DishId, DishGroupId, SubCategoryId, CategoryId, DishName, Qty, Price, OrderDateTime, CategoryName, SubCategoryName, DiscountAmount, DiscountType, Status, Spicy, Salt, Oil, Sugar, OrderDetailId)
-              VALUES (@SettlementID, @DishId, @DishGroupId, @SubCategoryId, @CategoryId, @DishName, @Qty, @Price, @OrderDateTime, @CategoryName, @SubCategoryName, @ItemDiscountAmount, @ItemDiscountType, @Status, @Spicy, @Salt, @Oil, @Sugar, @OrderDetailId)
+              INSERT INTO SettlementItemDetail (SettlementID, DishId, DishGroupId, SubCategoryId, CategoryId, DishName, SongName, Qty, Price, OrderDateTime, CategoryName, SubCategoryName, DiscountAmount, DiscountType, Status, Spicy, Salt, Oil, Sugar, OrderDetailId)
+              VALUES (@SettlementID, @DishId, @DishGroupId, @SubCategoryId, @CategoryId, @DishName, @SongName, @Qty, @Price, @OrderDateTime, @CategoryName, @SubCategoryName, @ItemDiscountAmount, @ItemDiscountType, @Status, @Spicy, @Salt, @Oil, @Sugar, @OrderDetailId)
             `);
         }
       }
-
+ 
       // 4.5 Capture and Insert VOIDED items for reporting
       if (displayOrderId) {
         try {
           const dbVoids = await transaction.request()
             .input("orderNo", sql.NVarChar(100), displayOrderId)
             .query(`
-              SELECT d.OrderDetailId, d.DishId, d.DishName, d.Quantity, d.PricePerUnit, dish.DishGroupId, dg.CategoryId, cm.CategoryName, dg.DishGroupName
+              SELECT d.OrderDetailId, d.DishId, d.DishName, d.SongName, d.Quantity, d.PricePerUnit, dish.DishGroupId, dg.CategoryId, cm.CategoryName, dg.DishGroupName
               FROM RestaurantOrderDetailCur d
               JOIN RestaurantOrderCur h ON d.OrderId = h.OrderId
               LEFT JOIN DishMaster dish ON d.DishId = dish.DishId
@@ -1428,6 +1429,7 @@ router.post("/save", async (req, res) => {
               .input("sid", sql.UniqueIdentifier, settlementId)
               .input("dishId", sql.UniqueIdentifier, v.DishId)
               .input("dishName", sql.NVarChar(255), v.DishName)
+              .input("songName", sql.NVarChar(255), v.SongName || "")
               .input("qty", sql.Int, v.Quantity)
               .input("price", sql.Decimal(18, 2), v.PricePerUnit)
               .input("catId", sql.UniqueIdentifier, v.CategoryId)
@@ -1436,17 +1438,17 @@ router.post("/save", async (req, res) => {
               .input("OrderDetailId", sql.UniqueIdentifier, toGuidOrNull(v.OrderDetailId))
               .query(`
                 INSERT INTO SettlementItemDetail (
-                  SettlementID, DishId, DishName, Qty, Price, Status, OrderDateTime,
+                  SettlementID, DishId, DishName, SongName, Qty, Price, Status, OrderDateTime,
                   CategoryId, CategoryName, SubCategoryName, OrderDetailId
                 ) VALUES (
-                  @sid, @dishId, @dishName, @qty, @price, 'VOIDED', GETDATE(),
+                  @sid, @dishId, @dishName, @songName, @qty, @price, 'VOIDED', GETDATE(),
                   @catId, @catName, @groupName, @OrderDetailId
                 )
               `);
           }
           console.log(`[SAVE SALE] Captured ${dbVoids.recordset.length} voided items for reporting.`);
         } catch (voidErr) {
-          console.error("⚠️ [SAVE SALE] Void capture failed:", voidErr.message);
+          console.error(`[SAVE SALE WARNING] Failed to capture voided items:`, voidErr.message);
         }
       }
 
