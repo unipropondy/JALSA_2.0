@@ -647,7 +647,10 @@ class UniversalPrinter {
                 <div class="item-row">
                   <div class="item-main">
                     <div class="item-qty">${item.quantity || item.qty || 1}</div>
-                    <div class="item-name">${item.name}</div>
+                    <div class="item-name">
+                      ${item.name}
+                      ${item.songName || item.SongName ? `<div style="font-size: 20px; font-weight: normal; color: #555; margin-top: 4px;">🎵 ${item.songName || item.SongName}</div>` : ''}
+                    </div>
                   </div>
                   ${
                     item.isTakeaway ||
@@ -732,6 +735,11 @@ class UniversalPrinter {
 
       // 🚀 Square brackets [1] make quantity very clear and avoid alignment drift
       text += `[L]<font size='big'>[${qtyNum}] ${itemName}</font>\n`;
+
+      const songName = item.songName || item.SongName || "";
+      if (songName) {
+        text += `[L]    🎵 ${songName}\n`;
+      }
 
       const isTw = !!(
         item.isTakeaway ||
@@ -1080,6 +1088,11 @@ class UniversalPrinter {
       const total = `${symbol}${totalNum.toFixed(2)}`.padStart(9);
 
       text += `[L]${name}${qty}${price}${total}\n`;
+
+      const songName = item.songName || item.SongName || "";
+      if (songName) {
+        text += `[L]   🎵 ${songName}\n`;
+      }
 
       // If name was truncated, print full name on next line
       if ((item.name || "").length > 26) {

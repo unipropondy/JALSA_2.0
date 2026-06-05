@@ -318,6 +318,11 @@ class SunmiPrinterService {
           await this.left(`   ${item.name}`);
         }
 
+        const songName = item.songName || item.SongName || "";
+        if (songName) {
+          await this.left(`   🎵 ${songName}`);
+        }
+
         const isSC = Number(item.isServiceCharge) === 1 || item.isServiceCharge === true;
         if (isSC && !allItemsHaveSC) {
           await this.left(`    [Service Charge ${companySettings.serviceChargePercentage}%]`);
@@ -593,6 +598,13 @@ class SunmiPrinterService {
         // Quantity & Item Name combined on a single line at size 36
         await setSize(36);
         await this.left(`[${item.qty || item.quantity || 1}] ${item.name}`);
+
+        const songName = item.songName || item.SongName || "";
+        if (songName) {
+          await setSize(28);
+          await this.left(`  🎵 ${songName}`);
+          await SunmiModule.lineWrap(1);
+        }
 
         const isTw = !!(
           item.isTakeaway ||
