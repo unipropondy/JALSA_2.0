@@ -356,6 +356,8 @@ export default function MenuScreen() {
   const [showSplitModal, setShowSplitModal] = useState(false);
   const [splitMembers, setSplitMembers] = useState<any[]>([]);
   const [selectedSplitDish, setSelectedSplitDish] = useState<any>(null);
+  const [splitAmount, setSplitAmount] = useState("");
+  const [songName, setSongName] = useState("");
 
   const [selectedDish, setSelectedDish] = useState<any | null>(null);
   const [selectedModifierIds, setSelectedModifierIds] = useState<string[]>([]);
@@ -807,9 +809,32 @@ export default function MenuScreen() {
 
   const openModifiers = React.useCallback(
     async (dish: any) => {
+      console.log("Dish Clicked", dish);
+      try {
+        const splitRes = await fetch(
+          `${API_URL}/api/menu/checksplitdish/${dish.DishId}`
+        );
+        if (splitRes.ok) {
+          const splitData = await splitRes.json();
+          console.log("SplitData", splitData);
+          if (splitData.IsSplitDish === true) {
+            const res = await fetch(
+              `${API_URL}/api/menu/splitdishes`
+            );
+            const data = await res.json();
+            setSplitMembers(data);
+            setSelectedSplitDish(dish);
+            setShowSplitModal(true);
+            return;
+          }
+        }
+      } catch (err) {
+        console.log("Split API Error", err);
+      }
+
       // Prevent concurrent fetches for the same dish
-    if (fetchingModifiers.current.has(dish.DishId)) return;
-    fetchingModifiers.current.add(dish.DishId);
+      if (fetchingModifiers.current.has(dish.DishId)) return;
+      fetchingModifiers.current.add(dish.DishId);
 
       const currentKitchen = kitchens.find(
         (k) => k.CategoryId === selectedKitchenId,
@@ -1112,14 +1137,13 @@ export default function MenuScreen() {
           </View>
         )}
 
-        {/* SPLIT MEMBERS MODAL (New Feature) */}
-
         {showSplitModal && (
           <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
+            <View style={[styles.modalContent, { height: "80%" }]}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Split Members</Text>
-
+                <Text style={styles.modalTitle}>
+                  {selectedSplitDish?.Name}
+                </Text>
                 <TouchableOpacity
                   onPress={() => setShowSplitModal(false)}
                   style={styles.modalClose}
@@ -1132,48 +1156,120 @@ export default function MenuScreen() {
                 </TouchableOpacity>
               </View>
 
-              {splitMembers.map((item, index) => (
-                <View
-                  key={index}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginBottom: 15,
+                }}
+              >
+                <Text
                   style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    paddingVertical: 12,
-                    borderBottomWidth: 1,
-                    borderBottomColor: "#eee",
+                    width: 100,
+                    fontSize: 14,
+                    fontWeight: "600",
+                    color: "#333",
                   }}
                 >
-                  <Text>{item.CustomerName}</Text>
+                  Amount
+                </Text>
 
-                  <TouchableOpacity
-                    onPress={() => {
-                      const updated = [...splitMembers];
+                <TextInput
+                  placeholder="Enter Amount"
+                  value={splitAmount}
+                  onChangeText={setSplitAmount}
+                  keyboardType="numeric"
+                  style={{
+                    flex: 1,
+                    borderWidth: 1,
+                    borderColor: "#ddd",
+                    borderRadius: 10,
+                    paddingHorizontal: 12,
+                    height: 45,
+                  }}
+                />
+              </View>
 
-                      updated[index].IsSelected =
-                        !updated[index].IsSelected;
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginBottom: 15,
+                }}
+              >
+                <Text
+                  style={{
+                    width: 100,
+                    fontSize: 14,
+                    fontWeight: "600",
+                    color: "#333",
+                  }}
+                >
+                  Song Name
+                </Text>
 
-                      setSplitMembers(updated);
+                <TextInput
+                  placeholder="Enter Song Name"
+                  value={songName}
+                  onChangeText={setSongName}
+                  style={{
+                    flex: 1,
+                    borderWidth: 1,
+                    borderColor: "#ddd",
+                    borderRadius: 10,
+                    paddingHorizontal: 12,
+                    height: 45,
+                  }}
+                />
+              </View>
+
+              {/* Scrollable List */}
+              <ScrollView
+                style={{ flex: 1 }}
+                showsVerticalScrollIndicator={true}
+              >
+                {splitMembers.map((item, index) => (
+                  <View
+                    key={index}
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      paddingVertical: 12,
+                      borderBottomWidth: 1,
+                      borderBottomColor: "#eee",
                     }}
                   >
-                    <Ionicons
-                      name={
-                        item.IsSelected
-                          ? "checkbox"
-                          : "square-outline"
-                      }
-                      size={22}
-                      color="green"
-                    />
-                  </TouchableOpacity>
-                </View>
-              ))}
+                    <Text>{item.Name}</Text>
 
+                    <TouchableOpacity
+                      onPress={() => {
+                        const updated = [...splitMembers];
+                        updated[index].IsSelected =
+                          !updated[index].IsSelected;
+                        setSplitMembers(updated);
+                      }}
+                    >
+                      <Ionicons
+                        name={
+                          item.IsSelected
+                            ? "checkbox"
+                            : "square-outline"
+                        }
+                        size={22}
+                        color="green"
+                      />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </ScrollView>
+
+              {/* Fixed Done Button */}
               <TouchableOpacity
                 style={{
                   backgroundColor: "#22c55e",
                   paddingVertical: 12,
                   borderRadius: 10,
-                  marginTop: 20,
+                  marginTop: 15,
                   alignItems: "center",
                 }}
                 onPress={() => {
@@ -1181,85 +1277,42 @@ export default function MenuScreen() {
                     (x) => x.IsSelected
                   );
 
-
                   if (selected.length === 0) {
                     alert("Please select at least one member");
                     return;
                   }
 
-                  const shareAmount =
-                    (selectedSplitDish.Price || 0) /
-                    selected.length;
+                  const totalAmount = parseFloat(splitAmount || "0");
 
-                  const splitDataList = selected.map(member => ({
-                    CustomerName: member.CustomerName,
-                    Amount: shareAmount,
-                  }));
-
-                  // Check if the dish has modifiers. If so, open modifier selection modal with the split parameters.
-                  const cachedData = modifierCache[selectedSplitDish.DishId];
-                  if (cachedData && cachedData.length > 0) {
-                    setSelectedDish({
-                      ...selectedSplitDish,
-                      splitMembers: splitDataList
-                    });
-                    setSelectedModifierIds([]);
-                    setCustomMods([]);
-                    setModifiers(cachedData);
-                    setShowSplitModal(false);
-                    setShowModifier(true);
+                  if (totalAmount <= 0) {
+                    alert("Please enter amount");
                     return;
                   }
 
-                  // If not cached, fetch modifiers
-                  setLoadingModifiers(true);
-                  fetch(`${API_URL}/api/menu/modifiers/${selectedSplitDish.DishId}`)
-                    .then(res => res.json())
-                    .then(data => {
-                      if (Array.isArray(data) && data.length > 0) {
-                        setSelectedDish({
-                          ...selectedSplitDish,
-                          splitMembers: splitDataList
-                        });
-                        setSelectedModifierIds([]);
-                        setCustomMods([]);
-                        setModifiers(data);
-                        setShowSplitModal(false);
-                        setShowModifier(true);
-                      } else {
-                        // Add directly if no modifiers
-                        addToCartGlobal({
-                          id: selectedSplitDish.DishId,
-                          name: selectedSplitDish.Name,
-                          price: selectedSplitDish.Price || 0,
-                          splitMembers: splitDataList,
-                          categoryName: kitchens.find(k => k.CategoryId === selectedKitchenId)?.KitchenTypeName || "KITCHEN",
-                          KitchenTypeName: selectedSplitDish.KitchenTypeName || kitchens.find(k => k.CategoryId === selectedKitchenId)?.KitchenTypeName || "KITCHEN",
-                          PrinterIP: selectedSplitDish.PrinterIP,
-                          KitchenTypeCode: selectedSplitDish.KitchenTypeCode || String(selectedKitchenId || "0"),
-                          isServiceCharge: selectedSplitDish.isServiceCharge,
-                        } as any);
-                        setShowSplitModal(false);
-                      }
-                    })
-                    .catch(err => {
-                      console.error(err);
-                      addToCartGlobal({
-                        id: selectedSplitDish.DishId,
-                        name: selectedSplitDish.Name,
-                        price: selectedSplitDish.Price || 0,
-                        splitMembers: splitDataList,
-                        categoryName: kitchens.find(k => k.CategoryId === selectedKitchenId)?.KitchenTypeName || "KITCHEN",
-                        KitchenTypeName: selectedSplitDish.KitchenTypeName || kitchens.find(k => k.CategoryId === selectedKitchenId)?.KitchenTypeName || "KITCHEN",
-                        PrinterIP: selectedSplitDish.PrinterIP,
-                        KitchenTypeCode: selectedSplitDish.KitchenTypeCode || String(selectedKitchenId || "0"),
-                        isServiceCharge: selectedSplitDish.isServiceCharge,
-                      } as any);
-                      setShowSplitModal(false);
-                    })
-                    .finally(() => {
-                      setLoadingModifiers(false);
+                  if (!songName.trim()) {
+                    alert("Please enter song name");
+                    return;
+                  }
+
+                  const shareAmount =
+                    totalAmount / selected.length;
+
+                  selected.forEach((member) => {
+                    console.log({
+                      id: member.DishId,
+                      name: member.Name,
+                      songName: songName,
+                      price: shareAmount,
                     });
+                    addToCartGlobal({
+                      id: member.DishId,
+                      name: member.Name,
+                      songName: songName,
+                      price: shareAmount,
+                    } as any);
+                  });
+
+                  setShowSplitModal(false);
                 }}
               >
                 <Text
@@ -1272,12 +1325,9 @@ export default function MenuScreen() {
                   DONE
                 </Text>
               </TouchableOpacity>
-
             </View>
           </View>
         )}
-
-
 
         {/* MODIFIER MODAL (Screenshot 1 Style) */}
         {showModifier && selectedDish && (

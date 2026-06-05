@@ -323,6 +323,54 @@ router.get("/modifiers/group/:DishGroupId", async (req, res) => {
   }
 });
 
+router.get("/checksplitdish/:DishId", async (req, res) => {
+  try {
+ 
+    const pool = await poolPromise;
+ 
+    const result = await pool.request()
+      .input("DishId", req.params.DishId)
+      .query(`
+        SELECT
+          DishId,
+          ISNULL(IsSplitDish,0) AS IsSplitDish
+        FROM DishMaster
+        WHERE DishId = @DishId
+      `);
+ 
+    res.json(result.recordset[0]);
+ 
+  } catch (err) {
+    console.log(err);
+    res.status(500).send(err.message);
+  }
+});
+ 
+router.get("/splitdishes", async (req, res) => {
+  try {
+ 
+    const pool = await poolPromise;
+ 
+    const result = await pool.request().query(`
+      SELECT
+        DishId,
+        Name,
+        CurrentCost as Price,
+        songName
+      FROM DishMaster
+      WHERE IsSplitDish = 1
+      AND IsActive = 1
+      ORDER BY Name
+    `);
+ 
+    res.json(result.recordset);
+ 
+  } catch (err) {
+    console.log(err);
+    res.status(500).send(err.message);
+  }
+});
+
 router.post("/clear-cache", (req, res) => {
   cache.clear();
   console.log("⚡ [MenuCache] Cache INVALIDATION: All menu cache cleared");
