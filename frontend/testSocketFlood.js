@@ -1,7 +1,7 @@
 const { io } = require("socket.io-client");
 
 const LOCAL_URL = "http://localhost:3000";
-const REMOTE_URL = "https://demoucspondy-production.up.railway.app";
+const REMOTE_URL = "https://jalsa20-production.up.railway.app";
 
 function monitor(url, label) {
   console.log(` monitor Connecting to ${label} at ${url}...`);
