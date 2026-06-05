@@ -1335,6 +1335,7 @@ export default function Category() {
                   </View>
                   <Text style={styles.menuItemText}>Sales Report</Text>
                 </TouchableOpacity>
+              )}
               {canAccessDayEnd() && (
                 <TouchableOpacity
                   style={styles.menuItem}
