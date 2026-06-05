@@ -48,6 +48,8 @@ const companySettingsRoutes = require("./routes/companySettings");
 const uploadRoutes = require("./routes/upload");
 const exportRoutes = require("./routes/export");
 const creditCustomerRoutes = require("./routes/creditCustomers");
+const settlementRoutes = require("./routes/settlementRoutes");
+const settlementLegacyRoutes = require("./routes/settlement");
 
 const http = require("http");
 const { Server } = require("socket.io");
@@ -223,6 +225,8 @@ app.use("/api/company-settings", companySettingsRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/export", exportRoutes);
 app.use("/api/credit-customers", creditCustomerRoutes);
+app.use("/api/settlement", settlementRoutes);
+app.use("/api/settlement", settlementLegacyRoutes);
 
 // AI Chat Integration
 const aiRouter = require("./ai-service-src/routes/ai.routes");

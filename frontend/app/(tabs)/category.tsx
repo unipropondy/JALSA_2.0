@@ -1335,9 +1335,29 @@ export default function Category() {
                   </View>
                   <Text style={styles.menuItemText}>Sales Report</Text>
                 </TouchableOpacity>
+              {canAccessDayEnd() && (
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    setIsMenuVisible(false);
+                    router.push("/menu/settlement");
+                  }}
+                >
+                  <View
+                    style={[
+                      styles.menuIconContainer,
+                      { backgroundColor: Theme.primary + "10" },
+                    ]}
+                  >
+                    <Ionicons
+                      name="calculator-outline"
+                      size={18}
+                      color={Theme.primary}
+                    />
+                  </View>
+                  <Text style={styles.menuItemText}>Settlement</Text>
+                </TouchableOpacity>
               )}
-
-
 
               {canAccessDayEnd() && (
                 <TouchableOpacity
