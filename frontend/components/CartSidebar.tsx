@@ -552,17 +552,50 @@ const CartItemRow = React.memo(
                   flex: 1,
                 }}
               >
-                <Text
-                  style={[
-                    styles.itemName,
-                    (isSent || isVoided) && styles.textMuted,
-                    isVoided && styles.strikeThrough,
-                    isPhone && { fontSize: 13, flex: 1 },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {item.name}
-                </Text>
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={[
+                      styles.itemName,
+                      (isSent || isVoided) && styles.textMuted,
+                      isVoided && styles.strikeThrough,
+                      isPhone && { fontSize: 13, flex: 1 },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {item.name}
+                  </Text>
+ 
+                  {item.songName ? (
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        color: "#666",
+                        marginTop: 2,
+                      }}
+                    >
+                      🎵 {item.songName}
+                    </Text>
+                  ) : null}
+ 
+                  {item.splitMembers?.map((member: any, idx: number) => (
+                    <View
+                      key={idx}
+                      style={{
+                        flexDirection: "row",
+                        justifyContent: "space-between",
+                        marginTop: 4,
+                      }}
+                    >
+                      <Text style={{ fontSize: 12 }}>
+                        {member.CustomerName}
+                      </Text>
+ 
+                      <Text style={{ fontSize: 12 }}>
+                        {member.Amount?.toFixed(2)}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
                 {item.isTakeaway && (
                   <TouchableOpacity
                     onPress={(e) => {
@@ -1146,10 +1179,24 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
           tableId: tableId,
           orderId: orderId && orderId !== "NEW" && orderId !== "PENDING" && orderId !== "#NEW" ? orderId : null,
           userId: user?.userId,
-          items: cart.map((item: any) => ({
-            ...item,
-            status: item.status || "NEW"
-          })),
+          items: cart.map((item: any) => {
+            const backendMods = [...(item.modifiers || [])];
+            if (item.splitMembers && item.splitMembers.length > 0) {
+              item.splitMembers.forEach((sm: any) => {
+                backendMods.push({
+                  ModifierId: "00000000-0000-0000-0000-000000000001",
+                  ModifierName: "[SPLIT] " + sm.CustomerName,
+                  Price: sm.Amount || 0,
+                  qty: 1
+                });
+              });
+            }
+            return {
+              ...item,
+              modifiers: backendMods,
+              status: item.status || "NEW"
+            };
+          }),
           skipTableStatusSync,
         }),
       });
@@ -1374,10 +1421,24 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
             tableId: orderContext.tableId,
             orderType: orderContext.orderType,
             userId: user?.userId,
-            items: cart.map((item: any) => ({
-              ...item,
-              status: (item.status === "VOIDED" || item.isVoided) ? "VOIDED" : "SENT",
-            })),
+            items: cart.map((item: any) => {
+              const backendMods = [...(item.modifiers || [])];
+              if (item.splitMembers && item.splitMembers.length > 0) {
+                item.splitMembers.forEach((sm: any) => {
+                  backendMods.push({
+                    ModifierId: "00000000-0000-0000-0000-000000000001",
+                    ModifierName: "[SPLIT] " + sm.CustomerName,
+                    Price: sm.Amount || 0,
+                    qty: 1
+                  });
+                });
+              }
+              return {
+                ...item,
+                modifiers: backendMods,
+                status: (item.status === "VOIDED" || item.isVoided) ? "VOIDED" : "SENT",
+              };
+            }),
           }),
         });
 

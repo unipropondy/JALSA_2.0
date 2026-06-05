@@ -21,8 +21,14 @@ export type CartItem = {
   lineItemId: string;
   id: string;
   name: string;
+  songName?: string;
   price?: number;
   qty: number;
+ 
+  splitMembers?: {
+    CustomerName: string;
+    Amount: number;
+  }[];
 
   spicy?: string;
   oil?: string;
@@ -122,13 +128,36 @@ const normalizeCartItem = (item: any, fallback: Partial<CartItem> = {}): CartIte
   const note = getNormalizedText(item.note, item.Note, item.notes, item.Notes, item.Remarks, item.remarks, fallback.note);
   const isTakeaway = getNormalizedBoolean(item.isTakeaway, item.IsTakeaway, item.isTakeAway, item.IsTakeAway, fallback.isTakeaway);
   const discount = Number(item.discount ?? item.DiscountAmount ?? item.Discount ?? fallback.discount ?? 0);
-  const modifiers = getNormalizedModifiers(item).length ? getNormalizedModifiers(item) : (fallback.modifiers || []);
+  let modifiers = getNormalizedModifiers(item).length ? getNormalizedModifiers(item) : (fallback.modifiers || []);
   
+  let splitMembers = item.splitMembers || [];
+ 
+  if (splitMembers.length === 0) {
+    const normalMods: any[] = [];
+    modifiers.forEach(mod => {
+      if (mod.ModifierName && mod.ModifierName.startsWith("[SPLIT] ")) {
+        splitMembers.push({
+          CustomerName: mod.ModifierName.replace("[SPLIT] ", ""),
+          Amount: mod.Price || 0
+        });
+      } else {
+        normalMods.push(mod);
+      }
+    });
+    modifiers = normalMods;
+  }
+ 
   // 🚀 PERFORMANCE FIX: Construct cleanly instead of using 'delete' loop
   return {
     lineItemId: String(item.lineItemId || item.ItemId || fallback.lineItemId || fastId()),
     id: String(item.id || item.ProductId || fallback.id || ""),
     name: String(item.name || item.ProductName || item.DishName || fallback.name || "Dish"),
+    songName: String(
+      item.songName ||
+      item.SongName ||
+      fallback.songName ||
+      ""
+    ),
     qty,
     price,
     basePrice: Number(item.basePrice ?? fallback.basePrice ?? price),
@@ -136,6 +165,7 @@ const normalizeCartItem = (item: any, fallback: Partial<CartItem> = {}): CartIte
     isTakeaway,
     discount,
     modifiers,
+    splitMembers,
     spicy: getNormalizedText(item.spicy, item.Spicy, fallback.spicy),
     salt: getNormalizedText(item.salt, item.Salt, fallback.salt),
     oil: getNormalizedText(item.oil, item.Oil, fallback.oil),
@@ -371,6 +401,7 @@ export const useCartStore = create<CartState>()(
 
           const existingIndex = currentCart.findIndex(p => {
             if (p.id !== normalizedIncoming.id || 
+                p.songName !== normalizedIncoming.songName ||
                 p.status !== "NEW" || 
                 p.isTakeaway !== normalizedIncoming.isTakeaway || 
                 (p.note || "") !== (normalizedIncoming.note || "") ||
@@ -379,6 +410,10 @@ export const useCartStore = create<CartState>()(
                 (p.oil || "") !== (normalizedIncoming.oil || "") ||
                 (p.sugar || "") !== (normalizedIncoming.sugar || "")) return false;
             
+            const pSplitStr = JSON.stringify(p.splitMembers || []);
+            const newSplitStr = JSON.stringify(normalizedIncoming.splitMembers || []);
+            if (pSplitStr !== newSplitStr) return false;
+
             if (isOpenPriceItem(p) || isOpenPriceItem(normalizedIncoming)) {
               if (p.price !== normalizedIncoming.price) return false;
             }
@@ -391,7 +426,10 @@ export const useCartStore = create<CartState>()(
             const newQty = (updatedCart[existingIndex].qty || 0) + 1;
             updatedCart[existingIndex] = { 
               ...updatedCart[existingIndex], 
-              qty: newQty 
+              qty: newQty,
+              songName:
+                normalizedIncoming.songName ||
+                updatedCart[existingIndex].songName
             };
             finalLineItemId = updatedCart[existingIndex].lineItemId;
           } else {
@@ -410,6 +448,7 @@ export const useCartStore = create<CartState>()(
 
             const newItem: CartItem = {
               ...normalizedIncoming,
+              songName: normalizedIncoming.songName,
               lineItemId: generateUUID(),
               DateCreated: Math.max(now, latestTimestamp + 1)
             };
@@ -975,10 +1014,25 @@ export const useCartStore = create<CartState>()(
                 orderId,
                 userId: useAuthStore.getState().user?.userId,
                 lastUpdate: currentState.lastLocalUpdate[contextId] || Date.now(),
-                items: items.map(item => ({
-                  ...normalizeCartItem(item),
-                  status: item.status || "NEW"
-                }))
+                items: items.map(item => {
+                  const normalized = normalizeCartItem(item);
+                  const backendMods = [...(normalized.modifiers || [])];
+                  if (normalized.splitMembers && normalized.splitMembers.length > 0) {
+                    normalized.splitMembers.forEach(sm => {
+                      backendMods.push({
+                        ModifierId: "00000000-0000-0000-0000-000000000001",
+                        ModifierName: "[SPLIT] " + sm.CustomerName,
+                        Price: sm.Amount || 0,
+                        qty: 1
+                      } as any);
+                    });
+                  }
+                  return {
+                    ...normalized,
+                    modifiers: backendMods,
+                    status: item.status || "NEW"
+                  };
+                })
               })
             });
             
