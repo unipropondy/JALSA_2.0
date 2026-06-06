@@ -1030,7 +1030,7 @@ export default function SettlementScreen() {
       <StatusBar barStyle="dark-content" />
       <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace("/(tabs)/category" as any)} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={20} color={Theme.textPrimary} />
           </TouchableOpacity>
 
