@@ -212,7 +212,7 @@ const generatePdfDocDefinition = (data) => {
 
       // Category Header row
       tableBody.push([
-        { text: `▼ ${category.toUpperCase()}`, fontSize: 10, bold: true, fillColor: '#f2f4f8', border: [1, 1, 1, 1], margin: [8, 6, 8, 6], colSpan: 3 },
+        { text: `${category.toUpperCase()}`, fontSize: 10, bold: true, fillColor: '#f2f4f8', border: [1, 1, 1, 1], margin: [8, 6, 8, 6], colSpan: 3 },
         {},
         {}
       ]);
@@ -221,10 +221,7 @@ const generatePdfDocDefinition = (data) => {
       groupList.forEach(item => {
         tableBody.push([
           { 
-            text: [
-              { text: item.name, fontSize: 9.5 },
-              item.subcategory ? { text: `\nSub: ${item.subcategory}`, fontSize: 8, color: '#555' } : null
-            ].filter(Boolean),
+            text: item.name,
             style: 'rowLabel', 
             border: [1, 1, 1, 1], 
             margin: [8, 5, 8, 5] 

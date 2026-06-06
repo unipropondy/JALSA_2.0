@@ -8,7 +8,7 @@ import axios from "axios";
 import * as Print from "expo-print";
 import { useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -24,6 +24,514 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+interface CustomDateTimePickerProps {
+  visible: boolean;
+  onClose: () => void;
+  selectedDate: Date;
+  onApply: (date: Date) => void;
+  title: string;
+}
+
+function CustomDateTimePicker({ visible, onClose, selectedDate, onApply, title }: CustomDateTimePickerProps) {
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 640;
+
+  const [viewDate, setViewDate] = useState(() => new Date(selectedDate));
+  const [selectedDay, setSelectedDay] = useState(() => new Date(selectedDate));
+  
+  // Time states
+  const [hour, setHour] = useState(() => {
+    let h = selectedDate.getHours();
+    h = h % 12;
+    return h === 0 ? 12 : h;
+  });
+  const [minute, setMinute] = useState(() => selectedDate.getMinutes());
+  const [amPm, setAmPm] = useState<"AM" | "PM">(() => selectedDate.getHours() >= 12 ? "PM" : "AM");
+
+  // Sync state when selectedDate changes or modal opens
+  useEffect(() => {
+    if (visible) {
+      setViewDate(new Date(selectedDate));
+      setSelectedDay(new Date(selectedDate));
+      let h = selectedDate.getHours();
+      const ampm = h >= 12 ? "PM" : "AM";
+      h = h % 12;
+      setHour(h === 0 ? 12 : h);
+      setMinute(selectedDate.getMinutes());
+      setAmPm(ampm);
+    }
+  }, [visible, selectedDate]);
+
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+
+  // Navigation handlers
+  const prevMonth = () => {
+    setViewDate(new Date(year, month - 1, 1));
+  };
+  const nextMonth = () => {
+    setViewDate(new Date(year, month + 1, 1));
+  };
+
+  // Days list computation
+  const days = useMemo(() => {
+    const firstDay = new Date(year, month, 1);
+    const startDayOfWeek = firstDay.getDay(); // 0 = Sunday
+    const totalDaysInMonth = new Date(year, month + 1, 0).getDate();
+    const prevMonthDays = new Date(year, month, 0).getDate();
+
+    const arr = [];
+    // Prev month padding
+    for (let i = startDayOfWeek - 1; i >= 0; i--) {
+      arr.push({
+        day: prevMonthDays - i,
+        month: month === 0 ? 11 : month - 1,
+        year: month === 0 ? year - 1 : year,
+        isCurrentMonth: false,
+      });
+    }
+    // Current month days
+    for (let i = 1; i <= totalDaysInMonth; i++) {
+      arr.push({
+        day: i,
+        month: month,
+        year: year,
+        isCurrentMonth: true,
+      });
+    }
+    // Next month padding
+    const totalCells = arr.length;
+    const remaining = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+    for (let i = 1; i <= remaining; i++) {
+      arr.push({
+        day: i,
+        month: month === 11 ? 0 : month + 1,
+        year: month === 11 ? year + 1 : year,
+        isCurrentMonth: false,
+      });
+    }
+    return arr;
+  }, [year, month]);
+
+  const handleDaySelect = (dayObj: typeof days[0]) => {
+    setSelectedDay(new Date(dayObj.year, dayObj.month, dayObj.day));
+  };
+
+  // Time adjustment helpers
+  const adjustHour = (amount: number) => {
+    setHour(prev => {
+      let next = prev + amount;
+      if (next > 12) return 1;
+      if (next < 1) return 12;
+      return next;
+    });
+  };
+
+  const adjustMinute = (amount: number) => {
+    setMinute(prev => {
+      let next = prev + amount;
+      if (next > 59) return 0;
+      if (next < 0) return 59;
+      return next;
+    });
+  };
+
+  const handleApply = () => {
+    const finalDate = new Date(selectedDay);
+    let finalHours = hour % 12;
+    if (amPm === "PM") {
+      finalHours += 12;
+    }
+    finalDate.setHours(finalHours, minute, 0, 0);
+    onApply(finalDate);
+    onClose();
+  };
+
+  const formatSummaryStr = () => {
+    const d = selectedDay.getDate().toString().padStart(2, '0');
+    const m = (selectedDay.getMonth() + 1).toString().padStart(2, '0');
+    const y = selectedDay.getFullYear();
+    const h = hour.toString().padStart(2, '0');
+    const minStr = minute.toString().padStart(2, '0');
+    return `${d}-${m}-${y} ${h}:${minStr} ${amPm}`;
+  };
+
+  const monthNames = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+
+  if (!visible) return null;
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={pickerStyles.overlay}>
+        <View style={[pickerStyles.modalContainer, !isTablet && { flexDirection: 'column', width: '95%', padding: 16 }]}>
+          {/* Header */}
+          <View style={pickerStyles.header}>
+            <Text style={pickerStyles.headerTitle}>{title}</Text>
+            <TouchableOpacity style={pickerStyles.closeBtn} onPress={onClose}>
+              <Ionicons name="close" size={18} color="#44403C" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Columns Container */}
+          <View style={{ flexDirection: isTablet ? 'row' : 'column', gap: 20 }}>
+            {/* Left Side: Calendar */}
+            <View style={{ flex: 1 }}>
+              {/* Calendar Navigator */}
+              <View style={pickerStyles.calNavigator}>
+                <TouchableOpacity onPress={prevMonth} style={pickerStyles.navBtn}>
+                  <Ionicons name="chevron-back" size={16} color="#44403C" />
+                </TouchableOpacity>
+                <Text style={pickerStyles.monthYearText}>{monthNames[month]} {year}</Text>
+                <TouchableOpacity onPress={nextMonth} style={pickerStyles.navBtn}>
+                  <Ionicons name="chevron-forward" size={16} color="#44403C" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Weekdays Row */}
+              <View style={pickerStyles.weekdaysRow}>
+                {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((wd, i) => (
+                  <Text key={i} style={pickerStyles.weekdayText}>{wd}</Text>
+                ))}
+              </View>
+
+              {/* Days Grid */}
+              <View style={pickerStyles.daysGrid}>
+                {days.map((dObj, idx) => {
+                  const isSelected = selectedDay.getDate() === dObj.day &&
+                    selectedDay.getMonth() === dObj.month &&
+                    selectedDay.getFullYear() === dObj.year;
+
+                  return (
+                    <TouchableOpacity
+                      key={idx}
+                      onPress={() => handleDaySelect(dObj)}
+                      style={[
+                        pickerStyles.dayBtn,
+                        isSelected && pickerStyles.dayBtnSelected
+                      ]}
+                    >
+                      <Text style={[
+                        pickerStyles.dayText,
+                        !dObj.isCurrentMonth && pickerStyles.dayTextInactive,
+                        isSelected && pickerStyles.dayTextSelected
+                      ]}>
+                        {dObj.day}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Vertical Divider */}
+            {isTablet && <View style={pickerStyles.verticalDivider} />}
+
+            {/* Right Side: Time */}
+            <View style={[pickerStyles.timePanel, !isTablet && { width: '100%', marginTop: 10 }]}>
+              <Text style={pickerStyles.setTimeTitle}>SET TIME</Text>
+
+              {/* Picker Blocks */}
+              <View style={pickerStyles.timePickersRow}>
+                {/* Hour */}
+                <View style={pickerStyles.timeBlock}>
+                  <TouchableOpacity onPress={() => adjustHour(1)} style={pickerStyles.arrowBtn}>
+                    <Ionicons name="chevron-up" size={18} color="#44403C" />
+                  </TouchableOpacity>
+                  <View style={pickerStyles.timeInputBox}>
+                    <Text style={pickerStyles.timeValueText}>{hour.toString().padStart(2, '0')}</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => adjustHour(-1)} style={pickerStyles.arrowBtn}>
+                    <Ionicons name="chevron-down" size={18} color="#44403C" />
+                  </TouchableOpacity>
+                  <Text style={pickerStyles.timeLabel}>Hour</Text>
+                </View>
+
+                {/* Separator */}
+                <Text style={pickerStyles.timeSeparator}>:</Text>
+
+                {/* Minute */}
+                <View style={pickerStyles.timeBlock}>
+                  <TouchableOpacity onPress={() => adjustMinute(1)} style={pickerStyles.arrowBtn}>
+                    <Ionicons name="chevron-up" size={18} color="#44403C" />
+                  </TouchableOpacity>
+                  <View style={pickerStyles.timeInputBox}>
+                    <Text style={pickerStyles.timeValueText}>{minute.toString().padStart(2, '0')}</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => adjustMinute(-1)} style={pickerStyles.arrowBtn}>
+                    <Ionicons name="chevron-down" size={18} color="#44403C" />
+                  </TouchableOpacity>
+                  <Text style={pickerStyles.timeLabel}>Min</Text>
+                </View>
+
+                {/* AM/PM */}
+                <View style={[pickerStyles.timeBlock, { justifyContent: 'center' }]}>
+                  <TouchableOpacity 
+                    onPress={() => setAmPm(prev => prev === "AM" ? "PM" : "AM")} 
+                    style={[pickerStyles.ampmBtn, pickerStyles.ampmBtnActive]}
+                  >
+                    <Text style={pickerStyles.ampmBtnTextActive}>{amPm}</Text>
+                  </TouchableOpacity>
+                  <Text style={[pickerStyles.timeLabel, { marginTop: 12 }]}>AM/PM</Text>
+                </View>
+              </View>
+
+              {/* Summary Display */}
+              <View style={pickerStyles.summaryCard}>
+                <Text style={pickerStyles.summaryLabel}>Selected Date-Time:</Text>
+                <Text style={pickerStyles.summaryValue}>{formatSummaryStr()}</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Footer Actions */}
+          <View style={pickerStyles.footer}>
+            <TouchableOpacity style={pickerStyles.cancelBtn} onPress={onClose}>
+              <Text style={pickerStyles.cancelBtnText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={pickerStyles.applyBtn} onPress={handleApply}>
+              <Text style={pickerStyles.applyBtnText}>Apply</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const pickerStyles = StyleSheet.create({
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999,
+  },
+  modalContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    width: 620,
+    maxWidth: '95%',
+    padding: 24,
+    ...Platform.select({
+      web: {
+        boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+      }
+    }) as any,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    paddingBottom: 16,
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontFamily: Fonts.black,
+    color: Theme.textPrimary,
+  },
+  closeBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  calNavigator: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 8,
+  },
+  navBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F9FAFB',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  monthYearText: {
+    fontSize: 14,
+    fontFamily: Fonts.black,
+    color: Theme.textPrimary,
+  },
+  weekdaysRow: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  weekdayText: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 12,
+    fontFamily: Fonts.bold,
+    color: '#9CA3AF',
+  },
+  daysGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  dayBtn: {
+    width: '14.28%',
+    aspectRatio: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginVertical: 2,
+    borderRadius: 8,
+  },
+  dayBtnSelected: {
+    backgroundColor: '#F97316', // Orange theme
+  },
+  dayText: {
+    fontSize: 13,
+    fontFamily: Fonts.bold,
+    color: Theme.textPrimary,
+  },
+  dayTextInactive: {
+    color: '#D1D5DB',
+  },
+  dayTextSelected: {
+    color: '#fff',
+  },
+  verticalDivider: {
+    width: 1,
+    backgroundColor: '#F3F4F6',
+    alignSelf: 'stretch',
+    marginHorizontal: 8,
+  },
+  timePanel: {
+    width: 250,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  setTimeTitle: {
+    fontSize: 12,
+    fontFamily: Fonts.black,
+    color: Theme.textSecondary,
+    letterSpacing: 1,
+    marginBottom: 16,
+  },
+  timePickersRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 20,
+  },
+  timeBlock: {
+    alignItems: 'center',
+  },
+  arrowBtn: {
+    padding: 2,
+  },
+  timeInputBox: {
+    width: 50,
+    height: 44,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  timeValueText: {
+    fontSize: 18,
+    fontFamily: Fonts.black,
+    color: Theme.textPrimary,
+  },
+  timeSeparator: {
+    fontSize: 22,
+    fontFamily: Fonts.black,
+    color: Theme.textPrimary,
+    marginTop: -18,
+  },
+  ampmBtn: {
+    width: 60,
+    height: 44,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 22, // align with inputs vertically
+  },
+  ampmBtnActive: {
+    backgroundColor: '#FFF7ED',
+    borderColor: '#FED7AA',
+  },
+  ampmBtnTextActive: {
+    fontSize: 15,
+    fontFamily: Fonts.black,
+    color: '#F97316',
+  },
+  timeLabel: {
+    fontSize: 10,
+    fontFamily: Fonts.medium,
+    color: '#9CA3AF',
+    marginTop: 4,
+  },
+  summaryCard: {
+    width: '100%',
+    padding: 10,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    alignItems: 'center',
+  },
+  summaryLabel: {
+    fontSize: 10,
+    fontFamily: Fonts.medium,
+    color: '#9CA3AF',
+    marginBottom: 2,
+  },
+  summaryValue: {
+    fontSize: 13,
+    fontFamily: Fonts.black,
+    color: '#F97316',
+  },
+  footer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 20,
+  },
+  cancelBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: '#F5F5F4',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cancelBtnText: {
+    fontSize: 13,
+    fontFamily: Fonts.black,
+    color: '#44403C',
+  },
+  applyBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: '#F97316',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  applyBtnText: {
+    fontSize: 13,
+    fontFamily: Fonts.black,
+    color: '#fff',
+  },
+});
 
 export default function SettlementScreen() {
   const router = useRouter();
@@ -83,6 +591,19 @@ export default function SettlementScreen() {
   const pad = (n: number) => n.toString().padStart(2, '0');
   const formatLocal = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
   const getLocalDateStr = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+  const formatDateTime = (date: Date) => {
+    const d = date.getDate().toString().padStart(2, '0');
+    const m = (date.getMonth() + 1).toString().padStart(2, '0');
+    const y = date.getFullYear();
+    let hours = date.getHours();
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const h = hours.toString().padStart(2, '0');
+    return `${d}-${m}-${y} ${h}:${minutes} ${ampm}`;
+  };
 
   const handleCountChange = (denomStr: string, val: string) => {
     const cleaned = val.replace(/[^0-9]/g, "");
@@ -550,90 +1071,80 @@ export default function SettlementScreen() {
                 </TouchableOpacity>
               )}
             </ScrollView>
-          {/* <View style={styles.verticalDivider} /> */}
-
+          </View> */}
           <View style={{ marginLeft: 'auto', flexDirection: 'row', gap: 20, alignItems: 'center', marginRight: 20 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Text style={{ fontSize: 12, color: Theme.textSecondary, fontFamily: Fonts.medium }}>From:</Text>
-              {Platform.OS === 'web' ? (
-                <input
-                  type="datetime-local"
-                  value={new Date(fromDate.getTime() - fromDate.getTimezoneOffset() * 60000).toISOString().slice(0, 16)}
-                  onChange={(e) => setFromDate(new Date(e.target.value))}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: 6,
-                    border: `1px solid ${Theme.border}`,
-                    fontFamily: Fonts.medium,
-                    fontSize: 13,
-                    color: Theme.textPrimary,
-                    backgroundColor: '#fff',
-                    outline: 'none',
-                  }}
-                />
-              ) : (
-                <TouchableOpacity
-                  style={{ paddingVertical: 6, paddingHorizontal: 10, borderRadius: 6, borderWidth: 1, borderColor: Theme.border, backgroundColor: '#fff' }}
-                  onPress={() => setShowFromPicker(true)}
-                >
-                  <Text style={{ fontFamily: Fonts.medium, color: Theme.textPrimary, fontSize: 13 }}>
-                    {fromDate.toLocaleString()}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              {showFromPicker && Platform.OS !== 'web' && (
-                <DateTimePicker
-                  value={fromDate}
-                  mode="datetime"
-                  display="default"
-                  onChange={(event: any, selectedDate?: Date) => {
-                    setShowFromPicker(false);
-                    if (selectedDate) setFromDate(selectedDate);
-                  }}
-                />
-              )}
+              <TouchableOpacity
+                style={{ 
+                  flexDirection: 'row', 
+                  alignItems: 'center', 
+                  backgroundColor: '#fff', 
+                  borderWidth: 1.5, 
+                  borderColor: Theme.border, 
+                  borderRadius: 10, 
+                  paddingHorizontal: 12,
+                  height: 38,
+                  gap: 8,
+                  ...Platform.select({
+                    web: {
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                      cursor: 'pointer',
+                    }
+                  }) as any
+                }}
+                onPress={() => setShowFromPicker(true)}
+              >
+                <Text style={{ fontFamily: Fonts.bold, color: Theme.textPrimary, fontSize: 13 }}>
+                  {formatDateTime(fromDate)}
+                </Text>
+                <Ionicons name="calendar-outline" size={14} color="#6B7280" />
+              </TouchableOpacity>
             </View>
 
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Text style={{ fontSize: 12, color: Theme.textSecondary, fontFamily: Fonts.medium }}>To:</Text>
-              {Platform.OS === 'web' ? (
-                <input
-                  type="datetime-local"
-                  value={new Date(toDate.getTime() - toDate.getTimezoneOffset() * 60000).toISOString().slice(0, 16)}
-                  onChange={(e) => setToDate(new Date(e.target.value))}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: 6,
-                    border: `1px solid ${Theme.border}`,
-                    fontFamily: Fonts.medium,
-                    fontSize: 13,
-                    color: Theme.textPrimary,
-                    backgroundColor: '#fff',
-                    outline: 'none',
-                  }}
-                />
-              ) : (
-                <TouchableOpacity
-                  style={{ paddingVertical: 6, paddingHorizontal: 10, borderRadius: 6, borderWidth: 1, borderColor: Theme.border, backgroundColor: '#fff' }}
-                  onPress={() => setShowToPicker(true)}
-                >
-                  <Text style={{ fontFamily: Fonts.medium, color: Theme.textPrimary, fontSize: 13 }}>
-                    {toDate.toLocaleString()}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              {showToPicker && Platform.OS !== 'web' && (
-                <DateTimePicker
-                  value={toDate}
-                  mode="datetime"
-                  display="default"
-                  onChange={(event: any, selectedDate?: Date) => {
-                    setShowToPicker(false);
-                    if (selectedDate) setToDate(selectedDate);
-                  }}
-                />
-              )}
+              <TouchableOpacity
+                style={{ 
+                  flexDirection: 'row', 
+                  alignItems: 'center', 
+                  backgroundColor: '#fff', 
+                  borderWidth: 1.5, 
+                  borderColor: Theme.border, 
+                  borderRadius: 10, 
+                  paddingHorizontal: 12,
+                  height: 38,
+                  gap: 8,
+                  ...Platform.select({
+                    web: {
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                      cursor: 'pointer',
+                    }
+                  }) as any
+                }}
+                onPress={() => setShowToPicker(true)}
+              >
+                <Text style={{ fontFamily: Fonts.bold, color: Theme.textPrimary, fontSize: 13 }}>
+                  {formatDateTime(toDate)}
+                </Text>
+                <Ionicons name="calendar-outline" size={14} color="#6B7280" />
+              </TouchableOpacity>
             </View>
+
+            <CustomDateTimePicker
+              visible={showFromPicker}
+              onClose={() => setShowFromPicker(false)}
+              selectedDate={fromDate}
+              onApply={(date) => setFromDate(date)}
+              title="Select Start Date & Time"
+            />
+            <CustomDateTimePicker
+              visible={showToPicker}
+              onClose={() => setShowToPicker(false)}
+              selectedDate={toDate}
+              onApply={(date) => setToDate(date)}
+              title="Select End Date & Time"
+            />
           </View>
 
           <View style={{ flexDirection: 'row', gap: 10 }}>
