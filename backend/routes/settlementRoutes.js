@@ -10,10 +10,10 @@ router.get('/check', authenticateToken, async (req, res) => {
   try {
     let { outletId, date } = req.query;
     
-    // ✅ FIX: Convert to integer, fallback to 1 if NaN (e.g. string terminal code passed)
+    // ✅ FIX: Convert to integer
     outletId = parseInt(outletId);
     if (isNaN(outletId)) {
-      outletId = 1;
+      return res.status(400).json({ error: 'Invalid outletId' });
     }
     
     console.log('📡 Check settlement:', { outletId, date });
@@ -42,10 +42,10 @@ router.get('/opening-cash', authenticateToken, async (req, res) => {
   try {
     let { outletId, date } = req.query;
     
-    // ✅ FIX: Convert to integer, fallback to 1 if NaN (e.g. string terminal code passed)
+    // ✅ FIX: Convert to integer
     outletId = parseInt(outletId);
     if (isNaN(outletId)) {
-      outletId = 1;
+      return res.status(400).json({ error: 'Invalid outletId' });
     }
     
     const pool = getPool();
@@ -84,10 +84,10 @@ router.post('/opening-cash', authenticateToken, async (req, res) => {
   try {
     let { outletId, settlementDate, notes, coins, total, cashierName } = req.body;
     
-    // ✅ FIX: Convert to integer, fallback to 1 if NaN (e.g. string terminal code passed)
+    // ✅ FIX: Convert to integer
     outletId = parseInt(outletId);
     if (isNaN(outletId)) {
-      outletId = 1;
+      return res.status(400).json({ error: 'Invalid outletId' });
     }
     
     const openingCashJSON = JSON.stringify({ notes, coins });
@@ -125,10 +125,10 @@ router.get('/physical-cash', authenticateToken, async (req, res) => {
   try {
     let { outletId, date } = req.query;
     
-    // ✅ FIX: Convert to integer, fallback to 1 if NaN (e.g. string terminal code passed)
+    // ✅ FIX: Convert to integer
     outletId = parseInt(outletId);
     if (isNaN(outletId)) {
-      outletId = 1;
+      return res.status(400).json({ error: 'Invalid outletId' });
     }
     
     const pool = getPool();
@@ -163,10 +163,10 @@ router.post('/physical-cash', authenticateToken, async (req, res) => {
   try {
     let { outletId, settlementDate, notes, coins, total } = req.body;
     
-    // ✅ FIX: Convert to integer, fallback to 1 if NaN (e.g. string terminal code passed)
+    // ✅ FIX: Convert to integer
     outletId = parseInt(outletId);
     if (isNaN(outletId)) {
-      outletId = 1;
+      return res.status(400).json({ error: 'Invalid outletId' });
     }
     
     const physicalCashJSON = JSON.stringify({ notes, coins });
@@ -204,10 +204,10 @@ router.post('/finalize', authenticateToken, async (req, res) => {
             cashReceived, openingCash, manualCashOutTotal, expectedClosing, physicalCash,
             variance, varianceStatus, cashAmount, cardAmount, upiAmount, paynowAmount, valueCardAmount } = req.body;
     
-    // ✅ FIX: Convert to integer, fallback to 1 if NaN (e.g. string terminal code passed)
+    // ✅ FIX: Convert to integer
     outletId = parseInt(outletId);
     if (isNaN(outletId)) {
-      outletId = 1;
+      return res.status(400).json({ error: 'Invalid outletId' });
     }
     
     const paymentBreakdownJSON = JSON.stringify({ 
@@ -289,14 +289,29 @@ router.post('/finalize', authenticateToken, async (req, res) => {
 router.get('/denominations', authenticateToken, async (req, res) => {
   try {
     const type = req.query.type === 'CLOSE' ? 'CLOSE' : 'OPEN';
+    const { date, screenType } = req.query;
     const pool = getPool();
-    const result = await pool.request().query(`
+    const request = pool.request();
+    
+    let query = `
       SELECT CurrencyValue, NoteCount 
       FROM OpeningCashDenomination 
-      WHERE CAST(CreatedOn as DATE) = CAST(GETDATE() as DATE)
-      AND Type = '${type}'
-    `);
+      WHERE Type = @type
+    `;
+    request.input('type', sql.VarChar, type);
     
+    const targetScreenType = screenType || 'CB';
+    request.input('screenType', sql.VarChar, targetScreenType);
+    query += ` AND (ScreenType = @screenType OR (ScreenType IS NULL AND @screenType = 'CB'))`;
+    
+    if (date) {
+      request.input('date', sql.Date, date);
+      query += ` AND CAST(CreatedOn as DATE) = @date`;
+    } else {
+      query += ` AND CAST(CreatedOn as DATE) = CAST(GETDATE() as DATE)`;
+    }
+    
+    const result = await request.query(query);
     res.json({ success: true, data: result.recordset });
   } catch (err) {
     console.error('Error getting denominations:', err);
@@ -309,8 +324,9 @@ router.get('/denominations', authenticateToken, async (req, res) => {
 // ============================================
 router.post('/save-denominations', authenticateToken, async (req, res) => {
   try {
-    const { denominations, type } = req.body;
+    const { denominations, type, date, outletId, screenType } = req.body;
     const recordType = type === 'CLOSE' ? 'CLOSE' : 'OPEN';
+    const targetScreenType = screenType || 'CB';
     
     if (!denominations || !Array.isArray(denominations)) {
       return res.status(400).json({ error: 'Invalid denominations data' });
@@ -324,21 +340,89 @@ router.post('/save-denominations', authenticateToken, async (req, res) => {
       const request = new sql.Request(transaction);
       const createdBy = req.user?.userName || req.user?.username || 'Admin';
       
-      // Delete existing records for today to allow "update"
+      const targetDate = date ? new Date(date) : new Date();
+      
+      // Delete existing records for targetDate and targetScreenType to allow "update"
+      request.input('targetDate', sql.Date, targetDate);
+      request.input('screenType', sql.VarChar, targetScreenType);
       await request.query(`
         DELETE FROM OpeningCashDenomination 
-        WHERE CAST(CreatedOn as DATE) = CAST(GETDATE() as DATE)
+        WHERE CAST(CreatedOn as DATE) = @targetDate
         AND Type = '${recordType}'
+        AND (ScreenType = @screenType OR (ScreenType IS NULL AND @screenType = 'CB'))
       `);
       
       // Loop through and insert each denomination that has a count > 0
       for (const item of denominations) {
         if (item.count > 0) {
-          await request.query(`
-            INSERT INTO OpeningCashDenomination (CurrencyValue, NoteCount, Type, CreatedBy, CreatedOn)
-            VALUES (${item.value}, ${item.count}, '${recordType}', '${createdBy.replace(/'/g, "''")}', GETDATE())
+          const insertReq = new sql.Request(transaction);
+          insertReq.input('value', sql.Decimal(10,2), item.value);
+          insertReq.input('count', sql.Int, item.count);
+          insertReq.input('recordType', sql.VarChar, recordType);
+          insertReq.input('createdBy', sql.VarChar, createdBy);
+          insertReq.input('targetDate', sql.Date, targetDate);
+          insertReq.input('screenType', sql.VarChar, targetScreenType);
+          
+          const dateValue = date ? '@targetDate' : 'GETDATE()';
+          await insertReq.query(`
+            INSERT INTO OpeningCashDenomination (CurrencyValue, NoteCount, Type, CreatedBy, CreatedOn, ScreenType)
+            VALUES (@value, @count, @recordType, @createdBy, ${dateValue}, @screenType)
           `);
         }
+      }
+      
+      // Sync to settlement table
+      const notes = {};
+      const coins = {};
+      let totalAmount = 0;
+      for (const item of denominations) {
+        if (item.count > 0) {
+          totalAmount += item.value * item.count;
+          const key = item.value.toFixed(2);
+          if (item.value >= 1) {
+            notes[key] = item.count;
+          } else {
+            coins[key] = item.count;
+          }
+        }
+      }
+      const jsonStr = JSON.stringify({ notes, coins });
+      
+      const parsedOutletId = parseInt(outletId) || 1;
+      
+      if (recordType === 'OPEN') {
+        const setRequest = new sql.Request(transaction);
+        setRequest.input('outletId', sql.Int, parsedOutletId);
+        setRequest.input('settlementDate', sql.Date, targetDate);
+        setRequest.input('openingCashJSON', sql.NVarChar, jsonStr);
+        setRequest.input('openingCashTotal', sql.Decimal(10,2), totalAmount);
+        setRequest.input('cashierName', sql.NVarChar, createdBy || '');
+        await setRequest.query(`
+          MERGE settlement AS target
+          USING (SELECT @outletId as OutletId, @settlementDate as SettlementDate) AS source
+          ON (target.OutletId = source.OutletId AND target.SettlementDate = source.SettlementDate)
+          WHEN MATCHED THEN
+            UPDATE SET OpeningCashJSON = @openingCashJSON, OpeningCashTotal = @openingCashTotal, CashierName = @cashierName, UpdatedAt = GETDATE()
+          WHEN NOT MATCHED THEN
+            INSERT (OutletId, SettlementDate, CashierName, OpeningCashJSON, OpeningCashTotal, CreatedAt)
+            VALUES (@outletId, @settlementDate, @cashierName, @openingCashJSON, @openingCashTotal, GETDATE());
+        `);
+      } else if (recordType === 'CLOSE') {
+        const setRequest = new sql.Request(transaction);
+        setRequest.input('outletId', sql.Int, parsedOutletId);
+        setRequest.input('settlementDate', sql.Date, targetDate);
+        setRequest.input('physicalCashJSON', sql.NVarChar, jsonStr);
+        setRequest.input('physicalCashTotal', sql.Decimal(10,2), totalAmount);
+        await setRequest.query(`
+          MERGE settlement AS target
+          USING (SELECT @outletId as OutletId, @settlementDate as SettlementDate) AS source
+          ON (target.OutletId = source.OutletId AND target.SettlementDate = source.SettlementDate)
+          WHEN MATCHED THEN
+            UPDATE SET PhysicalCashJSON = @physicalCashJSON, PhysicalCashTotal = @physicalCashTotal, UpdatedAt = GETDATE()
+          WHEN NOT MATCHED THEN
+            INSERT (OutletId, SettlementDate, PhysicalCashJSON, PhysicalCashTotal, CreatedAt)
+            VALUES (@outletId, @settlementDate, @physicalCashJSON, @physicalCashTotal, GETDATE());
+        `);
       }
       
       await transaction.commit();
@@ -396,7 +480,7 @@ router.get('/cash-out/:terminal', authenticateToken, async (req, res) => {
 // POST new Cash Out entry
 router.post('/cash-out', authenticateToken, async (req, res) => {
   try {
-    const { amount, reason, remarks, paymentMode, referenceNo, terminalCode } = req.body;
+    const { amount, reason, remarks, paymentMode, referenceNo, terminalCode, date } = req.body;
     
     if (!amount || amount <= 0) {
       return res.status(400).json({ error: 'Valid amount is required' });
@@ -406,7 +490,8 @@ router.post('/cash-out', authenticateToken, async (req, res) => {
     const pool = getPool();
     
     // Generate simple auto-incrementing/timestamp-based CashOutNo
-    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const targetDate = date ? new Date(date) : new Date();
+    const dateStr = targetDate.toISOString().slice(0, 10).replace(/-/g, '');
     const randId = Math.floor(1000 + Math.random() * 9000);
     const cashOutNo = `CO-${dateStr}-${randId}`;
 
@@ -419,10 +504,11 @@ router.post('/cash-out', authenticateToken, async (req, res) => {
       .input('ReferenceNo', sql.VarChar, referenceNo || '')
       .input('TerminalCode', sql.VarChar, terminalCode || '')
       .input('CreatedBy', sql.VarChar, createdBy)
+      .input('targetDate', sql.Date, targetDate)
       .query(`
-        INSERT INTO CashOutEntry (CashOutNo, Amount, Reason, Remarks, PaymentMode, ReferenceNo, TerminalCode, CreatedBy, CreatedOn)
+        INSERT INTO CashOutEntry (CashOutNo, CashOutDate, Amount, Reason, Remarks, PaymentMode, ReferenceNo, TerminalCode, CreatedBy, CreatedOn)
         OUTPUT inserted.*
-        VALUES (@CashOutNo, @Amount, @Reason, @Remarks, @PaymentMode, @ReferenceNo, @TerminalCode, @CreatedBy, GETDATE())
+        VALUES (@CashOutNo, @targetDate, @Amount, @Reason, @Remarks, @PaymentMode, @ReferenceNo, @TerminalCode, @CreatedBy, @targetDate)
       `);
 
     res.json({ success: true, data: result.recordset[0] });

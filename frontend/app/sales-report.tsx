@@ -218,14 +218,12 @@ export default function SalesReport() {
   useEffect(() => {
     const loadState = async () => {
       try {
-        const savedDate = await AsyncStorage.getItem("sales_selected_date");
         const savedFilter = await AsyncStorage.getItem("sales_selected_filter");
         const savedModes = await AsyncStorage.getItem("sales_payment_modes");
         const savedTypes = await AsyncStorage.getItem("sales_order_types");
         const savedSort = await AsyncStorage.getItem("sales_sort_order");
         const savedDownloadFilter = await AsyncStorage.getItem("sales_download_filter");
 
-        if (savedDate) setSelectedDate(savedDate);
         if (
           savedFilter &&
           ["DAILY", "WEEKLY", "MONTHLY", "YEARLY"].includes(savedFilter)
@@ -250,7 +248,6 @@ export default function SalesReport() {
   }, []);
 
   useEffect(() => {
-    AsyncStorage.setItem("sales_selected_date", selectedDate);
     AsyncStorage.setItem("sales_selected_filter", selectedFilter);
     AsyncStorage.setItem("sales_download_filter", downloadFilter);
     AsyncStorage.setItem(
@@ -1300,7 +1297,7 @@ export default function SalesReport() {
               {isSettlement
                 ? "SETTLEMENT DETAILS REPORT"
                 : isDishReport
-                  ? "DISH SALES REPORT"
+                  ? "ITEM SALES REPORT"
                   : "CATEGORY SALES REPORT"}
             </Text>
             <Text style={styles.reportSubText}>
@@ -1385,15 +1382,8 @@ export default function SalesReport() {
                           : styles.categoryNameCell,
                       ]}
                     >
-                      {isDishReport ? "Dish" : "Category"}
+                      {isDishReport ? "Item" : "Category"}
                     </Text>
-                    {isDishReport && (
-                      <Text
-                        style={[styles.reportCell, styles.categoryNameCell]}
-                      >
-                        Category
-                      </Text>
-                    )}
                     {isDishReport && (
                       <Text
                         style={[styles.reportCell, styles.subCategoryNameCell]}
@@ -1539,7 +1529,6 @@ export default function SalesReport() {
                         >
                           ▼ {category}
                         </Text>
-                        <View style={styles.categoryNameCell} />
                         <View style={styles.subCategoryNameCell} />
                         <Text
                           style={[
@@ -1601,16 +1590,6 @@ export default function SalesReport() {
                               ]}
                             >
                               {row.DishName}
-                            </Text>
-                            <Text
-                              numberOfLines={1}
-                              style={[
-                                styles.reportCell,
-                                styles.reportCellText,
-                                styles.categoryNameCell,
-                              ]}
-                            >
-                              {row.CategoryName || "Unmapped"}
                             </Text>
                             <Text
                               numberOfLines={1}
