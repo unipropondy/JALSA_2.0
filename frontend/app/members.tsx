@@ -96,6 +96,32 @@ export default function MembersScreen() {
   } | null>(null);
   const [loadingUsage, setLoadingUsage] = useState(false);
 
+  // Bill Details State
+  const [selectedBill, setSelectedBill] = useState<any>(null);
+  const [billDetails, setBillDetails] = useState<any[]>([]);
+  const [loadingBillDetails, setLoadingBillDetails] = useState(false);
+  const [showBillDetailsModal, setShowBillDetailsModal] = useState(false);
+
+  const handleBillPress = async (tx: any) => {
+    setSelectedBill(tx);
+    setShowBillDetailsModal(true);
+    setLoadingBillDetails(true);
+    setBillDetails([]);
+    try {
+      const res = await fetch(`${API_URL}/api/sales/detail/${tx.SettlementID}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setBillDetails(data);
+        }
+      }
+    } catch (err) {
+      console.error("[BILL DETAIL FETCH ERROR]", err);
+    } finally {
+      setLoadingBillDetails(false);
+    }
+  };
+
   // ── Recharge handler ────────────────────────────────────────────────────
   const openRechargeModal = (member: MemberType) => {
     setRechargeMember(member);
@@ -380,14 +406,6 @@ export default function MembersScreen() {
             </View>
           </View>
           <View style={styles.cardActions}>
-            {/* Recharge button */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => onRecharge(item)}
-              style={[styles.actionBtn, { backgroundColor: '#F59E0B' + '20' }]}
-            >
-              <Ionicons name="add-circle-outline" size={18} color="#F59E0B" />
-            </TouchableOpacity>
             <TouchableOpacity
               activeOpacity={0.7}
               onPress={() => onSendWhatsApp(item)}
@@ -419,23 +437,7 @@ export default function MembersScreen() {
           </View>
         </View>
 
-        {/* ── Low-Balance Banner ── */}
-        {isLow && (
-          <View style={styles.lowBalanceBanner}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-              <Ionicons name="warning" size={16} color="#F59E0B" />
-              <Text style={styles.lowBalanceText}>Low balance — please recharge</Text>
-            </View>
-            {/* Manual WA reminder button (useful when auto-alert was already sent) */}
-            <TouchableOpacity
-              style={styles.lowBalanceWABtn}
-              onPress={() => onSendLowBalanceReminder(item)}
-            >
-              <Ionicons name="logo-whatsapp" size={14} color="#fff" />
-              <Text style={styles.lowBalanceWAText}>Remind</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+
 
         <View style={styles.cardDivider} />
 
@@ -463,24 +465,24 @@ export default function MembersScreen() {
         {/* ── Prepaid Balance Card ── */}
         <View style={styles.financialSummaryBlock}>
           <View style={styles.financialCol}>
-            <Text style={styles.financialLabel}>TOTAL PREPAID</Text>
-            <Text style={[styles.financialVal, { color: Theme.primary }]}>
-              {formatMoney(totalBalance)}
+            <Text style={styles.financialLabel}>CREDIT LIMIT</Text>
+            <Text style={[styles.financialVal, { color: Theme.success }]}>
+              {formatMoney(creditLimit)}
             </Text>
           </View>
           <View style={[styles.financialCol, { borderLeftWidth: 1, borderRightWidth: 1, borderColor: Theme.border + '50' }]}>
             <Text style={styles.financialLabel}>CONSUMED</Text>
-            <Text style={[styles.financialVal, { color: Theme.textSecondary }]}>
-              {formatMoney(totalBalance - currentBalance)}
+            <Text style={[styles.financialVal, { color: Theme.textPrimary }]}>
+              {formatMoney(currentBalance)}
             </Text>
           </View>
           <View style={styles.financialCol}>
-            <Text style={styles.financialLabel}>AVAILABLE</Text>
+            <Text style={styles.financialLabel}>AVAILABLE CREDIT</Text>
             <Text style={[
               styles.financialVal,
-              { color: isLow ? Theme.warning : Theme.success }
+              { color: Theme.success }
             ]}>
-              {formatMoney(currentBalance)}
+              {formatMoney(creditLimit - currentBalance)}
             </Text>
           </View>
         </View>
@@ -813,7 +815,12 @@ export default function MembersScreen() {
                       {usageData.transactions.map((tx) => {
                         const dateObj = new Date(tx.LastSettlementDate);
                         return (
-                          <View key={tx.SettlementID} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Theme.bgInput, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: Theme.border }}>
+                          <TouchableOpacity 
+                            key={tx.SettlementID} 
+                            activeOpacity={0.7}
+                            onPress={() => handleBillPress(tx)}
+                            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Theme.bgInput, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: Theme.border }}
+                          >
                             <View>
                               <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: Theme.textPrimary }}>Bill #{tx.BillNo}</Text>
                               <Text style={{ fontFamily: Fonts.medium, fontSize: 10, color: Theme.textMuted }}>
@@ -823,7 +830,7 @@ export default function MembersScreen() {
                             <Text style={{ fontFamily: Fonts.black, fontSize: 14, color: Theme.textPrimary }}>
                               ${(tx.SysAmount || 0).toFixed(2)}
                             </Text>
-                          </View>
+                          </TouchableOpacity>
                         );
                       })}
                     </View>
@@ -835,6 +842,91 @@ export default function MembersScreen() {
 
                   <TouchableOpacity style={styles.submitBtn} onPress={() => { setShowUsageModal(false); setUsageMember(null); setUsageData(null); }}>
                     <Text style={styles.submitBtnText}>Done</Text>
+                  </TouchableOpacity>
+                  <View style={{ height: 30 }} />
+                </ScrollView>
+              )}
+            </View>
+          </View>
+        </Modal>
+
+        {/* Bill Details Modal */}
+        <Modal visible={showBillDetailsModal} transparent animationType="slide">
+          <View style={styles.modalOverlay}>
+            <View style={[styles.formSheet, { maxWidth: 450 }]}>
+              <View style={styles.sheetHeader}>
+                <View>
+                  <Text style={styles.sheetTitle}>Bill Details</Text>
+                  {selectedBill && (
+                    <Text style={{ fontFamily: Fonts.bold, color: Theme.textSecondary, fontSize: 13, marginTop: 4 }}>
+                      Bill #{selectedBill.BillNo}
+                    </Text>
+                  )}
+                </View>
+                <TouchableOpacity onPress={() => { setShowBillDetailsModal(false); setSelectedBill(null); setBillDetails([]); }} style={styles.sheetClose}>
+                  <Ionicons name="close" size={24} color={Theme.textPrimary} />
+                </TouchableOpacity>
+              </View>
+
+              {loadingBillDetails ? (
+                <View style={[styles.center, { padding: 40 }]}>
+                  <ActivityIndicator size="large" color={Theme.primary} />
+                </View>
+              ) : (
+                <ScrollView style={styles.sheetBody} showsVerticalScrollIndicator={false}>
+                  {selectedBill && (
+                    <View style={{ marginBottom: 20 }}>
+                      <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: Theme.textMuted, marginBottom: 8 }}>
+                        DATE & TIME
+                      </Text>
+                      <Text style={{ fontFamily: Fonts.black, fontSize: 15, color: Theme.textPrimary }}>
+                        {(() => {
+                          const dateObj = new Date(selectedBill.LastSettlementDate);
+                          return `${dateObj.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })} • ${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+                        })()}
+                      </Text>
+                    </View>
+                  )}
+
+                  <Text style={{ fontFamily: Fonts.black, fontSize: 14, color: Theme.textPrimary, marginBottom: 10, letterSpacing: 0.5 }}>
+                    ITEMS ORDERED
+                  </Text>
+                  {billDetails && billDetails.length > 0 ? (
+                    <View style={{ backgroundColor: Theme.bgInput, borderRadius: 16, padding: 12, marginBottom: 20, borderWidth: 1, borderColor: Theme.border }}>
+                      {billDetails.map((item, idx) => (
+                        <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: idx < billDetails.length - 1 ? 1 : 0, borderBottomColor: Theme.border }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: Theme.textPrimary }}>{item.DishName}</Text>
+                            {item.modifiers && item.modifiers.length > 0 && (
+                              <Text style={{ fontFamily: Fonts.medium, fontSize: 11, color: Theme.textMuted, marginLeft: 8 }}>
+                                + {item.modifiers.map((m: any) => m.ModifierName).join(", ")}
+                              </Text>
+                            )}
+                            <Text style={{ fontFamily: Fonts.medium, fontSize: 11, color: Theme.textMuted }}>Qty: {item.Qty} x {formatMoney(item.Price)}</Text>
+                          </View>
+                          <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: Theme.success }}>
+                            {formatMoney((item.Price || 0) * (item.Qty || 0))}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    <Text style={{ fontFamily: Fonts.medium, fontSize: 13, color: Theme.textMuted, marginBottom: 20, fontStyle: 'italic' }}>
+                      No items recorded.
+                    </Text>
+                  )}
+
+                  {selectedBill && (
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Theme.primary + '10', padding: 16, borderRadius: 16, borderLeftWidth: 4, borderLeftColor: Theme.primary, marginBottom: 25 }}>
+                      <Text style={{ fontFamily: Fonts.black, fontSize: 14, color: Theme.primary }}>TOTAL AMOUNT</Text>
+                      <Text style={{ fontFamily: Fonts.black, fontSize: 18, color: Theme.textPrimary }}>
+                        {formatMoney(selectedBill.SysAmount)}
+                      </Text>
+                    </View>
+                  )}
+
+                  <TouchableOpacity style={styles.submitBtn} onPress={() => { setShowBillDetailsModal(false); setSelectedBill(null); setBillDetails([]); }}>
+                    <Text style={styles.submitBtnText}>Close</Text>
                   </TouchableOpacity>
                   <View style={{ height: 30 }} />
                 </ScrollView>

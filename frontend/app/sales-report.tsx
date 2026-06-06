@@ -2289,11 +2289,9 @@ export default function SalesReport() {
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
             <View>
               <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: "#ec4899" }}>Member Accounts</Text>
-              <Text style={{ fontFamily: Fonts.medium, fontSize: 9, color: Theme.textMuted, marginTop: 1 }}>Prepaid (Deducted from balance)</Text>
             </View>
             <View style={{ alignItems: "flex-end" }}>
               <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: Theme.success }}>Sales: {formatCurrency(paymentBreakdownMetrics.Member)}</Text>
-              <Text style={{ fontFamily: Fonts.medium, fontSize: 10, color: Theme.textMuted, marginTop: 1 }}>No outstanding — prepaid</Text>
             </View>
           </View>
 
@@ -2804,7 +2802,7 @@ export default function SalesReport() {
                     <View style={{ height: 1, backgroundColor: Theme.border + "50", marginVertical: 2 }} />
                   )}
                   {/* Final total + paid badge */}
-                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                     <View>
                       <Text style={[styles.totalLabel, { fontSize: 10, color: Theme.textSecondary, textTransform: "uppercase", letterSpacing: 1 }]}>
                         Total Amount
@@ -2813,81 +2811,104 @@ export default function SalesReport() {
                         {formatCurrency(selectedOrder?.SysAmount)}
                       </Text>
                     </View>
-                    <View style={[
-                      styles.paidBadgeSmall,
-                      {
-                        paddingHorizontal: 6,
-                        paddingVertical: 2,
-                        backgroundColor: selectedOrder?.IsCancelled 
-                          ? Theme.danger + "20" 
-                          : selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0
-                          ? Number(selectedOrder.OutstandingAmount) === Number(selectedOrder.SysAmount)
-                            ? "#ef444420"
-                            : "#f59e0b20"
-                          : Theme.success + "20",
-                        borderColor: selectedOrder?.IsCancelled 
-                          ? Theme.danger + "40" 
-                          : selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0
-                          ? Number(selectedOrder.OutstandingAmount) === Number(selectedOrder.SysAmount)
-                            ? "#ef444440"
-                            : "#f59e0b40"
-                          : Theme.success + "40"
-                      }
-                    ]}>
-                      <Ionicons 
-                        name={
-                          selectedOrder?.IsCancelled 
-                            ? "close-circle" 
-                            : selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0
-                            ? Number(selectedOrder.OutstandingAmount) === Number(selectedOrder.SysAmount)
-                              ? "alert-circle"
-                              : "time"
-                            : "checkmark-circle"
-                        } 
-                        size={14} 
-                        color={
-                          selectedOrder?.IsCancelled 
-                            ? Theme.danger 
-                            : selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0
-                            ? Number(selectedOrder.OutstandingAmount) === Number(selectedOrder.SysAmount)
-                              ? "#ef4444"
-                              : "#f59e0b"
-                            : Theme.success
-                        } 
-                      />
-                      <Text style={{ 
-                        color: selectedOrder?.IsCancelled 
-                          ? Theme.danger 
-                          : selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0
-                          ? Number(selectedOrder.OutstandingAmount) === Number(selectedOrder.SysAmount)
-                            ? "#ef4444"
-                            : "#f59e0b"
-                          : Theme.success, 
-                        fontFamily: Fonts.black, 
-                        fontSize: 10, 
-                        marginLeft: 4 
-                      }}>
-                        {selectedOrder?.IsCancelled 
-                          ? "CANCELLED" 
-                          : selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0
-                          ? Number(selectedOrder.OutstandingAmount) === Number(selectedOrder.SysAmount)
-                            ? "UNPAID"
-                            : "PARTIAL"
-                          : "PAID"}
-                      </Text>
-                    </View>
+                    {(() => {
+                      const isMemberOrder = String(selectedOrder?.PayMode || "").toUpperCase().trim() === "MEMBER";
+                      return (
+                        <View style={[
+                          styles.paidBadgeSmall,
+                          {
+                            paddingHorizontal: 6,
+                            paddingVertical: 2,
+                            backgroundColor: selectedOrder?.IsCancelled 
+                              ? Theme.danger + "20" 
+                              : isMemberOrder
+                              ? Theme.success + "20"
+                              : selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0
+                              ? Number(selectedOrder.OutstandingAmount) === Number(selectedOrder.SysAmount)
+                                ? "#ef444420"
+                                : "#f59e0b20"
+                              : Theme.success + "20",
+                            borderColor: selectedOrder?.IsCancelled 
+                              ? Theme.danger + "40" 
+                              : isMemberOrder
+                              ? Theme.success + "40"
+                              : selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0
+                              ? Number(selectedOrder.OutstandingAmount) === Number(selectedOrder.SysAmount)
+                                ? "#ef444440"
+                                : "#f59e0b40"
+                              : Theme.success + "40"
+                          }
+                        ]}>
+                          <Ionicons 
+                            name={
+                              selectedOrder?.IsCancelled 
+                                ? "close-circle" 
+                                : isMemberOrder
+                                ? "checkmark-circle"
+                                : selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0
+                                ? Number(selectedOrder.OutstandingAmount) === Number(selectedOrder.SysAmount)
+                                  ? "alert-circle"
+                                  : "time"
+                                : "checkmark-circle"
+                            } 
+                            size={14} 
+                            color={
+                              selectedOrder?.IsCancelled 
+                                ? Theme.danger 
+                                : isMemberOrder
+                                ? Theme.success
+                                : selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0
+                                ? Number(selectedOrder.OutstandingAmount) === Number(selectedOrder.SysAmount)
+                                  ? "#ef4444"
+                                  : "#f59e0b"
+                                : Theme.success
+                            } 
+                          />
+                          <Text style={{ 
+                            color: selectedOrder?.IsCancelled 
+                              ? Theme.danger 
+                              : isMemberOrder
+                              ? Theme.success
+                              : selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0
+                              ? Number(selectedOrder.OutstandingAmount) === Number(selectedOrder.SysAmount)
+                                ? "#ef4444"
+                                : "#f59e0b"
+                              : Theme.success, 
+                            fontFamily: Fonts.black, 
+                            fontSize: 10, 
+                            marginLeft: 4 
+                          }}>
+                            {selectedOrder?.IsCancelled 
+                              ? "CANCELLED" 
+                              : isMemberOrder
+                              ? "PAID"
+                              : selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0
+                              ? Number(selectedOrder.OutstandingAmount) === Number(selectedOrder.SysAmount)
+                                ? "UNPAID"
+                                : "PARTIAL"
+                              : "PAID"}
+                          </Text>
+                        </View>
+                      );
+                    })()}
                   </View>
                   {/* Paid / Pending details inside the modal */}
-                  {selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0 && !selectedOrder?.IsCancelled && (
-                    <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: Theme.border + "40", flexDirection: "row", justifyContent: "space-between" }}>
-                      <Text style={{ fontSize: 11, fontFamily: Fonts.bold, color: Theme.textSecondary }}>
-                        Paid: <Text style={{ color: Theme.success, fontFamily: Fonts.black }}>{formatCurrency(Number(selectedOrder.SysAmount) - Number(selectedOrder.OutstandingAmount))}</Text>
-                      </Text>
-                      <Text style={{ fontSize: 11, fontFamily: Fonts.bold, color: Theme.textSecondary }}>
-                        Pending: <Text style={{ color: "#ef4444", fontFamily: Fonts.black }}>{formatCurrency(Number(selectedOrder.OutstandingAmount))}</Text>
-                      </Text>
-                    </View>
-                  )}
+                  {(() => {
+                    const isMemberOrder = String(selectedOrder?.PayMode || "").toUpperCase().trim() === "MEMBER";
+                    if (selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0 && !selectedOrder?.IsCancelled && !isMemberOrder) {
+                      return (
+                        <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: Theme.border + "40", flexDirection: "row", justifyContent: "space-between" }}>
+                          <Text style={{ fontSize: 11, fontFamily: Fonts.bold, color: Theme.textSecondary }}>
+                            Paid: <Text style={{ color: Theme.success, fontFamily: Fonts.black }}>{formatCurrency(Number(selectedOrder.SysAmount) - Number(selectedOrder.OutstandingAmount))}</Text>
+                          </Text>
+                          <Text style={{ fontSize: 11, fontFamily: Fonts.bold, color: Theme.textSecondary }}>
+                            Pending: <Text style={{ color: "#ef4444", fontFamily: Fonts.black }}>{formatCurrency(Number(selectedOrder.OutstandingAmount))}</Text>
+                          </Text>
+                        </View>
+                      );
+                    }
+                    return null;
+                  })()}
                 </View>
 
                 <View style={{ flexDirection: "row", gap: 12 }}>
