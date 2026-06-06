@@ -469,7 +469,7 @@ export default function MembersScreen() {
             </Text>
           </View>
           <View style={[styles.financialCol, { borderLeftWidth: 1, borderRightWidth: 1, borderColor: Theme.border + '50' }]}>
-            <Text style={styles.financialLabel}>SPENT</Text>
+            <Text style={styles.financialLabel}>CONSUMED</Text>
             <Text style={[styles.financialVal, { color: Theme.textSecondary }]}>
               {formatMoney(totalBalance - currentBalance)}
             </Text>

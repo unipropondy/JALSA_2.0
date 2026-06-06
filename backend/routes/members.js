@@ -133,6 +133,51 @@ router.get("/search", async (req, res) => {
   }
 });
 
+// Member Dashboard Stats — recharges this month, today, active members, total balance
+router.get("/stats", async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const result = await pool.request().query(`
+      SELECT
+        -- Active members count
+        (SELECT COUNT(*) FROM MemberMaster WHERE IsActive = 1) AS totalActiveMembers,
+        -- Total available balance across all active members
+        (SELECT ISNULL(SUM(CurrentBalance), 0) FROM MemberMaster WHERE IsActive = 1) AS totalAvailableBalance,
+        -- Recharges added this calendar month (RECHARGE transactions in CCT linked to MemberMaster)
+        (
+          SELECT ISNULL(SUM(cct.PaidAmount), 0)
+          FROM CustomerCreditTransactions cct
+          INNER JOIN MemberMaster mm ON cct.MemberId = mm.MemberId
+          WHERE cct.TransactionType = 'PAYMENT'
+            AND MONTH(cct.CreatedDate) = MONTH(GETDATE())
+            AND YEAR(cct.CreatedDate) = YEAR(GETDATE())
+        ) AS rechargesThisMonth,
+        -- Recharges added today
+        (
+          SELECT ISNULL(SUM(cct.PaidAmount), 0)
+          FROM CustomerCreditTransactions cct
+          INNER JOIN MemberMaster mm ON cct.MemberId = mm.MemberId
+          WHERE cct.TransactionType = 'PAYMENT'
+            AND CAST(cct.CreatedDate AS DATE) = CAST(GETDATE() AS DATE)
+        ) AS rechargesToday
+    `);
+
+    const row = result.recordset[0] || {};
+    res.json({
+      success: true,
+      stats: {
+        totalActiveMembers: Number(row.totalActiveMembers || 0),
+        totalAvailableBalance: Number(row.totalAvailableBalance || 0),
+        rechargesThisMonth: Number(row.rechargesThisMonth || 0),
+        rechargesToday: Number(row.rechargesToday || 0),
+      }
+    });
+  } catch (err) {
+    console.error("[MEMBER STATS ERROR]", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 router.get("/validate/:memberId", async (req, res) => {
   try {
     const { memberId } = req.params;

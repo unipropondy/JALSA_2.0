@@ -517,7 +517,7 @@ async function syncKitchensToPrintMaster(pool) {
       try {
         const cs = await pool.request().query("SELECT TOP 1 PrinterIP FROM CompanySettings WHERE PrinterIP IS NOT NULL AND PrinterIP <> ''");
         if (cs.recordset[0]?.PrinterIP) defaultIP = cs.recordset[0].PrinterIP;
-      } catch (_) {}
+      } catch (_) { }
       await pool.request()
         .input("ip", sql.NVarChar, defaultIP)
         .query(`
