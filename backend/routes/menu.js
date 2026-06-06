@@ -130,6 +130,7 @@ router.get("/dishes/group/:DishGroupId", async (req, res) => {
               d.Imageid AS Image,
               CASE WHEN d.Imageid IS NOT NULL THEN 1 ELSE 0 END AS HasImage,
               ISNULL(d.isServiceCharge, 0) AS isServiceCharge,
+              ISNULL(d.IsOpenItem, 0) AS IsOpenItem,
               ISNULL(ckt.KitchenTypeCode, '2') AS KitchenTypeCode,
               ISNULL(ISNULL(ckt.KitchenTypeName, cat.CategoryName), 'KITCHEN') AS KitchenTypeName,
               pm.PrinterPath AS PrinterIP
@@ -215,7 +216,7 @@ class LRUImageCache {
       this.estimatedMemoryBytes -= oldestValue.length || 0;
       this.cache.delete(oldestKey);
     }
-    
+
     this.cache.set(key, value);
     this.estimatedMemoryBytes += value.length || 0;
   }
@@ -231,7 +232,7 @@ class LRUImageCache {
     const totalRequests = this.hits + this.misses;
     const hitRate = totalRequests > 0 ? ((this.hits / totalRequests) * 100).toFixed(2) + "%" : "0.00%";
     const missRate = totalRequests > 0 ? ((this.misses / totalRequests) * 100).toFixed(2) + "%" : "0.00%";
-    
+
     return {
       size: this.cache.size,
       maxSize: this.maxSize,
@@ -250,7 +251,7 @@ router.imageCache = imageCache;
 router.get("/image/:imageId", async (req, res) => {
   try {
     const imageId = req.params.imageId;
-    
+
     // Serve from cache if available
     const cachedBuffer = imageCache.get(imageId);
     if (cachedBuffer) {
@@ -325,9 +326,9 @@ router.get("/modifiers/group/:DishGroupId", async (req, res) => {
 
 router.get("/checksplitdish/:DishId", async (req, res) => {
   try {
- 
+
     const pool = await poolPromise;
- 
+
     const result = await pool.request()
       .input("DishId", req.params.DishId)
       .query(`
@@ -337,20 +338,20 @@ router.get("/checksplitdish/:DishId", async (req, res) => {
         FROM DishMaster
         WHERE DishId = @DishId
       `);
- 
+
     res.json(result.recordset[0]);
- 
+
   } catch (err) {
     console.log(err);
     res.status(500).send(err.message);
   }
 });
- 
+
 router.get("/splitdishes", async (req, res) => {
   try {
- 
+
     const pool = await poolPromise;
- 
+
     const result = await pool.request().query(`
       SELECT
         DishId,
@@ -362,9 +363,9 @@ router.get("/splitdishes", async (req, res) => {
       AND IsActive = 1
       ORDER BY Name
     `);
- 
+
     res.json(result.recordset);
- 
+
   } catch (err) {
     console.log(err);
     res.status(500).send(err.message);
