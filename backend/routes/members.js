@@ -283,6 +283,7 @@ router.post("/pay", async (req, res) => {
   }
 
   let memberPaymentId;
+  let paymentTransactionId;
 
   await runInTransaction(async (transaction) => {
     // 1. Verify member exists and is active
@@ -319,7 +320,7 @@ router.post("/pay", async (req, res) => {
     const mainRemarks = req.body.remarks || `Credit payment collection (${payModeName})`;
 
     // 1. Write the primary PAYMENT transaction record
-    await transaction.request()
+    const payTxResult = await transaction.request()
       .input("MemberId", sql.UniqueIdentifier, memberId)
       .input("Amount", sql.Decimal(18, 2), numericAmt)
       .input("PaymentMethod", sql.NVarChar(50), payModeName)
@@ -328,8 +329,11 @@ router.post("/pay", async (req, res) => {
       .input("CreatedBy", sql.UniqueIdentifier, toGuidOrNull(userId))
       .query(`
         INSERT INTO CustomerCreditTransactions (MemberId, TransactionType, BillAmount, PaidAmount, OutstandingAmount, PaymentMethod, ReferenceNo, Status, Remarks, CreatedBy)
+        OUTPUT INSERTED.TransactionId
         VALUES (@MemberId, 'PAYMENT', 0, @Amount, -@Amount, @PaymentMethod, @ReferenceNo, 'CLOSED', @Remarks, @CreatedBy)
       `);
+    
+    paymentTransactionId = payTxResult.recordset[0].TransactionId;
     
     if (req.body.allocations && Array.isArray(req.body.allocations) && req.body.allocations.length > 0) {
       // --- MANUAL ALLOCATION ---
@@ -337,22 +341,40 @@ router.post("/pay", async (req, res) => {
         const allocAmt = parseFloat(alloc.amount);
         if (isNaN(allocAmt) || allocAmt <= 0) continue;
         
-        await transaction.request()
+        const billCheck = await transaction.request()
           .input("MemberId", sql.UniqueIdentifier, memberId)
           .input("SettlementId", sql.UniqueIdentifier, toGuidOrNull(alloc.settlementId))
-          .input("AllocAmt", sql.Decimal(18, 2), allocAmt)
           .query(`
-            UPDATE CustomerCreditTransactions
-            SET 
-              PaidAmount = PaidAmount + @AllocAmt,
-              OutstandingAmount = OutstandingAmount - @AllocAmt,
-              Status = CASE WHEN (OutstandingAmount - @AllocAmt) <= 0.01 THEN 'CLOSED' ELSE 'PARTIAL' END,
-              UpdatedDate = GETDATE()
-            WHERE MemberId = @MemberId 
-              AND SettlementId = @SettlementId 
-              AND TransactionType IN ('CREDIT_SALE', 'ADJUSTMENT')
-              AND Status IN ('OPEN', 'PARTIAL')
+            SELECT TransactionId FROM CustomerCreditTransactions
+            WHERE MemberId = @MemberId AND SettlementId = @SettlementId AND TransactionType IN ('CREDIT_SALE', 'ADJUSTMENT')
           `);
+          
+        if (billCheck.recordset.length > 0) {
+          const invoiceTransactionId = billCheck.recordset[0].TransactionId;
+          
+          await transaction.request()
+            .input("TransactionId", sql.UniqueIdentifier, invoiceTransactionId)
+            .input("AllocAmt", sql.Decimal(18, 2), allocAmt)
+            .query(`
+              UPDATE CustomerCreditTransactions
+              SET 
+                PaidAmount = PaidAmount + @AllocAmt,
+                OutstandingAmount = OutstandingAmount - @AllocAmt,
+                Status = CASE WHEN (OutstandingAmount - @AllocAmt) <= 0.01 THEN 'CLOSED' ELSE 'PARTIAL' END,
+                UpdatedDate = GETDATE()
+              WHERE TransactionId = @TransactionId
+            `);
+
+          // Insert allocation record
+          await transaction.request()
+            .input("PaymentTransactionId", sql.UniqueIdentifier, paymentTransactionId)
+            .input("InvoiceTransactionId", sql.UniqueIdentifier, invoiceTransactionId)
+            .input("AllocAmt", sql.Decimal(18, 2), allocAmt)
+            .query(`
+              INSERT INTO CustomerCreditAllocations (PaymentTransactionId, InvoiceTransactionId, Amount)
+              VALUES (@PaymentTransactionId, @InvoiceTransactionId, @AllocAmt)
+            `);
+        }
       }
     } else {
       // --- AUTO ALLOCATION (FIFO) ---
@@ -392,6 +414,16 @@ router.post("/pay", async (req, res) => {
               UpdatedDate = GETDATE()
             WHERE TransactionId = @TransactionId
           `);
+
+        // Insert allocation record
+        await transaction.request()
+          .input("PaymentTransactionId", sql.UniqueIdentifier, paymentTransactionId)
+          .input("InvoiceTransactionId", sql.UniqueIdentifier, bill.TransactionId)
+          .input("AllocAmt", sql.Decimal(18, 2), allocAmt)
+          .query(`
+            INSERT INTO CustomerCreditAllocations (PaymentTransactionId, InvoiceTransactionId, Amount)
+            VALUES (@PaymentTransactionId, @InvoiceTransactionId, @AllocAmt)
+          `);
           
         remainingPayment -= allocAmt;
       }
@@ -404,7 +436,7 @@ router.post("/pay", async (req, res) => {
       .query("UPDATE MemberMaster SET CurrentBalance = CurrentBalance - @Amount WHERE MemberId = @MemberId");
   }, { name: "MemberPayment", timeoutMs: 60000 });
 
-  res.json({ success: true, memberPaymentId });
+  res.json({ success: true, memberPaymentId, paymentTransactionId });
   } catch (err) {
     console.error("[MEMBER PAYMENT ERROR]", err);
     res.status(500).json({ error: err.message });

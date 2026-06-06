@@ -386,6 +386,34 @@ async function initDB(pool) {
           SELECT MemberId, 'ADJUSTMENT', CurrentBalance, 0, CurrentBalance, 'OPEN', 'Balance migration from legacy profile', GETDATE()
           FROM MemberMaster
           WHERE CurrentBalance > 0
+    `);
+
+    await runQuery("Create CustomerCreditAllocations", `
+      IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[CustomerCreditAllocations]') AND type in (N'U'))
+      BEGIN
+          CREATE TABLE [dbo].[CustomerCreditAllocations](
+              [AllocationId] UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+              [PaymentTransactionId] UNIQUEIDENTIFIER NOT NULL,
+              [InvoiceTransactionId] UNIQUEIDENTIFIER NOT NULL,
+              [Amount] DECIMAL(18, 2) NOT NULL,
+              [CreatedDate] DATETIME2 NOT NULL DEFAULT GETDATE()
+          )
+      END
+    `);
+
+    await runQuery("Index - CustomerCreditAllocations PaymentTransactionId", `
+      IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_CreditAlloc_PaymentTransactionId' AND object_id = OBJECT_ID('CustomerCreditAllocations'))
+      BEGIN
+        CREATE NONCLUSTERED INDEX IX_CreditAlloc_PaymentTransactionId 
+        ON CustomerCreditAllocations(PaymentTransactionId)
+      END
+    `);
+
+    await runQuery("Index - CustomerCreditAllocations InvoiceTransactionId", `
+      IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_CreditAlloc_InvoiceTransactionId' AND object_id = OBJECT_ID('CustomerCreditAllocations'))
+      BEGIN
+        CREATE NONCLUSTERED INDEX IX_CreditAlloc_InvoiceTransactionId 
+        ON CustomerCreditAllocations(InvoiceTransactionId)
       END
     `);
 

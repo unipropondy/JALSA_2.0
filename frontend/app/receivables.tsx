@@ -37,6 +37,7 @@ type CustomerAgingType = {
   Bucket31to60: number;
   Bucket61to90: number;
   Bucket90Plus: number;
+  CustomerType: "MEMBER" | "CREDIT";
 };
 
 type CreditTransactionType = {
@@ -52,6 +53,7 @@ type CreditTransactionType = {
 };
 
 type OutstandingBillType = {
+  TransactionId: string;
   SettlementId: string;
   BillNo: string;
   GrossAmount: number;
@@ -66,6 +68,32 @@ type DashboardStats = {
   totalCustomersWithCredit: number;
   collectionsToday: number;
   collectionsThisMonth: number;
+  totalCredit: number;
+  totalPaid: number;
+};
+
+type CollectionTransactionType = {
+  TransactionId: string;
+  MemberId: string;
+  BillNo?: string;
+  Amount: number;
+  PaymentMethod?: string;
+  ReferenceNo?: string;
+  Remarks?: string;
+  CreatedDate: string;
+  CustomerName: string;
+  CustomerPhone: string;
+  CustomerType: "MEMBER" | "CREDIT";
+};
+
+type BillSettlementType = {
+  AllocationId: string;
+  PaymentTransactionId: string;
+  AllocatedAmount: number;
+  CreatedDate: string;
+  PaymentMethod?: string;
+  ReferenceNo?: string;
+  Remarks?: string;
 };
 
 export default function ReceivablesScreen() {
@@ -82,11 +110,12 @@ export default function ReceivablesScreen() {
   const [footerDiagHeight, setFooterDiagHeight] = useState<number>(0);
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<"DASHBOARD" | "AGING">("DASHBOARD");
+  const [activeTab, setActiveTab] = useState<"DASHBOARD" | "AGING" | "REPORTS">("DASHBOARD");
 
   // Data states
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [agingData, setAgingData] = useState<CustomerAgingType[]>([]);
+  const [recentCollections, setRecentCollections] = useState<CollectionTransactionType[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -94,6 +123,11 @@ export default function ReceivablesScreen() {
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerAgingType | null>(null);
   const [showLedgerModal, setShowLedgerModal] = useState(false);
   const [ledgerTab, setLedgerTab] = useState<"LEDGER" | "BILLS">("LEDGER");
+
+  // Invoice-level settlements expand state
+  const [expandedBillId, setExpandedBillId] = useState<string | null>(null);
+  const [billSettlements, setBillSettlements] = useState<Record<string, BillSettlementType[]>>({});
+  const [loadingSettlements, setLoadingSettlements] = useState(false);
 
   // Runtime diagnostics logging
   useEffect(() => {
@@ -123,7 +157,9 @@ export default function ReceivablesScreen() {
           totalOverdue: Number(statsJson.stats.totalOverdue || 0),
           totalCustomersWithCredit: Number(statsJson.stats.totalCustomersWithCredit || 0),
           collectionsToday: Number(statsJson.stats.collectionsToday || 0),
-          collectionsThisMonth: Number(statsJson.stats.collectionsThisMonth || 0)
+          collectionsThisMonth: Number(statsJson.stats.collectionsThisMonth || 0),
+          totalCredit: Number(statsJson.stats.totalCredit || 0),
+          totalPaid: Number(statsJson.stats.totalPaid || 0)
         });
       }
 
@@ -142,6 +178,15 @@ export default function ReceivablesScreen() {
           Bucket90Plus: Number(c.Bucket90Plus || 0)
         }));
         setAgingData(parsed);
+      }
+
+      // 3. Fetch recent collections
+      const recentRes = await fetch(`${API_URL}/api/credit-customers/receivables/recent-collections`, {
+        headers: { Authorization: token ? `Bearer ${token}` : "" }
+      });
+      const recentJson = await recentRes.json();
+      if (recentJson.success) {
+        setRecentCollections(recentJson.collections || []);
       }
     } catch (err) {
       console.error("[FETCH RECEIVABLES DATA ERROR]", err);
@@ -165,6 +210,8 @@ export default function ReceivablesScreen() {
         setSelectedCustomer(null);
         setTransactions([]);
         setOutstandingBills([]);
+        setExpandedBillId(null);
+        setBillSettlements({});
         return true;
       }
       if (router.canGoBack()) {
@@ -178,6 +225,33 @@ export default function ReceivablesScreen() {
     const backHandler = BackHandler.addEventListener("hardwareBackPress", backAction);
     return () => backHandler.remove();
   }, [showLedgerModal]);
+
+  const handleToggleBillExpansion = async (invoiceTransactionId: string) => {
+    if (expandedBillId === invoiceTransactionId) {
+      setExpandedBillId(null);
+      return;
+    }
+    setExpandedBillId(invoiceTransactionId);
+    if (billSettlements[invoiceTransactionId]) return;
+
+    setLoadingSettlements(true);
+    try {
+      const res = await fetch(`${API_URL}/api/credit-customers/invoice-settlements/${invoiceTransactionId}`, {
+        headers: { Authorization: token ? `Bearer ${token}` : "" }
+      });
+      const json = await res.json();
+      if (json.success) {
+        setBillSettlements(prev => ({
+          ...prev,
+          [invoiceTransactionId]: json.settlements || []
+        }));
+      }
+    } catch (err) {
+      console.error("[FETCH BILL SETTLEMENTS ERROR]", err);
+    } finally {
+      setLoadingSettlements(false);
+    }
+  };
 
   // Fetch individual customer statements and unpaid bills
   const fetchCustomerDetails = async (customer: CustomerAgingType) => {
@@ -427,6 +501,20 @@ export default function ReceivablesScreen() {
                 Aging Analysis
               </Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.tabBtn, activeTab === "REPORTS" && styles.activeTabBtn]}
+              onPress={() => setActiveTab("REPORTS")}
+            >
+              <Ionicons
+                name="document-text-outline"
+                size={16}
+                color={activeTab === "REPORTS" ? "#FFF" : Theme.textSecondary}
+              />
+              <Text style={[styles.tabText, activeTab === "REPORTS" && styles.activeTabText]}>
+                Reports
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {/* --- Search Bar --- */}
@@ -505,7 +593,7 @@ export default function ReceivablesScreen() {
                 ))
               )}
             </View>
-          ) : (
+          ) : activeTab === "AGING" ? (
             /* --- Aging Analysis View --- */
             <View style={styles.listContainer}>
               {filteredCustomers.length === 0 ? (
@@ -561,6 +649,62 @@ export default function ReceivablesScreen() {
                     </View>
                   </View>
                 ))
+              )}
+            </View>
+          ) : (
+            /* --- Reports View --- */
+            <View style={styles.listContainer}>
+              <View style={styles.reportSummaryCard}>
+                <Text style={styles.reportSummaryTitle}>Unified Ledger Summary</Text>
+                
+                <View style={styles.reportSummaryGrid}>
+                  <View style={styles.reportSummaryItem}>
+                    <Text style={styles.reportSummaryLabel}>Total Credit Issued</Text>
+                    <Text style={[styles.reportSummaryVal, { color: Theme.danger }]}>
+                      {currencySymbol}{(stats?.totalCredit || 0).toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={styles.reportSummaryItem}>
+                    <Text style={styles.reportSummaryLabel}>Total Paid</Text>
+                    <Text style={[styles.reportSummaryVal, { color: Theme.success }]}>
+                      {currencySymbol}{(stats?.totalPaid || 0).toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={styles.reportSummaryItem}>
+                    <Text style={styles.reportSummaryLabel}>Net Outstanding</Text>
+                    <Text style={[styles.reportSummaryVal, { color: Theme.warning }]}>
+                      {currencySymbol}{(stats?.totalOutstanding || 0).toFixed(2)}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <Text style={styles.reportHeader}>Recent Collections</Text>
+              {recentCollections.length === 0 ? (
+                <View style={styles.centerBlock}>
+                  <Ionicons name="receipt-outline" size={48} color={Theme.textMuted} />
+                  <Text style={styles.emptyText}>No recent payments recorded</Text>
+                </View>
+              ) : (
+                recentCollections.map((col) => {
+                  const cd = new Date(col.CreatedDate);
+                  const formattedColDate = cd.toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" }) + " " + cd.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+                  return (
+                    <View key={col.TransactionId} style={styles.collectionRowCard}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.collectionCustomerName}>{col.CustomerName}</Text>
+                        <Text style={styles.collectionCustomerType}>{col.CustomerType} • {col.PaymentMethod || "CASH"}</Text>
+                        {col.Remarks && <Text style={styles.collectionRemarks}>{col.Remarks}</Text>}
+                        <Text style={styles.collectionDate}>{formattedColDate}</Text>
+                      </View>
+                      <View style={{ alignItems: "flex-end", justifyContent: "center" }}>
+                        <Text style={styles.collectionAmount}>
+                          {currencySymbol}{col.Amount.toFixed(2)}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })
               )}
             </View>
           )}
@@ -701,15 +845,26 @@ export default function ReceivablesScreen() {
                               const formattedBillDate = bd.toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
                               return (
                                 <View key={bill.SettlementId} style={styles.billItemCard}>
-                                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
+                                  <TouchableOpacity 
+                                    activeOpacity={0.8}
+                                    onPress={() => handleToggleBillExpansion(bill.TransactionId)}
+                                    style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}
+                                  >
                                     <View style={{ flex: 1, paddingRight: 8 }}>
                                       <Text style={styles.billItemTitle} numberOfLines={1} adjustsFontSizeToFit>Bill #{bill.BillNo}</Text>
                                       <Text style={styles.billItemSub} numberOfLines={1} adjustsFontSizeToFit>{formattedBillDate}</Text>
                                     </View>
-                                    <View style={styles.billItemBadge}>
-                                      <Text style={styles.billItemBadgeText}>DUE</Text>
+                                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                                      <View style={styles.billItemBadge}>
+                                        <Text style={styles.billItemBadgeText}>DUE</Text>
+                                      </View>
+                                      <Ionicons 
+                                        name={expandedBillId === bill.TransactionId ? "chevron-up" : "chevron-down"} 
+                                        size={18} 
+                                        color={Theme.textSecondary} 
+                                      />
                                     </View>
-                                  </View>
+                                  </TouchableOpacity>
                                   <View style={styles.billDivider} />
                                   <View style={styles.billBreakdown}>
                                     <View style={{ flex: 1 }}>
@@ -727,6 +882,36 @@ export default function ReceivablesScreen() {
                                       </Text>
                                     </View>
                                   </View>
+
+                                  {/* Expanded Settlement History */}
+                                  {expandedBillId === bill.TransactionId && (
+                                    <View style={styles.billSettlementsContainer}>
+                                      <Text style={styles.billSettlementsTitle}>Settlement History</Text>
+                                      {loadingSettlements && !billSettlements[bill.TransactionId] ? (
+                                        <ActivityIndicator size="small" color={Theme.primary} style={{ marginVertical: 8 }} />
+                                      ) : (billSettlements[bill.TransactionId] || []).length === 0 ? (
+                                        <Text style={styles.billSettlementsEmpty}>No payments allocated to this invoice yet.</Text>
+                                      ) : (
+                                        (billSettlements[bill.TransactionId] || []).map((setl) => {
+                                          const sd = new Date(setl.CreatedDate);
+                                          const formattedSd = sd.toLocaleDateString([], { day: "numeric", month: "short" }) + " " + sd.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+                                          return (
+                                            <View key={setl.AllocationId} style={styles.billSettlementRow}>
+                                              <View style={{ flex: 1 }}>
+                                                <Text style={styles.billSettlementMethod}>{setl.PaymentMethod || "CASH"} {setl.ReferenceNo ? `(${setl.ReferenceNo})` : ""}</Text>
+                                                <Text style={styles.billSettlementDate}>{formattedSd}</Text>
+                                              </View>
+                                              <View style={{ alignItems: "flex-end" }}>
+                                                <Text style={styles.billSettlementAmount}>
+                                                  {currencySymbol}{setl.AllocatedAmount.toFixed(2)}
+                                                </Text>
+                                              </View>
+                                            </View>
+                                          );
+                                        })
+                                      )}
+                                    </View>
+                                  )}
                                 </View>
                               );
                             })}
@@ -769,7 +954,7 @@ export default function ReceivablesScreen() {
                           collectAmount: String(Math.max(0, selectedCustomer.OutstandingBalance || 0)),
                           memberName: selectedCustomer.Name,
                           memberPhone: selectedCustomer.Phone,
-                          isMember: "false"
+                          isMember: selectedCustomer.CustomerType === "MEMBER" ? "true" : "false"
                         }
                       });
                     }}
@@ -896,6 +1081,30 @@ const styles = StyleSheet.create({
   billBreakLabel: { fontSize: 8, fontFamily: Fonts.black, color: Theme.textMuted, letterSpacing: 0.5, marginBottom: 2 },
   billBreakValue: { fontSize: 13, fontFamily: Fonts.bold, color: Theme.textPrimary },
   
+  // Expanded Bill Settlements
+  billSettlementsContainer: { marginTop: 12, borderTopWidth: 1, borderTopColor: Theme.border, paddingTop: 10 },
+  billSettlementsTitle: { fontSize: 11, fontFamily: Fonts.bold, color: Theme.textPrimary, marginBottom: 8 },
+  billSettlementsEmpty: { fontSize: 10, fontFamily: Fonts.medium, color: Theme.textMuted, fontStyle: "italic", marginVertical: 4 },
+  billSettlementRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 6, borderBottomWidth: 0.5, borderBottomColor: Theme.border },
+  billSettlementMethod: { fontSize: 11, fontFamily: Fonts.bold, color: Theme.textPrimary },
+  billSettlementDate: { fontSize: 9, fontFamily: Fonts.regular, color: Theme.textMuted, marginTop: 2 },
+  billSettlementAmount: { fontSize: 11, fontFamily: Fonts.black, color: Theme.success },
+
+  // Report Styles
+  reportSummaryCard: { backgroundColor: Theme.bgCard, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: Theme.border, ...Theme.shadowSm, marginBottom: 15 },
+  reportSummaryTitle: { fontSize: 14, fontFamily: Fonts.black, color: Theme.textPrimary, marginBottom: 12 },
+  reportSummaryGrid: { flexDirection: "row", gap: 10 },
+  reportSummaryItem: { flex: 1, backgroundColor: Theme.bgInput, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: Theme.border },
+  reportSummaryLabel: { fontSize: 9, fontFamily: Fonts.bold, color: Theme.textMuted },
+  reportSummaryVal: { fontSize: 14, fontFamily: Fonts.black, marginTop: 6 },
+  reportHeader: { fontSize: 15, fontFamily: Fonts.black, color: Theme.textPrimary, marginTop: 10, marginBottom: 12 },
+  collectionRowCard: { backgroundColor: Theme.bgCard, borderRadius: 12, padding: 14, flexDirection: "row", borderWidth: 1, borderColor: Theme.border, ...Theme.shadowSm, marginBottom: 10 },
+  collectionCustomerName: { fontSize: 13, fontFamily: Fonts.bold, color: Theme.textPrimary },
+  collectionCustomerType: { fontSize: 10, fontFamily: Fonts.medium, color: Theme.textSecondary, marginTop: 2 },
+  collectionRemarks: { fontSize: 11, fontFamily: Fonts.regular, color: Theme.textMuted, marginTop: 4 },
+  collectionDate: { fontSize: 9, fontFamily: Fonts.regular, color: Theme.textMuted, marginTop: 6 },
+  collectionAmount: { fontSize: 15, fontFamily: Fonts.black, color: Theme.success },
+
   // Ledger action footer
   ledgerActions: {
     flexDirection: "row",

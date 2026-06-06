@@ -1495,7 +1495,18 @@ router.post("/save", async (req, res) => {
                 .input("MemberId", memberId)
                 .input("Amount", memberPaidAmt)
                 .query(`UPDATE MemberMaster SET CurrentBalance = CurrentBalance + @Amount WHERE MemberId = @MemberId`);
-              console.log(`[SAVE SALE] Updated member balance in MemberMaster: ${memberPaidAmt}`);
+              
+              await transaction.request()
+                .input("MemberId", memberId)
+                .input("SettlementId", settlementId)
+                .input("BillNo", finalBillNo)
+                .input("Amount", memberPaidAmt)
+                .input("CreatedBy", toGuidOrNull(cashierId))
+                .query(`
+                  INSERT INTO CustomerCreditTransactions (MemberId, SettlementId, BillNo, TransactionType, BillAmount, PaidAmount, OutstandingAmount, Status, Remarks, CreatedBy)
+                  VALUES (@MemberId, @SettlementId, @BillNo, 'CREDIT_SALE', @Amount, 0, @Amount, 'OPEN', 'Split member credit purchase', @CreatedBy)
+                `);
+              console.log(`[SAVE SALE] Updated member balance and wrote split member credit ledger debit: ${memberPaidAmt}`);
             }
 
             if (creditPaidAmt > 0) {
@@ -1595,7 +1606,18 @@ router.post("/save", async (req, res) => {
               .input("MemberId", memberId)
               .input("Amount", totalAmount || 0)
               .query(`UPDATE MemberMaster SET CurrentBalance = CurrentBalance + @Amount WHERE MemberId = @MemberId`);
-            console.log(`[SAVE SALE] Updated member balance in MemberMaster: ${totalAmount}`);
+
+            await transaction.request()
+              .input("MemberId", memberId)
+              .input("SettlementId", settlementId)
+              .input("BillNo", finalBillNo)
+              .input("Amount", totalAmount || 0)
+              .input("CreatedBy", toGuidOrNull(cashierId))
+              .query(`
+                INSERT INTO CustomerCreditTransactions (MemberId, SettlementId, BillNo, TransactionType, BillAmount, PaidAmount, OutstandingAmount, Status, Remarks, CreatedBy)
+                VALUES (@MemberId, @SettlementId, @BillNo, 'CREDIT_SALE', @Amount, 0, @Amount, 'OPEN', 'Member credit purchase', @CreatedBy)
+              `);
+            console.log(`[SAVE SALE] Updated member balance in MemberMaster and wrote single credit ledger debit: ${totalAmount}`);
           }
         }
       }

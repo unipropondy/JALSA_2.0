@@ -296,7 +296,7 @@ export default function MembersScreen() {
             </Text>
           </View>
           <View style={[styles.financialCol, { borderLeftWidth: 1, borderRightWidth: 1, borderColor: Theme.border + '50' }]}>
-            <Text style={styles.financialLabel}>OUTSTANDING</Text>
+            <Text style={styles.financialLabel}>CONSUMED</Text>
             <Text style={styles.financialVal}>
               {formatMoney(item.CurrentBalance || 0)}
             </Text>
@@ -415,7 +415,7 @@ export default function MembersScreen() {
                     <TextInput style={styles.sheetInput} keyboardType="numeric" value={formData.creditLimit} onChangeText={v => setFormData({ ...formData, creditLimit: v })} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.inputLabel}>OUTSTANDING</Text>
+                    <Text style={styles.inputLabel}>CONSUMED</Text>
                     <TextInput style={styles.sheetInput} keyboardType="numeric" value={formData.currentBalance} onChangeText={v => setFormData({ ...formData, currentBalance: v })} />
                   </View>
                 </View>

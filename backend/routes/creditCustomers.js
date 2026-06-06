@@ -213,6 +213,8 @@ router.post("/pay", async (req, res) => {
     return res.status(400).json({ error: `Sum of payments (${sum.toFixed(2)}) must equal total amount (${numericAmt.toFixed(2)})` });
   }
 
+  let paymentTransactionId;
+
   await runInTransaction(async (transaction) => {
     // 1. Verify customer exists and is active
     const customerCheck = await transaction.request()
@@ -244,7 +246,7 @@ router.post("/pay", async (req, res) => {
     const mainRemarks = req.body.remarks || `Credit payment collection (${payModeName})`;
 
     // Write the primary PAYMENT transaction record
-    await transaction.request()
+    const payTxResult = await transaction.request()
       .input("MemberId", sql.UniqueIdentifier, memberId)
       .input("Amount", sql.Decimal(18, 2), numericAmt)
       .input("PaymentMethod", sql.NVarChar(50), payModeName)
@@ -253,8 +255,11 @@ router.post("/pay", async (req, res) => {
       .input("CreatedBy", sql.UniqueIdentifier, toGuidOrNull(userId))
       .query(`
         INSERT INTO CustomerCreditTransactions (MemberId, TransactionType, BillAmount, PaidAmount, OutstandingAmount, PaymentMethod, ReferenceNo, Status, Remarks, CreatedBy)
+        OUTPUT INSERTED.TransactionId
         VALUES (@MemberId, 'PAYMENT', 0, @Amount, -@Amount, @PaymentMethod, @ReferenceNo, 'CLOSED', @Remarks, @CreatedBy)
       `);
+    
+    paymentTransactionId = payTxResult.recordset[0].TransactionId;
     
     if (req.body.allocations && Array.isArray(req.body.allocations) && req.body.allocations.length > 0) {
       // Manual Allocation
@@ -262,22 +267,40 @@ router.post("/pay", async (req, res) => {
         const allocAmt = parseFloat(alloc.amount);
         if (isNaN(allocAmt) || allocAmt <= 0) continue;
         
-        await transaction.request()
+        const billCheck = await transaction.request()
           .input("MemberId", sql.UniqueIdentifier, memberId)
           .input("SettlementId", sql.UniqueIdentifier, toGuidOrNull(alloc.settlementId))
-          .input("AllocAmt", sql.Decimal(18, 2), allocAmt)
           .query(`
-            UPDATE CustomerCreditTransactions
-            SET 
-              PaidAmount = PaidAmount + @AllocAmt,
-              OutstandingAmount = OutstandingAmount - @AllocAmt,
-              Status = CASE WHEN (OutstandingAmount - @AllocAmt) <= 0.01 THEN 'CLOSED' ELSE 'PARTIAL' END,
-              UpdatedDate = GETDATE()
-            WHERE MemberId = @MemberId 
-              AND SettlementId = @SettlementId 
-              AND TransactionType IN ('CREDIT_SALE', 'ADJUSTMENT')
-              AND Status IN ('OPEN', 'PARTIAL')
+            SELECT TransactionId FROM CustomerCreditTransactions
+            WHERE MemberId = @MemberId AND SettlementId = @SettlementId AND TransactionType IN ('CREDIT_SALE', 'ADJUSTMENT')
           `);
+        
+        if (billCheck.recordset.length > 0) {
+          const invoiceTransactionId = billCheck.recordset[0].TransactionId;
+          
+          await transaction.request()
+            .input("TransactionId", sql.UniqueIdentifier, invoiceTransactionId)
+            .input("AllocAmt", sql.Decimal(18, 2), allocAmt)
+            .query(`
+              UPDATE CustomerCreditTransactions
+              SET 
+                PaidAmount = PaidAmount + @AllocAmt,
+                OutstandingAmount = OutstandingAmount - @AllocAmt,
+                Status = CASE WHEN (OutstandingAmount - @AllocAmt) <= 0.01 THEN 'CLOSED' ELSE 'PARTIAL' END,
+                UpdatedDate = GETDATE()
+              WHERE TransactionId = @TransactionId
+            `);
+
+          // Insert allocation record
+          await transaction.request()
+            .input("PaymentTransactionId", sql.UniqueIdentifier, paymentTransactionId)
+            .input("InvoiceTransactionId", sql.UniqueIdentifier, invoiceTransactionId)
+            .input("AllocAmt", sql.Decimal(18, 2), allocAmt)
+            .query(`
+              INSERT INTO CustomerCreditAllocations (PaymentTransactionId, InvoiceTransactionId, Amount)
+              VALUES (@PaymentTransactionId, @InvoiceTransactionId, @AllocAmt)
+            `);
+        }
       }
     } else {
       // Auto Allocation (FIFO)
@@ -316,6 +339,16 @@ router.post("/pay", async (req, res) => {
               UpdatedDate = GETDATE()
             WHERE TransactionId = @TransactionId
           `);
+
+        // Insert allocation record
+        await transaction.request()
+          .input("PaymentTransactionId", sql.UniqueIdentifier, paymentTransactionId)
+          .input("InvoiceTransactionId", sql.UniqueIdentifier, bill.TransactionId)
+          .input("AllocAmt", sql.Decimal(18, 2), allocAmt)
+          .query(`
+            INSERT INTO CustomerCreditAllocations (PaymentTransactionId, InvoiceTransactionId, Amount)
+            VALUES (@PaymentTransactionId, @InvoiceTransactionId, @AllocAmt)
+          `);
           
         remainingPayment -= allocAmt;
       }
@@ -328,7 +361,7 @@ router.post("/pay", async (req, res) => {
       .query("UPDATE CreditCustomerMaster SET CurrentBalance = CurrentBalance - @Amount WHERE CustomerId = @CustomerId");
   }, { name: "CreditCustomerPayment", timeoutMs: 60000 });
 
-  res.json({ success: true });
+  res.json({ success: true, paymentTransactionId });
 } catch (err) {
   console.error("[CREDIT CUSTOMER PAYMENT ERROR]", err);
   res.status(500).json({ error: err.message });
@@ -344,6 +377,7 @@ router.get("/outstanding/:memberId", async (req, res) => {
       .input("MemberId", sql.UniqueIdentifier, memberId)
       .query(`
         SELECT 
+          TransactionId,
           SettlementId,
           BillNo,
           BillAmount AS GrossAmount,
@@ -424,17 +458,21 @@ router.get("/receivables/dashboard", async (req, res) => {
           END
         ), 0) AS TotalOverdue
       FROM CustomerCreditTransactions tx
-      INNER JOIN CreditCustomerMaster m ON tx.MemberId = m.CustomerId
       WHERE tx.TransactionType IN ('CREDIT_SALE', 'ADJUSTMENT') 
         AND tx.Status IN ('OPEN', 'PARTIAL')
-        AND m.IsActive = 1
+        AND (
+          EXISTS (SELECT 1 FROM CreditCustomerMaster m WHERE tx.MemberId = m.CustomerId AND m.IsActive = 1)
+          OR EXISTS (SELECT 1 FROM MemberMaster m2 WHERE tx.MemberId = m2.MemberId AND m2.IsActive = 1)
+        )
     `);
     
     // Total Customers with Credit
     const custCountRes = await pool.request().query(`
-      SELECT COUNT(*) AS CreditCustomerCount 
-      FROM CreditCustomerMaster 
-      WHERE CurrentBalance > 0.01 AND IsActive = 1
+      SELECT (
+        SELECT COUNT(*) FROM CreditCustomerMaster WHERE CurrentBalance > 0.01 AND IsActive = 1
+      ) + (
+        SELECT COUNT(*) FROM MemberMaster WHERE CurrentBalance > 0.01 AND IsActive = 1
+      ) AS CreditCustomerCount
     `);
     
     // Collections Today & This Month
@@ -445,6 +483,14 @@ router.get("/receivables/dashboard", async (req, res) => {
       FROM CustomerCreditTransactions
       WHERE TransactionType = 'PAYMENT'
     `);
+
+    // Total Credit sales and Total payments collected
+    const creditStatsRes = await pool.request().query(`
+      SELECT 
+        ISNULL(SUM(CASE WHEN TransactionType IN ('CREDIT_SALE', 'ADJUSTMENT') THEN BillAmount ELSE 0 END), 0) AS TotalCredit,
+        ISNULL(SUM(CASE WHEN TransactionType = 'PAYMENT' THEN PaidAmount ELSE 0 END), 0) AS TotalPaid
+      FROM CustomerCreditTransactions
+    `);
     
     res.json({
       success: true,
@@ -453,7 +499,9 @@ router.get("/receivables/dashboard", async (req, res) => {
         totalOverdue: Math.max(0, statsRes.recordset[0].TotalOverdue),
         totalCustomersWithCredit: custCountRes.recordset[0].CreditCustomerCount,
         collectionsToday: collRes.recordset[0].CollectionsToday,
-        collectionsThisMonth: collRes.recordset[0].CollectionsThisMonth
+        collectionsThisMonth: collRes.recordset[0].CollectionsThisMonth,
+        totalCredit: creditStatsRes.recordset[0].TotalCredit,
+        totalPaid: creditStatsRes.recordset[0].TotalPaid
       }
     });
   } catch (err) {
@@ -468,7 +516,12 @@ router.get("/receivables/aging", async (req, res) => {
     const pool = await poolPromise;
     
     const query = `
-      WITH BillBalances AS (
+      WITH Customers AS (
+        SELECT CustomerId AS MemberId, Name, Phone, IsActive, 'CREDIT' AS CustomerType FROM CreditCustomerMaster
+        UNION ALL
+        SELECT MemberId, Name, Phone, IsActive, 'MEMBER' AS CustomerType FROM MemberMaster
+      ),
+      BillBalances AS (
         SELECT 
           MemberId,
           BillNo,
@@ -480,18 +533,19 @@ router.get("/receivables/aging", async (req, res) => {
           AND Status IN ('OPEN', 'PARTIAL')
       )
       SELECT 
-        m.CustomerId AS MemberId,
+        m.MemberId,
         m.Name,
         m.Phone,
+        m.CustomerType,
         ISNULL(SUM(b.NetOutstanding), 0) AS OutstandingBalance,
         ISNULL(SUM(CASE WHEN b.AgeDays <= 30 THEN b.NetOutstanding ELSE 0 END), 0) AS Bucket0to30,
         ISNULL(SUM(CASE WHEN b.AgeDays > 30 AND b.AgeDays <= 60 THEN b.NetOutstanding ELSE 0 END), 0) AS Bucket31to60,
         ISNULL(SUM(CASE WHEN b.AgeDays > 60 AND b.AgeDays <= 90 THEN b.NetOutstanding ELSE 0 END), 0) AS Bucket61to90,
         ISNULL(SUM(CASE WHEN b.AgeDays > 90 THEN b.NetOutstanding ELSE 0 END), 0) AS Bucket90Plus
-      FROM CreditCustomerMaster m
-      LEFT JOIN BillBalances b ON m.CustomerId = b.MemberId
+      FROM Customers m
+      LEFT JOIN BillBalances b ON m.MemberId = b.MemberId
       WHERE m.IsActive = 1
-      GROUP BY m.CustomerId, m.Name, m.Phone
+      GROUP BY m.MemberId, m.Name, m.Phone, m.CustomerType
       ORDER BY m.Name
     `;
     
@@ -520,6 +574,94 @@ router.get("/receivables/aging", async (req, res) => {
     });
   } catch (err) {
     console.error("[CREDIT RECEIVABLES AGING ERROR]", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ================= ALLOCATIONS FOR A PAYMENT ================= */
+router.get("/payment-allocations/:paymentTransactionId", async (req, res) => {
+  try {
+    const { paymentTransactionId } = req.params;
+    const pool = await poolPromise;
+    const result = await pool.request()
+      .input("PaymentTransactionId", sql.UniqueIdentifier, paymentTransactionId)
+      .query(`
+        SELECT 
+          cca.AllocationId,
+          cca.PaymentTransactionId,
+          cca.InvoiceTransactionId,
+          cca.Amount AS AllocatedAmount,
+          CONVERT(VARCHAR, cca.CreatedDate, 126) + '+08:00' AS CreatedDate,
+          tx.BillNo,
+          tx.SettlementId,
+          tx.BillAmount,
+          tx.OutstandingAmount
+        FROM CustomerCreditAllocations cca
+        JOIN CustomerCreditTransactions tx ON cca.InvoiceTransactionId = tx.TransactionId
+        WHERE cca.PaymentTransactionId = @PaymentTransactionId
+      `);
+    res.json({ success: true, allocations: result.recordset });
+  } catch (err) {
+    console.error("[GET PAYMENT ALLOCATIONS ERROR]", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ================= SETTLEMENTS FOR AN INVOICE ================= */
+router.get("/invoice-settlements/:invoiceTransactionId", async (req, res) => {
+  try {
+    const { invoiceTransactionId } = req.params;
+    const pool = await poolPromise;
+    const result = await pool.request()
+      .input("InvoiceTransactionId", sql.UniqueIdentifier, invoiceTransactionId)
+      .query(`
+        SELECT 
+          cca.AllocationId,
+          cca.PaymentTransactionId,
+          cca.InvoiceTransactionId,
+          cca.Amount AS AllocatedAmount,
+          CONVERT(VARCHAR, cca.CreatedDate, 126) + '+08:00' AS CreatedDate,
+          tx.PaymentMethod,
+          tx.ReferenceNo,
+          tx.Remarks,
+          tx.PaidAmount AS TotalPaymentAmount
+        FROM CustomerCreditAllocations cca
+        JOIN CustomerCreditTransactions tx ON cca.PaymentTransactionId = tx.TransactionId
+        WHERE cca.InvoiceTransactionId = @InvoiceTransactionId
+      `);
+    res.json({ success: true, settlements: result.recordset });
+  } catch (err) {
+    console.error("[GET INVOICE SETTLEMENTS ERROR]", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ================= RECENT COLLECTIONS ================= */
+router.get("/receivables/recent-collections", async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const result = await pool.request().query(`
+      SELECT TOP 50
+        tx.TransactionId,
+        tx.MemberId,
+        tx.BillNo,
+        tx.PaidAmount AS Amount,
+        tx.PaymentMethod,
+        tx.ReferenceNo,
+        tx.Remarks,
+        CONVERT(VARCHAR, tx.CreatedDate, 126) + '+08:00' AS CreatedDate,
+        COALESCE(c.Name, m.Name) AS CustomerName,
+        COALESCE(c.Phone, m.Phone) AS CustomerPhone,
+        CASE WHEN c.CustomerId IS NOT NULL THEN 'CREDIT' ELSE 'MEMBER' END AS CustomerType
+      FROM CustomerCreditTransactions tx
+      LEFT JOIN CreditCustomerMaster c ON tx.MemberId = c.CustomerId
+      LEFT JOIN MemberMaster m ON tx.MemberId = m.MemberId
+      WHERE tx.TransactionType = 'PAYMENT'
+      ORDER BY tx.CreatedDate DESC
+    `);
+    res.json({ success: true, collections: result.recordset });
+  } catch (err) {
+    console.error("[GET RECENT COLLECTIONS ERROR]", err);
     res.status(500).json({ error: err.message });
   }
 });

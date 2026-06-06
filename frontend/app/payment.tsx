@@ -178,7 +178,34 @@ export default function PaymentScreen() {
 
   const [method, setMethod] = useState("CAS");
   const [cashInput, setCashInput] = useState("");
+  const [collectionAmount, setCollectionAmount] = useState("");
   const [processing, setProcessing] = useState(false);
+
+  useEffect(() => {
+    if (isLedgerCollection && collectAmount !== undefined) {
+      setCollectionAmount(collectAmount.toFixed(2));
+    }
+  }, [collectAmount, isLedgerCollection]);
+
+  const handleAmountChange = (text: string) => {
+    const cleaned = text.replace(/[^0-9.]/g, "");
+    const parts = cleaned.split(".");
+    const formatted = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join("")}` : cleaned;
+    
+    const val = parseFloat(formatted) || 0;
+    if (collectAmount !== undefined && val > collectAmount) {
+      showToast({ type: "warning", message: "Overpayment Prevention", subtitle: `Cannot exceed outstanding balance of ${currencySymbol}${collectAmount.toFixed(2)}` });
+      setCollectionAmount(collectAmount.toFixed(2));
+      if (isCashMethod(method)) {
+        setCashInput(collectAmount.toFixed(2));
+      }
+      return;
+    }
+    setCollectionAmount(formatted);
+    if (isCashMethod(method)) {
+      setCashInput(formatted);
+    }
+  };
   const [time, setTime] = useState(new Date());
   const [isSplitActive, setIsSplitActive] = useState(false);
 
@@ -466,7 +493,7 @@ export default function PaymentScreen() {
   }, [baseTotal, roundType, method, isLedgerCollection]);
 
   const total = isLedgerCollection
-    ? (collectAmount || 0)
+    ? (parseFloat(collectionAmount) || 0)
     : Math.max(0, Math.round((baseTotal + roundOff) * 100) / 100);
   const displayedTax = isLedgerCollection ? 0 : Math.round(tax * 100) / 100;
   const displayedServiceCharge = isLedgerCollection ? 0 : Math.round(serviceChargeAmt * 100) / 100;
@@ -573,6 +600,17 @@ export default function PaymentScreen() {
 
   const confirmPayment = async () => {
     if (processing) return;
+    if (isLedgerCollection) {
+      const parsedAmt = parseFloat(collectionAmount) || 0;
+      if (parsedAmt <= 0) {
+        showToast({ type: "warning", message: "Invalid Amount", subtitle: "Please enter a positive collection amount." });
+        return;
+      }
+      if (collectAmount !== undefined && parsedAmt > collectAmount + 0.01) {
+        showToast({ type: "warning", message: "Overpayment Prevention", subtitle: `Cannot exceed outstanding balance of ${currencySymbol}${collectAmount.toFixed(2)}` });
+        return;
+      }
+    }
     if (isLedgerCollection && total <= 0) {
       Alert.alert(
         "No Payment Required",
@@ -1589,9 +1627,18 @@ export default function PaymentScreen() {
                             <Text style={{ fontFamily: Fonts.black, color: Theme.textPrimary }}>{memberPhone}</Text>
                           </View>
                           <View style={{ height: 1, backgroundColor: Theme.border, marginVertical: 4 }} />
-                          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                             <Text style={{ fontFamily: Fonts.bold, color: Theme.textSecondary }}>Amount to Collect</Text>
-                            <Text style={{ fontFamily: Fonts.black, color: Theme.primary, fontSize: 18 }}>{currencySymbol}{collectAmount?.toFixed(2)}</Text>
+                            <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: Theme.bgCard, borderWidth: 1, borderColor: Theme.border, borderRadius: 8, paddingHorizontal: 10, height: 40, width: 140 }}>
+                              <Text style={{ fontFamily: Fonts.black, color: Theme.textPrimary, marginRight: 2 }}>{currencySymbol}</Text>
+                              <TextInput
+                                style={{ flex: 1, fontFamily: Fonts.black, color: Theme.primary, fontSize: 16, padding: 0, ...Platform.select({ web: { outlineStyle: "none" } as any }) }}
+                                value={collectionAmount}
+                                onChangeText={handleAmountChange}
+                                keyboardType="numeric"
+                                placeholder="0.00"
+                              />
+                            </View>
                           </View>
                         </View>
                       </View>
