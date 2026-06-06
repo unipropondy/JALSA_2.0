@@ -28,6 +28,12 @@ import SplitPaymentComponent from "../components/payment/SplitPaymentComponent";
 
 
 
+// Low-balance threshold (must match backend utils/whatsappService.js)
+const LOW_BALANCE_THRESHOLD_PCT = 0.10; // 10% of CreditLimit
+const LOW_BALANCE_THRESHOLD_FIXED = 100; // fallback when CreditLimit = 0
+const getLowBalanceThreshold = (creditLimit: number) =>
+  creditLimit > 0 ? creditLimit * LOW_BALANCE_THRESHOLD_PCT : LOW_BALANCE_THRESHOLD_FIXED;
+
 type MemberType = {
   MemberId: string;
   Name: string;
@@ -38,6 +44,7 @@ type MemberType = {
   CreditLimit?: number;
   CurrentBalance?: number;
   Balance?: number;
+  LowBalanceAlertSent?: boolean | number;
 };
 
 const formatMoney = (amount: number) => {
@@ -73,6 +80,12 @@ export default function MembersScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
+  // Recharge Modal State
+  const [showRechargeModal, setShowRechargeModal] = useState(false);
+  const [rechargeMember, setRechargeMember] = useState<MemberType | null>(null);
+  const [rechargeAmount, setRechargeAmount] = useState("");
+  const [isRecharging, setIsRecharging] = useState(false);
+
   // Usage Modal State
   const [showUsageModal, setShowUsageModal] = useState(false);
   const [usageMember, setUsageMember] = useState<MemberType | null>(null);
@@ -82,6 +95,73 @@ export default function MembersScreen() {
     transactions: { SettlementID: string; BillNo: string; LastSettlementDate: string; SysAmount: number }[];
   } | null>(null);
   const [loadingUsage, setLoadingUsage] = useState(false);
+
+  // ── Recharge handler ────────────────────────────────────────────────────
+  const openRechargeModal = (member: MemberType) => {
+    setRechargeMember(member);
+    setRechargeAmount("");
+    setShowRechargeModal(true);
+  };
+
+  const handleRecharge = async () => {
+    const amt = parseFloat(rechargeAmount);
+    if (!rechargeMember || isNaN(amt) || amt <= 0) {
+      Alert.alert("Invalid", "Please enter a valid positive amount.");
+      return;
+    }
+    setIsRecharging(true);
+    try {
+      const res = await fetch(`${API_URL}/api/members/recharge`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId: rechargeMember.MemberId, amount: amt }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setMembers(prev =>
+          prev.map(m =>
+            m.MemberId === rechargeMember.MemberId
+              ? {
+                  ...m,
+                  Balance: data.Balance,
+                  CurrentBalance: data.CurrentBalance,
+                  LowBalanceAlertSent: data.LowBalanceAlertSent,
+                }
+              : m
+          )
+        );
+        setShowRechargeModal(false);
+        Alert.alert("✅ Recharged", `RM ${amt.toFixed(2)} added to ${rechargeMember.Name}'s balance.`);
+      } else {
+        Alert.alert("Error", data.error || "Recharge failed.");
+      }
+    } catch (err) {
+      Alert.alert("Error", "Connection problem.");
+    } finally {
+      setIsRecharging(false);
+    }
+  };
+
+  // ── WhatsApp low-balance reminder (manual trigger) ───────────────────────
+  const handleSendLowBalanceReminder = (member: MemberType) => {
+    const outstanding = member.CurrentBalance || 0;
+    const hasPlus = member.Phone.trim().startsWith("+");
+    const cleanPhone = member.Phone.replace(/[^0-9]/g, "");
+    const phoneWithCountry = hasPlus ? cleanPhone : (cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone);
+    const message =
+      `Dear ${member.Name}, your prepaid balance is low (RM ${outstanding.toFixed(2)}). ` +
+      `Please recharge to continue ordering. Thank you! 🙏`;
+    const url = `whatsapp://send?phone=${phoneWithCountry}&text=${encodeURIComponent(message)}`;
+    Linking.canOpenURL(url).then(supported => {
+      if (supported) {
+        Linking.openURL(url);
+      } else {
+        Linking.openURL(`https://wa.me/${phoneWithCountry}?text=${encodeURIComponent(message)}`);
+      }
+    }).catch(() => {
+      Linking.openURL(`https://wa.me/${phoneWithCountry}?text=${encodeURIComponent(message)}`);
+    });
+  };
 
   const handleViewUsage = async (member: MemberType) => {
     setUsageMember(member);
@@ -277,12 +357,20 @@ export default function MembersScreen() {
     );
   }, [members, searchQuery]);
 
-  const MemberCard = React.memo(({ item, onEdit, onDelete, onViewUsage, onCollectPayment, onSendWhatsApp }: { item: MemberType; onEdit: (m: MemberType) => void; onDelete: (m: MemberType) => void; onViewUsage: (m: MemberType) => void; onCollectPayment: (m: MemberType) => void; onSendWhatsApp: (m: MemberType) => void }) => {
+  const MemberCard = React.memo(({ item, onEdit, onDelete, onViewUsage, onCollectPayment, onSendWhatsApp, onRecharge, onSendLowBalanceReminder }: { item: MemberType; onEdit: (m: MemberType) => void; onDelete: (m: MemberType) => void; onViewUsage: (m: MemberType) => void; onCollectPayment: (m: MemberType) => void; onSendWhatsApp: (m: MemberType) => void; onRecharge: (m: MemberType) => void; onSendLowBalanceReminder: (m: MemberType) => void }) => {
+    const creditLimit    = item.CreditLimit    || 0;
+    const currentBalance = item.CurrentBalance || 0;
+    const totalBalance   = item.Balance        || 0;
+    const threshold      = getLowBalanceThreshold(creditLimit);
+    const isLow          = currentBalance < threshold;
+    const alertSent      = item.LowBalanceAlertSent === true || item.LowBalanceAlertSent === 1;
+
     return (
       <View style={styles.memberCard}>
+        {/* ── Card Header ── */}
         <View style={styles.cardHeader}>
-          <View style={styles.avatarCircle}>
-            <Text style={styles.avatarLetter}>{item.Name.charAt(0).toUpperCase()}</Text>
+          <View style={[styles.avatarCircle, isLow && { backgroundColor: Theme.warning + '20' }]}>
+            <Text style={[styles.avatarLetter, isLow && { color: Theme.warning }]}>{item.Name.charAt(0).toUpperCase()}</Text>
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.memberName}>{item.Name}</Text>
@@ -292,43 +380,62 @@ export default function MembersScreen() {
             </View>
           </View>
           <View style={styles.cardActions}>
-            <TouchableOpacity 
+            {/* Recharge button */}
+            <TouchableOpacity
               activeOpacity={0.7}
-              onPress={() => onCollectPayment(item)} 
-              style={[styles.actionBtn, { backgroundColor: Theme.primary + "15" }]}
+              onPress={() => onRecharge(item)}
+              style={[styles.actionBtn, { backgroundColor: '#F59E0B' + '20' }]}
             >
-              <Ionicons name="cash-outline" size={18} color={Theme.primary} />
+              <Ionicons name="add-circle-outline" size={18} color="#F59E0B" />
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               activeOpacity={0.7}
-              onPress={() => onSendWhatsApp(item)} 
+              onPress={() => onSendWhatsApp(item)}
               style={[styles.actionBtn, { backgroundColor: "#25D366" + "15" }]}
             >
               <Ionicons name="logo-whatsapp" size={18} color="#25D366" />
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               activeOpacity={0.7}
-              onPress={() => onViewUsage(item)} 
+              onPress={() => onViewUsage(item)}
               style={[styles.actionBtn, { backgroundColor: Theme.success + "15" }]}
             >
               <Ionicons name="stats-chart" size={18} color={Theme.success} />
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               activeOpacity={0.7}
-              onPress={() => onEdit(item)} 
+              onPress={() => onEdit(item)}
               style={[styles.actionBtn, { backgroundColor: Theme.primary + "15" }]}
             >
               <Ionicons name="create-outline" size={18} color={Theme.primary} />
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               activeOpacity={0.7}
-              onPress={() => onDelete(item)} 
+              onPress={() => onDelete(item)}
               style={[styles.actionBtn, { backgroundColor: Theme.danger + "15" }]}
             >
               <Ionicons name="trash-outline" size={18} color={Theme.danger} />
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* ── Low-Balance Banner ── */}
+        {isLow && (
+          <View style={styles.lowBalanceBanner}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+              <Ionicons name="warning" size={16} color="#F59E0B" />
+              <Text style={styles.lowBalanceText}>Low balance — please recharge</Text>
+            </View>
+            {/* Manual WA reminder button (useful when auto-alert was already sent) */}
+            <TouchableOpacity
+              style={styles.lowBalanceWABtn}
+              onPress={() => onSendLowBalanceReminder(item)}
+            >
+              <Ionicons name="logo-whatsapp" size={14} color="#fff" />
+              <Text style={styles.lowBalanceWAText}>Remind</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View style={styles.cardDivider} />
 
@@ -353,26 +460,27 @@ export default function MembersScreen() {
           </View>
         ) : null}
 
+        {/* ── Prepaid Balance Card ── */}
         <View style={styles.financialSummaryBlock}>
           <View style={styles.financialCol}>
-            <Text style={styles.financialLabel}>CREDIT LIMIT</Text>
-            <Text style={[styles.financialVal, { color: Theme.success }]}>
-              {formatMoney(item.CreditLimit || 0)}
+            <Text style={styles.financialLabel}>TOTAL PREPAID</Text>
+            <Text style={[styles.financialVal, { color: Theme.primary }]}>
+              {formatMoney(totalBalance)}
             </Text>
           </View>
           <View style={[styles.financialCol, { borderLeftWidth: 1, borderRightWidth: 1, borderColor: Theme.border + '50' }]}>
-            <Text style={styles.financialLabel}>CONSUMED</Text>
-            <Text style={styles.financialVal}>
-              {formatMoney(item.CurrentBalance || 0)}
+            <Text style={styles.financialLabel}>SPENT</Text>
+            <Text style={[styles.financialVal, { color: Theme.textSecondary }]}>
+              {formatMoney(totalBalance - currentBalance)}
             </Text>
           </View>
           <View style={styles.financialCol}>
-            <Text style={styles.financialLabel}>AVAILABLE CREDIT</Text>
+            <Text style={styles.financialLabel}>AVAILABLE</Text>
             <Text style={[
               styles.financialVal,
-              { color: (item.CreditLimit || 0) - (item.CurrentBalance || 0) < 0 ? Theme.danger : Theme.success }
+              { color: isLow ? Theme.warning : Theme.success }
             ]}>
-              {formatMoney((item.CreditLimit || 0) - (item.CurrentBalance || 0))}
+              {formatMoney(currentBalance)}
             </Text>
           </View>
         </View>
@@ -381,8 +489,19 @@ export default function MembersScreen() {
   });
 
   const renderMember = useCallback(({ item }: { item: MemberType }) => {
-    return <MemberCard item={item} onEdit={openEditModal} onDelete={handleDeleteMember} onViewUsage={handleViewUsage} onCollectPayment={handleCollectPayment} onSendWhatsApp={handleSendWhatsApp} />;
-  }, [openEditModal, handleDeleteMember, handleViewUsage, handleCollectPayment, handleSendWhatsApp]);
+    return (
+      <MemberCard
+        item={item}
+        onEdit={openEditModal}
+        onDelete={handleDeleteMember}
+        onViewUsage={handleViewUsage}
+        onCollectPayment={handleCollectPayment}
+        onSendWhatsApp={handleSendWhatsApp}
+        onRecharge={openRechargeModal}
+        onSendLowBalanceReminder={handleSendLowBalanceReminder}
+      />
+    );
+  }, [openEditModal, handleDeleteMember, handleViewUsage, handleCollectPayment, handleSendWhatsApp, openRechargeModal, handleSendLowBalanceReminder]);
 
   return (
     <View style={styles.container}>
@@ -403,7 +522,7 @@ export default function MembersScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* --- KPI Stats section --- */}
+        {/* KPI stats removed for Member prepaid flow – pending/outstanding metrics are credit‑customer only. */}
         {isMobile ? (
           <ScrollView
             horizontal
@@ -634,6 +753,83 @@ export default function MembersScreen() {
             </View>
           </View>
         </Modal>
+        {/* ── Recharge Modal ── */}
+        <Modal visible={showRechargeModal} transparent animationType="slide">
+          <View style={styles.modalOverlay}>
+            <View style={[styles.formSheet, { maxHeight: 'auto' as any }]}>
+              <View style={styles.sheetHeader}>
+                <View>
+                  <Text style={styles.sheetTitle}>Recharge Balance</Text>
+                  <Text style={{ fontFamily: Fonts.bold, color: Theme.textSecondary, fontSize: 13, marginTop: 4 }}>
+                    {rechargeMember?.Name}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => { setShowRechargeModal(false); setRechargeMember(null); setRechargeAmount(''); }} style={styles.sheetClose}>
+                  <Ionicons name="close" size={24} color={Theme.textPrimary} />
+                </TouchableOpacity>
+              </View>
+              <View style={{ padding: 25 }}>
+                {/* Current balance info */}
+                {rechargeMember && (
+                  <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
+                    <View style={{ flex: 1, backgroundColor: Theme.bgInput, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: Theme.border }}>
+                      <Text style={{ fontSize: 9, fontFamily: Fonts.black, color: Theme.textMuted, marginBottom: 4 }}>CURRENT BALANCE</Text>
+                      <Text style={{ fontSize: 20, fontFamily: Fonts.black, color: Theme.primary }}>
+                        {formatMoney(rechargeMember.CurrentBalance || 0)}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1, backgroundColor: Theme.bgInput, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: Theme.border }}>
+                      <Text style={{ fontSize: 9, fontFamily: Fonts.black, color: Theme.textMuted, marginBottom: 4 }}>TOTAL PREPAID</Text>
+                      <Text style={{ fontSize: 20, fontFamily: Fonts.black, color: Theme.textPrimary }}>
+                        {formatMoney(rechargeMember.Balance || 0)}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                <Text style={styles.inputLabel}>RECHARGE AMOUNT (RM)</Text>
+                <TextInput
+                  style={[styles.sheetInput, { marginBottom: 20 }]}
+                  keyboardType="numeric"
+                  placeholder="Enter amount..."
+                  placeholderTextColor={Theme.textMuted}
+                  value={rechargeAmount}
+                  onChangeText={setRechargeAmount}
+                />
+
+                {/* Quick amount buttons */}
+                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 24 }}>
+                  {[50, 100, 200, 500].map(amt => (
+                    <TouchableOpacity
+                      key={amt}
+                      style={{ flex: 1, height: 40, borderRadius: 10, backgroundColor: Theme.bgInput, borderWidth: 1, borderColor: Theme.border, justifyContent: 'center', alignItems: 'center' }}
+                      onPress={() => setRechargeAmount(String(amt))}
+                    >
+                      <Text style={{ fontFamily: Fonts.bold, color: Theme.textPrimary, fontSize: 13 }}>RM {amt}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.submitBtn, { backgroundColor: '#F59E0B' }]}
+                  onPress={handleRecharge}
+                  disabled={isRecharging}
+                >
+                  {isRecharging
+                    ? <ActivityIndicator color="#fff" />
+                    : (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Ionicons name="add-circle" size={20} color="#fff" />
+                        <Text style={styles.submitBtnText}>Confirm Recharge</Text>
+                      </View>
+                    )
+                  }
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
         {/* Usage/Monthly History Modal */}
         <Modal visible={showUsageModal} transparent animationType="slide">
           <View style={styles.modalOverlay}>
@@ -830,5 +1026,29 @@ const styles = StyleSheet.create({
   alertBtn: { flex: 1, height: 56, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
   cancelBtn: { backgroundColor: Theme.bgMuted, borderWidth: 1, borderColor: Theme.border },
   confirmDeleteBtn: { backgroundColor: Theme.danger },
+  // Low-balance banner
+  lowBalanceBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F59E0B' + '15',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#F59E0B' + '40',
+    gap: 8,
+  },
+  lowBalanceText: { flex: 1, fontSize: 12, fontFamily: Fonts.bold, color: '#B45309' },
+  lowBalanceWABtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#25D366',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  lowBalanceWAText: { fontSize: 11, fontFamily: Fonts.bold, color: '#fff' },
   btnLabel: { color: Theme.textSecondary, fontSize: 15, fontFamily: Fonts.bold },
 });

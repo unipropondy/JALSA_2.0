@@ -53,6 +53,12 @@ async function initDB(pool) {
       END
     `);
 
+    // 2.1 MemberMaster extra columns (prepaid balance alert flag)
+    await runQuery("MemberMaster - LowBalanceAlertSent", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MemberMaster]') AND name = 'LowBalanceAlertSent') ALTER TABLE [dbo].[MemberMaster] ADD LowBalanceAlertSent BIT NOT NULL DEFAULT 0");
+    await runQuery("MemberMaster - ModifiedBy", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MemberMaster]') AND name = 'ModifiedBy') ALTER TABLE [dbo].[MemberMaster] ADD ModifiedBy UNIQUEIDENTIFIER NULL");
+    await runQuery("MemberMaster - ModifiedDate", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MemberMaster]') AND name = 'ModifiedDate') ALTER TABLE [dbo].[MemberMaster] ADD ModifiedDate DATETIME NULL");
+    await runQuery("MemberMaster - CreatedBy", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MemberMaster]') AND name = 'CreatedBy') ALTER TABLE [dbo].[MemberMaster] ADD CreatedBy UNIQUEIDENTIFIER NULL");
+
     // 2.1 CreditCustomerMaster (Dedicated Credit Accounts table separate from Members)
     await runQuery("Create CreditCustomerMaster", `
       IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[CreditCustomerMaster]') AND type in (N'U'))

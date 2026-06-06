@@ -4,6 +4,8 @@ const sql = require("mssql");
 const { poolPromise } = require("../config/db");
 const { runInTransaction } = require("../utils/transactionHelper");
 const { processSplitPayments } = require("../services/payment.service");
+const { sendLowBalanceAlert, computeThreshold } = require("../utils/whatsappService");
+
 
 const toGuidOrNull = (value) => {
   const text = String(value || "").trim();
@@ -443,6 +445,138 @@ router.post("/pay", async (req, res) => {
   }
 });
 
+
+// ─── POST /api/members/recharge ──────────────────────────────────────────────
+// Top-up a member's prepaid balance. Resets the low-balance alert flag so
+// another alert can fire the next time the balance drops below the threshold.
+// Does NOT write to CustomerCreditTransactions (members are not credit accounts).
+router.post("/recharge", async (req, res) => {
+  try {
+    const { memberId, amount } = req.body;
+
+    if (!memberId) return res.status(400).json({ error: "memberId is required" });
+    const numericAmt = parseFloat(amount);
+    if (isNaN(numericAmt) || numericAmt <= 0) {
+      return res.status(400).json({ error: "Amount must be a positive number" });
+    }
+
+    let updated;
+    await runInTransaction(async (transaction) => {
+      // Lock row to prevent concurrent updates
+      const check = await transaction.request()
+        .input("MemberId", sql.UniqueIdentifier, memberId)
+        .query("SELECT MemberId, Name, Balance, CurrentBalance, IsActive FROM MemberMaster WITH (UPDLOCK) WHERE MemberId = @MemberId");
+
+      if (check.recordset.length === 0) throw new Error("Member not found");
+      if (!check.recordset[0].IsActive) throw new Error("Member is inactive");
+
+      const result = await transaction.request()
+        .input("MemberId", sql.UniqueIdentifier, memberId)
+        .input("Amount", sql.Decimal(18, 2), numericAmt)
+        .query(`
+          UPDATE MemberMaster
+          SET
+            Balance            = Balance + @Amount,
+            CurrentBalance     = CurrentBalance + @Amount,
+            LowBalanceAlertSent = 0
+          OUTPUT
+            INSERTED.Balance,
+            INSERTED.CurrentBalance,
+            INSERTED.LowBalanceAlertSent
+          WHERE MemberId = @MemberId
+        `);
+
+      updated = result.recordset[0];
+    }, { name: "MemberRecharge", timeoutMs: 30000 });
+
+    res.json({
+      success: true,
+      Balance: updated.Balance,
+      CurrentBalance: updated.CurrentBalance,
+      LowBalanceAlertSent: updated.LowBalanceAlertSent,
+    });
+  } catch (err) {
+    console.error("[MEMBER RECHARGE ERROR]", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── POST /api/members/deductSale ────────────────────────────────────────────
+// Internal endpoint called by the sale/checkout flow when CustomerType = MEMBER.
+// Deducts saleAmount from CurrentBalance. If the resulting balance drops below
+// the configured threshold AND no alert has been sent yet, fires a single
+// WhatsApp low-balance notification and sets LowBalanceAlertSent = 1.
+router.post("/deductSale", async (req, res) => {
+  try {
+    const { memberId, saleAmount } = req.body;
+
+    if (!memberId) return res.status(400).json({ error: "memberId is required" });
+    const numericAmt = parseFloat(saleAmount);
+    if (isNaN(numericAmt) || numericAmt <= 0) {
+      return res.status(400).json({ error: "saleAmount must be a positive number" });
+    }
+
+    let updatedBalance, alertFired = false;
+
+    const pool = await poolPromise;
+
+    await runInTransaction(async (transaction) => {
+      // Lock and fetch member
+      const check = await transaction.request()
+        .input("MemberId", sql.UniqueIdentifier, memberId)
+        .query("SELECT MemberId, CurrentBalance, CreditLimit, IsActive, LowBalanceAlertSent FROM MemberMaster WITH (UPDLOCK) WHERE MemberId = @MemberId");
+
+      if (check.recordset.length === 0) throw new Error("Member not found");
+      const member = check.recordset[0];
+      if (!member.IsActive) throw new Error("Member is inactive");
+
+      const currentBal = parseFloat(member.CurrentBalance) || 0;
+      if (currentBal < numericAmt) {
+        throw new Error(`Insufficient balance. Available: RM ${currentBal.toFixed(2)}, Required: RM ${numericAmt.toFixed(2)}`);
+      }
+
+      // Deduct balance
+      const result = await transaction.request()
+        .input("MemberId", sql.UniqueIdentifier, memberId)
+        .input("Amount", sql.Decimal(18, 2), numericAmt)
+        .query(`
+          UPDATE MemberMaster
+          SET CurrentBalance = CurrentBalance - @Amount
+          OUTPUT INSERTED.CurrentBalance, INSERTED.CreditLimit, INSERTED.LowBalanceAlertSent
+          WHERE MemberId = @MemberId
+        `);
+
+      const updated = result.recordset[0];
+      updatedBalance = parseFloat(updated.CurrentBalance);
+      const threshold = computeThreshold(parseFloat(updated.CreditLimit) || 0);
+
+      // Fire alert only once per low-balance event
+      if (updatedBalance < threshold && updated.LowBalanceAlertSent === false) {
+        await transaction.request()
+          .input("MemberId", sql.UniqueIdentifier, memberId)
+          .query("UPDATE MemberMaster SET LowBalanceAlertSent = 1 WHERE MemberId = @MemberId");
+        alertFired = true;
+      }
+    }, { name: "MemberDeductSale", timeoutMs: 30000 });
+
+    // Send WhatsApp outside the transaction (non-fatal)
+    if (alertFired) {
+      setImmediate(() => sendLowBalanceAlert(memberId, updatedBalance, pool));
+    }
+
+    res.json({
+      success: true,
+      newBalance: updatedBalance,
+      alertFired,
+    });
+  } catch (err) {
+    console.error("[MEMBER DEDUCT SALE ERROR]", err);
+    const status = err.message.startsWith("Insufficient") ? 400 : 500;
+    res.status(status).json({ error: err.message });
+  }
+});
+
 // Unused credit customer/receivables endpoints removed
 
 module.exports = router;
+
