@@ -334,7 +334,8 @@ router.get("/checksplitdish/:DishId", async (req, res) => {
       .query(`
         SELECT
           DishId,
-          ISNULL(IsSplitDish,0) AS IsSplitDish
+          ISNULL(IsSplitDish,0) AS IsSplitDish,
+            ISNULL(IsGroupDish,0) AS IsGroupDish
         FROM DishMaster
         WHERE DishId = @DishId
       `);
@@ -361,6 +362,7 @@ router.get("/splitdishes", async (req, res) => {
       FROM DishMaster
       WHERE IsSplitDish = 1
       AND IsActive = 1
+      AND ISNULL(IsGroupDish,0) =0
       ORDER BY Name
     `);
 

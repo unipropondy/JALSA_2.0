@@ -828,7 +828,7 @@ export default function MenuScreen() {
         if (splitRes.ok) {
           const splitData = await splitRes.json();
           console.log("SplitData", splitData);
-          if (splitData.IsSplitDish === true) {
+          if (splitData.IsGroupDish === true) {
             const res = await fetch(
               `${API_URL}/api/menu/splitdishes`
             );
@@ -1365,13 +1365,13 @@ export default function MenuScreen() {
                   selected.forEach((member) => {
                     console.log({
                       id: member.DishId,
-                      name: member.Name,
+                      name: `${selectedSplitDish.Name} - ${member.Name}`,
                       songName: songName,
                       price: shareAmount,
                     });
                     addToCartGlobal({
                       id: member.DishId,
-                      name: member.Name,
+                      name: `${selectedSplitDish.Name} - ${member.Name}`,
                       songName: songName,
                       price: shareAmount,
                     } as any);

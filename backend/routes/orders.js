@@ -742,9 +742,9 @@ router.post("/save-cart", async (req, res) => {
       console.error("❌ SaveCart SQL Stack:", e.stack);
       require('fs').appendFileSync('error_log.txt', new Date().toISOString() + ' ' + e.stack + '\n');
       res.status(500).json({
-  error: e.message,
-  stack: e.stack,
-});
+        error: e.message,
+        stack: e.stack,
+      });
     }
   } catch (err) {
     console.error("SAVE CART ERROR:", err);
@@ -948,7 +948,7 @@ router.get("/cart/:tableId", async (req, res) => {
         SELECT 
           d.OrderDetailId as lineItemId, d.DishId as id,ISNULL(d.SongName,'') as songName,d.Quantity as qty, 
           d.PricePerUnit as price, 
-          ISNULL(dish.Name, d.DishName) as name, 
+          ISNULL(NULLIF(d.DishName,''), dish.Name) as name,
           d.ModifiersJSON, d.Remarks as note, d.isTakeAway as isTakeaway,
           ISNULL(d.DiscountAmount, 0) as discount,
           ISNULL(d.DiscountType, NULL) as discountType,
