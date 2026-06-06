@@ -951,7 +951,7 @@ export default function SalesReport() {
         else if (isUpi) acc.Upi += s.SysAmount;
         else if (mode === "MEMBER") {
           acc.Member += s.SysAmount;
-          acc.MemberOutstanding += Number(s.OutstandingAmount) || 0;
+          // Members are PREPAID — never accumulate outstanding
         } else if (mode === "CREDIT") {
           acc.Credit += s.SysAmount;
           acc.CreditOutstanding += Number(s.OutstandingAmount) || 0;
@@ -1017,7 +1017,7 @@ export default function SalesReport() {
         else if (isUpi) acc.Upi += s.SysAmount;
         else if (mode === "MEMBER") {
           acc.Member += s.SysAmount;
-          acc.MemberOutstanding += Number(s.OutstandingAmount) || 0;
+          // Members are PREPAID — outstanding is always 0
         }
         else if (mode === "CREDIT") {
           acc.Credit += s.SysAmount;
@@ -2210,7 +2210,7 @@ export default function SalesReport() {
             {
               label: "MEMBER",
               val: paymentBreakdownMetrics.Member,
-              outstanding: paymentBreakdownMetrics.MemberOutstanding,
+              // Members are prepaid — no outstanding shown here
               icon: "👤",
               color: "#ec4899",
             },
@@ -2289,11 +2289,11 @@ export default function SalesReport() {
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
             <View>
               <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: "#ec4899" }}>Member Accounts</Text>
-              <Text style={{ fontFamily: Fonts.medium, fontSize: 9, color: Theme.textMuted, marginTop: 1 }}>Collections vs New Outstanding</Text>
+              <Text style={{ fontFamily: Fonts.medium, fontSize: 9, color: Theme.textMuted, marginTop: 1 }}>Prepaid (Deducted from balance)</Text>
             </View>
             <View style={{ alignItems: "flex-end" }}>
-              <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: Theme.success }}>Collected: {formatCurrency(filteredMetrics.MemberPaymentsCollected)}</Text>
-              <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: "#ec4899", marginTop: 1 }}>Pending: {formatCurrency(filteredMetrics.MemberOutstanding)}</Text>
+              <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: Theme.success }}>Sales: {formatCurrency(paymentBreakdownMetrics.Member)}</Text>
+              <Text style={{ fontFamily: Fonts.medium, fontSize: 10, color: Theme.textMuted, marginTop: 1 }}>No outstanding — prepaid</Text>
             </View>
           </View>
 

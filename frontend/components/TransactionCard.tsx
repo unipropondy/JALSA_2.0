@@ -143,8 +143,9 @@ const TransactionCard = React.memo(
           <Text style={styles.txDatetime}>
             {settlementDate.toLocaleDateString([], { day: 'numeric', month: 'short' })} • {settlementDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </Text>
-          {item.OutstandingAmount !== undefined && Number(item.OutstandingAmount) > 0 && !item.IsCancelled && (
-            <Text style={{ fontSize: 9, fontFamily: Fonts.black, color: modeUpper === "MEMBER" ? "#ec4899" : "#e11d48", marginTop: 2 }}>
+          {/* Only show Pending for CREDIT customers — Members are prepaid */}
+          {item.OutstandingAmount !== undefined && Number(item.OutstandingAmount) > 0 && !item.IsCancelled && modeUpper !== "MEMBER" && (
+            <Text style={{ fontSize: 9, fontFamily: Fonts.black, color: "#e11d48", marginTop: 2 }}>
               Pending: {formatCurrency(Number(item.OutstandingAmount))}
             </Text>
           )}
@@ -152,7 +153,7 @@ const TransactionCard = React.memo(
         <View style={styles.paidIndicator}>
            {item.IsCancelled || item.VoidAmount > 0 ? (
              <Ionicons name="close-circle" size={16} color={Theme.danger} />
-           ) : item.OrderType !== "LEDGER" && (modeUpper === "MEMBER" || modeUpper === "CREDIT") && Number(item.OutstandingAmount) > 0 ? (
+           ) : item.OrderType !== "LEDGER" && modeUpper === "CREDIT" && Number(item.OutstandingAmount) > 0 ? (
              Number(item.OutstandingAmount) === Number(item.SysAmount) ? (
                <Ionicons name="alert-circle" size={16} color="#e11d48" />
              ) : (

@@ -215,7 +215,7 @@ router.get("/all", async (req, res) => {
             ISNULL(ri.TotalLineItemDiscountAmount, 0) as TotalLineItemDiscountAmount,
             sh.RoundedBy as RoundedBy,
             ISNULL(ri.DiscountPercentage, 0) as DiscountPercentage,
-            ISNULL(cct_sale.OutstandingAmount, CASE WHEN ${normalizeReportPayModeSql("sts.PayMode")} IN ('MEMBER', 'CREDIT') THEN sh.SysAmount ELSE 0 END) AS OutstandingAmount
+            ISNULL(cct_sale.OutstandingAmount, CASE WHEN ${normalizeReportPayModeSql("sts.PayMode")} IN ('CREDIT') THEN sh.SysAmount ELSE 0 END) AS OutstandingAmount
           FROM SettlementHeader sh
           LEFT JOIN SettlementTotalSales sts ON sh.SettlementID = sts.SettlementID
           LEFT JOIN RestaurantInvoice ri ON sh.SettlementID = ri.RestaurantBillId
@@ -295,7 +295,7 @@ router.get("/all", async (req, res) => {
             ISNULL(ri.TotalLineItemDiscountAmount, 0) as TotalLineItemDiscountAmount,
             sh.RoundedBy as RoundedBy,
             ISNULL(ri.DiscountPercentage, 0) as DiscountPercentage,
-            ISNULL(cct_sale.OutstandingAmount, CASE WHEN ${normalizeReportPayModeSql("sts.PayMode")} IN ('MEMBER', 'CREDIT') THEN sh.SysAmount ELSE 0 END) AS OutstandingAmount
+            ISNULL(cct_sale.OutstandingAmount, CASE WHEN ${normalizeReportPayModeSql("sts.PayMode")} IN ('CREDIT') THEN sh.SysAmount ELSE 0 END) AS OutstandingAmount
           FROM SettlementHeader sh
           LEFT JOIN SettlementTotalSales sts ON sh.SettlementID = sts.SettlementID
           LEFT JOIN RestaurantInvoice ri ON sh.SettlementID = ri.RestaurantBillId
