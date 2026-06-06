@@ -2272,30 +2272,53 @@ export default function SalesReport() {
             );
           })}
         </View>
-        <View style={{ height: 1, backgroundColor: Theme.border, marginVertical: 12, opacity: 0.5 }} />
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 4 }}>
-          <Text style={{ fontFamily: Fonts.extraBold, fontSize: 13, color: Theme.textSecondary }}>Total Sales:</Text>
-          <Text style={{ fontFamily: Fonts.black, fontSize: 14, color: Theme.textPrimary }}>{formatCurrency(paymentBreakdownTotal)}</Text>
-        </View>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 4, marginTop: 6 }}>
-          <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: Theme.primary }}>Member Payments Collected:</Text>
-          <Text style={{ fontFamily: Fonts.black, fontSize: 14, color: Theme.primary }}>{formatCurrency(filteredMetrics.MemberPaymentsCollected)}</Text>
-        </View>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 4, marginTop: 6 }}>
-          <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: "#ec4899" }}>Member Sales Pending:</Text>
-          <Text style={{ fontFamily: Fonts.black, fontSize: 14, color: "#ec4899" }}>{formatCurrency(filteredMetrics.MemberOutstanding)}</Text>
-        </View>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 4, marginTop: 6 }}>
-          <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: Theme.warning }}>Credit Payments Collected:</Text>
-          <Text style={{ fontFamily: Fonts.black, fontSize: 14, color: Theme.warning }}>{formatCurrency(filteredMetrics.CreditPaymentsCollected)}</Text>
-        </View>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 4, marginTop: 6 }}>
-          <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: "#e11d48" }}>Credit Sales Pending:</Text>
-          <Text style={{ fontFamily: Fonts.black, fontSize: 14, color: "#e11d48" }}>{formatCurrency(filteredMetrics.CreditOutstanding)}</Text>
-        </View>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 4, marginTop: 6 }}>
-          <Text style={{ fontFamily: Fonts.extraBold, fontSize: 13, color: Theme.success }}>Total Collections:</Text>
-          <Text style={{ fontFamily: Fonts.black, fontSize: 16, color: Theme.success }}>{formatCurrency(paymentBreakdownTotal + filteredMetrics.MemberPaymentsCollected + filteredMetrics.CreditPaymentsCollected)}</Text>
+        <View style={{ height: 1, backgroundColor: Theme.border, marginVertical: 16, opacity: 0.5 }} />
+        
+        <View style={{ backgroundColor: Theme.bgCard, borderRadius: 16, borderWidth: 1, borderColor: Theme.border, padding: 16, gap: 12, ...Theme.shadowSm }}>
+          <Text style={{ fontFamily: Fonts.black, fontSize: 11, color: Theme.textSecondary, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 2 }}>
+            Reconciliation Summary
+          </Text>
+
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+            <Text style={{ fontFamily: Fonts.extraBold, fontSize: 13, color: Theme.textPrimary }}>Total Sales Volume</Text>
+            <Text style={{ fontFamily: Fonts.black, fontSize: 14, color: Theme.textPrimary }}>{formatCurrency(paymentBreakdownTotal)}</Text>
+          </View>
+
+          <View style={{ height: 1, backgroundColor: Theme.border, opacity: 0.3 }} />
+
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <View>
+              <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: "#ec4899" }}>Member Accounts</Text>
+              <Text style={{ fontFamily: Fonts.medium, fontSize: 9, color: Theme.textMuted, marginTop: 1 }}>Collections vs New Outstanding</Text>
+            </View>
+            <View style={{ alignItems: "flex-end" }}>
+              <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: Theme.success }}>Collected: {formatCurrency(filteredMetrics.MemberPaymentsCollected)}</Text>
+              <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: "#ec4899", marginTop: 1 }}>Pending: {formatCurrency(filteredMetrics.MemberOutstanding)}</Text>
+            </View>
+          </View>
+
+          <View style={{ height: 1, backgroundColor: Theme.border, opacity: 0.3 }} />
+
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <View>
+              <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: "#e11d48" }}>Credit Customers</Text>
+              <Text style={{ fontFamily: Fonts.medium, fontSize: 9, color: Theme.textMuted, marginTop: 1 }}>Collections vs New Outstanding</Text>
+            </View>
+            <View style={{ alignItems: "flex-end" }}>
+              <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: Theme.success }}>Collected: {formatCurrency(filteredMetrics.CreditPaymentsCollected)}</Text>
+              <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: "#e11d48", marginTop: 1 }}>Pending: {formatCurrency(filteredMetrics.CreditOutstanding)}</Text>
+            </View>
+          </View>
+
+          <View style={{ backgroundColor: Theme.success + "10", borderRadius: 12, padding: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 4, borderWidth: 1, borderColor: Theme.success + "20" }}>
+            <View>
+              <Text style={{ fontFamily: Fonts.black, fontSize: 13, color: Theme.success }}>Total Collections Volume</Text>
+              <Text style={{ fontFamily: Fonts.medium, fontSize: 9, color: Theme.textMuted, marginTop: 1 }}>Sales + Payments Collected</Text>
+            </View>
+            <Text style={{ fontFamily: Fonts.black, fontSize: 18, color: Theme.success }}>
+              {formatCurrency(paymentBreakdownTotal + filteredMetrics.MemberPaymentsCollected + filteredMetrics.CreditPaymentsCollected)}
+            </Text>
+          </View>
         </View>
       </View>
 

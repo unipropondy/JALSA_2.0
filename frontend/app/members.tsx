@@ -13,6 +13,8 @@ import {
   RefreshControl,
   Platform,
   StatusBar,
+  Linking,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -23,6 +25,7 @@ import { Fonts } from "../constants/Fonts";
 import { Theme } from "../constants/theme";
 import { useAuthStore } from "@/stores/authStore";
 import SplitPaymentComponent from "../components/payment/SplitPaymentComponent";
+
 
 
 type MemberType = {
@@ -47,11 +50,22 @@ const formatMoney = (amount: number) => {
 
 export default function MembersScreen() {
   const router = useRouter();
-  const { user } = useAuthStore();
+  const { user, token } = useAuthStore();
   const isFocused = useIsFocused();
+  const { width: screenWidth } = useWindowDimensions();
+  const isMobile = screenWidth < 768;
   const [members, setMembers] = useState<MemberType[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [stats, setStats] = useState<{
+    totalOutstanding: number;
+    totalOverdue: number;
+    totalCustomersWithCredit: number;
+    collectionsToday: number;
+    collectionsThisMonth: number;
+    totalCredit: number;
+    totalPaid: number;
+  } | null>(null);
 
   // Modal State
   const [modalMode, setModalMode] = useState<"ADD" | "EDIT" | "NONE">("NONE");
@@ -102,6 +116,30 @@ export default function MembersScreen() {
     });
   };
 
+  const handleSendWhatsApp = (member: MemberType) => {
+    // Clean phone number (remove spaces, symbols)
+    const hasPlus = member.Phone.trim().startsWith("+");
+    const cleanPhone = member.Phone.replace(/[^0-9]/g, "");
+    const phoneWithCountry = hasPlus ? cleanPhone : (cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone);
+    
+    const outstanding = member.CurrentBalance || 0;
+    const message = `Hi ${member.Name},\n\nThis is a friendly reminder that you have a pending outstanding balance of *${formatMoney(outstanding)}* with us.\n\nKindly settle the pending dues at your earliest convenience. Thank you!`;
+
+    const url = `whatsapp://send?phone=${phoneWithCountry}&text=${encodeURIComponent(message)}`;
+    
+    Linking.canOpenURL(url).then((supported) => {
+      if (supported) {
+        Linking.openURL(url);
+      } else {
+        const webUrl = `https://wa.me/${phoneWithCountry}?text=${encodeURIComponent(message)}`;
+        Linking.openURL(webUrl);
+      }
+    }).catch(() => {
+      const webUrl = `https://wa.me/${phoneWithCountry}?text=${encodeURIComponent(message)}`;
+      Linking.openURL(webUrl);
+    });
+  };
+
   // Form State
   const [formData, setFormData] = useState({
     name: "",
@@ -121,12 +159,32 @@ export default function MembersScreen() {
       if (!res.ok) throw new Error();
       const data = await res.json();
       setMembers(Array.isArray(data) ? data : []);
+
+      // Fetch dashboard stats
+      const statsRes = await fetch(`${API_URL}/api/credit-customers/receivables/dashboard`, {
+        headers: { Authorization: token ? `Bearer ${token}` : "" }
+      });
+      if (statsRes.ok) {
+        const statsJson = await statsRes.json();
+        if (statsJson.success && statsJson.stats) {
+          setStats({
+            totalOutstanding: Number(statsJson.stats.totalOutstanding || 0),
+            totalOverdue: Number(statsJson.stats.totalOverdue || 0),
+            totalCustomersWithCredit: Number(statsJson.stats.totalCustomersWithCredit || 0),
+            collectionsToday: Number(statsJson.stats.collectionsToday || 0),
+            collectionsThisMonth: Number(statsJson.stats.collectionsThisMonth || 0),
+            totalCredit: Number(statsJson.stats.totalCredit || 0),
+            totalPaid: Number(statsJson.stats.totalPaid || 0)
+          });
+        }
+      }
     } catch (err) {
       console.error("[FETCH ERROR]", err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [token]);
+
 
   useEffect(() => {
     if (isFocused) {
@@ -219,7 +277,7 @@ export default function MembersScreen() {
     );
   }, [members, searchQuery]);
 
-  const MemberCard = React.memo(({ item, onEdit, onDelete, onViewUsage, onCollectPayment }: { item: MemberType; onEdit: (m: MemberType) => void; onDelete: (m: MemberType) => void; onViewUsage: (m: MemberType) => void; onCollectPayment: (m: MemberType) => void }) => {
+  const MemberCard = React.memo(({ item, onEdit, onDelete, onViewUsage, onCollectPayment, onSendWhatsApp }: { item: MemberType; onEdit: (m: MemberType) => void; onDelete: (m: MemberType) => void; onViewUsage: (m: MemberType) => void; onCollectPayment: (m: MemberType) => void; onSendWhatsApp: (m: MemberType) => void }) => {
     return (
       <View style={styles.memberCard}>
         <View style={styles.cardHeader}>
@@ -240,6 +298,13 @@ export default function MembersScreen() {
               style={[styles.actionBtn, { backgroundColor: Theme.primary + "15" }]}
             >
               <Ionicons name="cash-outline" size={18} color={Theme.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              activeOpacity={0.7}
+              onPress={() => onSendWhatsApp(item)} 
+              style={[styles.actionBtn, { backgroundColor: "#25D366" + "15" }]}
+            >
+              <Ionicons name="logo-whatsapp" size={18} color="#25D366" />
             </TouchableOpacity>
             <TouchableOpacity 
               activeOpacity={0.7}
@@ -316,8 +381,8 @@ export default function MembersScreen() {
   });
 
   const renderMember = useCallback(({ item }: { item: MemberType }) => {
-    return <MemberCard item={item} onEdit={openEditModal} onDelete={handleDeleteMember} onViewUsage={handleViewUsage} onCollectPayment={handleCollectPayment} />;
-  }, [openEditModal, handleDeleteMember, handleViewUsage, handleCollectPayment]);
+    return <MemberCard item={item} onEdit={openEditModal} onDelete={handleDeleteMember} onViewUsage={handleViewUsage} onCollectPayment={handleCollectPayment} onSendWhatsApp={handleSendWhatsApp} />;
+  }, [openEditModal, handleDeleteMember, handleViewUsage, handleCollectPayment, handleSendWhatsApp]);
 
   return (
     <View style={styles.container}>
@@ -337,6 +402,95 @@ export default function MembersScreen() {
             <Text style={styles.addBtnText}>+ Add Member</Text>
           </TouchableOpacity>
         </View>
+
+        {/* --- KPI Stats section --- */}
+        {isMobile ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 20, gap: 12, paddingBottom: 15 }}
+          >
+            <View style={[styles.kpiCard, { width: 220, backgroundColor: Theme.bgDark, borderColor: Theme.borderDark }]}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <Text style={[styles.kpiLabel, { color: Theme.textMuted }]}>TOTAL OUTSTANDING</Text>
+                <Ionicons name="alert-circle" size={18} color={Theme.warning} />
+              </View>
+              <Text style={[styles.kpiVal, { color: "#FFF" }]}>
+                {formatMoney(stats?.totalOutstanding || 0)}
+              </Text>
+              <Text style={{ fontSize: 10, fontFamily: Fonts.bold, color: Theme.textMuted, marginTop: 4 }}>
+                Active Accounts: {stats?.totalCustomersWithCredit || 0}
+              </Text>
+            </View>
+
+            <View style={[styles.kpiCard, { width: 220, backgroundColor: Theme.danger + "10", borderColor: Theme.danger }]}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <Text style={[styles.kpiLabel, { color: Theme.danger }]}>OVERDUE (30+ DAYS)</Text>
+                <Ionicons name="warning" size={18} color={Theme.danger} />
+              </View>
+              <Text style={[styles.kpiVal, { color: Theme.danger }]}>
+                {formatMoney(stats?.totalOverdue || 0)}
+              </Text>
+              <Text style={{ fontSize: 10, fontFamily: Fonts.bold, color: Theme.textSecondary, marginTop: 4 }}>
+                Action required immediately
+              </Text>
+            </View>
+
+            <View style={[styles.kpiCard, { width: 220, backgroundColor: Theme.success + "10", borderColor: Theme.success }]}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <Text style={[styles.kpiLabel, { color: Theme.success }]}>COLLECTED THIS MONTH</Text>
+                <Ionicons name="checkmark-done" size={18} color={Theme.success} />
+              </View>
+              <Text style={[styles.kpiVal, { color: Theme.success }]}>
+                {formatMoney(stats?.collectionsThisMonth || 0)}
+              </Text>
+              <Text style={{ fontSize: 10, fontFamily: Fonts.bold, color: Theme.textSecondary, marginTop: 4 }}>
+                Today: {formatMoney(stats?.collectionsToday || 0)}
+              </Text>
+            </View>
+          </ScrollView>
+        ) : (
+          <View style={styles.kpiContainer}>
+            <View style={[styles.kpiCard, { backgroundColor: Theme.bgDark, borderColor: Theme.borderDark }]}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <Text style={[styles.kpiLabel, { color: Theme.textMuted }]}>TOTAL OUTSTANDING</Text>
+                <Ionicons name="alert-circle" size={18} color={Theme.warning} />
+              </View>
+              <Text style={[styles.kpiVal, { color: "#FFF" }]}>
+                {formatMoney(stats?.totalOutstanding || 0)}
+              </Text>
+              <Text style={{ fontSize: 10, fontFamily: Fonts.bold, color: Theme.textMuted, marginTop: 4 }}>
+                Active Accounts: {stats?.totalCustomersWithCredit || 0}
+              </Text>
+            </View>
+
+            <View style={[styles.kpiCard, { backgroundColor: Theme.danger + "10", borderColor: Theme.danger }]}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <Text style={[styles.kpiLabel, { color: Theme.danger }]}>OVERDUE (30+ DAYS)</Text>
+                <Ionicons name="warning" size={18} color={Theme.danger} />
+              </View>
+              <Text style={[styles.kpiVal, { color: Theme.danger }]}>
+                {formatMoney(stats?.totalOverdue || 0)}
+              </Text>
+              <Text style={{ fontSize: 10, fontFamily: Fonts.bold, color: Theme.textSecondary, marginTop: 4 }}>
+                Action required immediately
+              </Text>
+            </View>
+
+            <View style={[styles.kpiCard, { backgroundColor: Theme.success + "10", borderColor: Theme.success }]}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <Text style={[styles.kpiLabel, { color: Theme.success }]}>COLLECTED THIS MONTH</Text>
+                <Ionicons name="checkmark-done" size={18} color={Theme.success} />
+              </View>
+              <Text style={[styles.kpiVal, { color: Theme.success }]}>
+                {formatMoney(stats?.collectionsThisMonth || 0)}
+              </Text>
+              <Text style={{ fontSize: 10, fontFamily: Fonts.bold, color: Theme.textSecondary, marginTop: 4 }}>
+                Today: {formatMoney(stats?.collectionsToday || 0)}
+              </Text>
+            </View>
+          </View>
+        )}
 
         <View style={styles.searchWrapper}>
           <View style={styles.searchInner}>
@@ -588,6 +742,10 @@ export default function MembersScreen() {
 }
 
 const styles = StyleSheet.create({
+  kpiContainer: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 20, gap: 12, marginBottom: 15 },
+  kpiCard: { flex: 1, minWidth: 150, padding: 15, borderRadius: 16, borderWidth: 1, ...Theme.shadowSm },
+  kpiLabel: { fontSize: 9, fontFamily: Fonts.black, letterSpacing: 0.5 },
+  kpiVal: { fontSize: 18, fontFamily: Fonts.black, marginTop: 4 },
   container: { flex: 1, backgroundColor: Theme.bgMain },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   headerBar: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 20, gap: 15 },
