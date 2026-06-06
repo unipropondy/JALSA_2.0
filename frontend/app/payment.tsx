@@ -624,8 +624,7 @@ export default function PaymentScreen() {
     }
     const { settings } = usePaymentSettingsStore.getState();
     const mUpper = method.trim().toUpperCase();
-    
-    if (mUpper === "MEMBER" || mUpper === "CREDIT") {
+    if (mUpper === "MEMBER" || mUpper === "CREDIT" || mUpper === "5" || mUpper === "6") {
       if (!selectedMember) {
         // No member chosen yet — open modal to search and select one
         setShowMemberModal(true);
@@ -1496,7 +1495,7 @@ export default function PaymentScreen() {
                             <>
                               <Ionicons name="checkmark-circle" size={24} color="#fff" />
                               <Text style={styles.completeBtnText}>
-                                {(method.trim().toUpperCase() === "MEMBER" || method.trim().toUpperCase() === "CREDIT") && selectedMember
+                                {(method.trim().toUpperCase() === "MEMBER" || method.trim().toUpperCase() === "CREDIT" || method.trim().toUpperCase() === "5" || method.trim().toUpperCase() === "6") && selectedMember
                                   ? "Complement Settlement"
                                   : "Complete Settlement"}
                               </Text>

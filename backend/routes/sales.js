@@ -104,7 +104,8 @@ const normalizePayMode = (paymentMethod = "CASH") => {
   if (raw.includes("PAYNOW") || raw.includes("GRAB") || raw.includes("FOODPANDA")) return "PAYNOW";
   if (raw.includes("UPI") || raw.includes("GPAY") || raw.includes("PHONE") || raw.includes("PAYTM")) return "UPI";
   if (raw.includes("NETS")) return "NETS";
-  if (raw.includes("MEMBER")) return "MEMBER";
+  if (raw.includes("MEMBER") || raw === "5") return "MEMBER";
+  if (raw.includes("CREDIT") || raw === "6") return "CREDIT";
   
   return raw;
 };
@@ -213,10 +214,12 @@ router.get("/all", async (req, res) => {
             ISNULL(ri.TotalDiscountAmount, 0) as TotalDiscountAmount,
             ISNULL(ri.TotalLineItemDiscountAmount, 0) as TotalLineItemDiscountAmount,
             sh.RoundedBy as RoundedBy,
-            ISNULL(ri.DiscountPercentage, 0) as DiscountPercentage
+            ISNULL(ri.DiscountPercentage, 0) as DiscountPercentage,
+            ISNULL(cct_sale.OutstandingAmount, CASE WHEN ${normalizeReportPayModeSql("sts.PayMode")} IN ('MEMBER', 'CREDIT') THEN sh.SysAmount ELSE 0 END) AS OutstandingAmount
           FROM SettlementHeader sh
           LEFT JOIN SettlementTotalSales sts ON sh.SettlementID = sts.SettlementID
           LEFT JOIN RestaurantInvoice ri ON sh.SettlementID = ri.RestaurantBillId
+          LEFT JOIN CustomerCreditTransactions cct_sale ON sh.SettlementID = cct_sale.SettlementId AND cct_sale.TransactionType = 'CREDIT_SALE'
           WHERE ${shWhere}
 
           UNION ALL
@@ -250,7 +253,8 @@ router.get("/all", async (req, res) => {
             0 AS TotalDiscountAmount,
             0 AS TotalLineItemDiscountAmount,
             0 AS RoundedBy,
-            0 AS DiscountPercentage
+            0 AS DiscountPercentage,
+            0 AS OutstandingAmount
           FROM CustomerCreditTransactions cct
           LEFT JOIN CreditCustomerMaster m ON cct.MemberId = m.CustomerId
           LEFT JOIN MemberMaster mm ON cct.MemberId = mm.MemberId
@@ -290,10 +294,12 @@ router.get("/all", async (req, res) => {
             ISNULL(ri.TotalDiscountAmount, 0) as TotalDiscountAmount,
             ISNULL(ri.TotalLineItemDiscountAmount, 0) as TotalLineItemDiscountAmount,
             sh.RoundedBy as RoundedBy,
-            ISNULL(ri.DiscountPercentage, 0) as DiscountPercentage
+            ISNULL(ri.DiscountPercentage, 0) as DiscountPercentage,
+            ISNULL(cct_sale.OutstandingAmount, CASE WHEN ${normalizeReportPayModeSql("sts.PayMode")} IN ('MEMBER', 'CREDIT') THEN sh.SysAmount ELSE 0 END) AS OutstandingAmount
           FROM SettlementHeader sh
           LEFT JOIN SettlementTotalSales sts ON sh.SettlementID = sts.SettlementID
           LEFT JOIN RestaurantInvoice ri ON sh.SettlementID = ri.RestaurantBillId
+          LEFT JOIN CustomerCreditTransactions cct_sale ON sh.SettlementID = cct_sale.SettlementId AND cct_sale.TransactionType = 'CREDIT_SALE'
 
           UNION ALL
 
@@ -326,7 +332,8 @@ router.get("/all", async (req, res) => {
             0 AS TotalDiscountAmount,
             0 AS TotalLineItemDiscountAmount,
             0 AS RoundedBy,
-            0 AS DiscountPercentage
+            0 AS DiscountPercentage,
+            0 AS OutstandingAmount
           FROM CustomerCreditTransactions cct
           LEFT JOIN CreditCustomerMaster m ON cct.MemberId = m.CustomerId
           LEFT JOIN MemberMaster mm ON cct.MemberId = mm.MemberId
@@ -1089,7 +1096,7 @@ router.post("/save", async (req, res) => {
 
       // 🆕 MEMBER / CREDIT VALIDATION
       if (memberId) {
-        const payUpper = (paymentMethod || "").toUpperCase().trim();
+        const payUpper = normalizePayMode(paymentMethod);
         if (payUpper === "CREDIT") {
           const creditCheck = await transaction.request()
             .input("CustomerId", sql.UniqueIdentifier, memberId)
@@ -1583,7 +1590,7 @@ router.post("/save", async (req, res) => {
         }
 
         if (memberId) {
-          const payUpper = (paymentMethod || "").toUpperCase().trim();
+          const payUpper = normalizePayMode(paymentMethod);
           if (payUpper === "CREDIT") {
             await transaction.request()
               .input("CustomerId", memberId)

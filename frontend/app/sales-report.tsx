@@ -949,8 +949,13 @@ export default function SalesReport() {
         else if (mode === "NETS") acc.Nets += s.SysAmount;
         else if (mode === "PAYNOW") acc.PayNow += s.SysAmount;
         else if (isUpi) acc.Upi += s.SysAmount;
-        else if (mode === "MEMBER") acc.Member += s.SysAmount;
-        else if (mode === "CREDIT") acc.Credit += s.SysAmount;
+        else if (mode === "MEMBER") {
+          acc.Member += s.SysAmount;
+          acc.MemberOutstanding += Number(s.OutstandingAmount) || 0;
+        } else if (mode === "CREDIT") {
+          acc.Credit += s.SysAmount;
+          acc.CreditOutstanding += Number(s.OutstandingAmount) || 0;
+        }
 
         return acc;
       },
@@ -971,6 +976,8 @@ export default function SalesReport() {
         CancelledAmount: 0,
         MemberPaymentsCollected: 0,
         CreditPaymentsCollected: 0,
+        MemberOutstanding: 0,
+        CreditOutstanding: 0,
       },
     );
   }, [dateScopedSales]);
@@ -1008,8 +1015,14 @@ export default function SalesReport() {
         else if (mode === "NETS") acc.Nets += s.SysAmount;
         else if (mode === "PAYNOW") acc.PayNow += s.SysAmount;
         else if (isUpi) acc.Upi += s.SysAmount;
-        else if (mode === "MEMBER") acc.Member += s.SysAmount;
-        else if (mode === "CREDIT") acc.Credit += s.SysAmount;
+        else if (mode === "MEMBER") {
+          acc.Member += s.SysAmount;
+          acc.MemberOutstanding += Number(s.OutstandingAmount) || 0;
+        }
+        else if (mode === "CREDIT") {
+          acc.Credit += s.SysAmount;
+          acc.CreditOutstanding += Number(s.OutstandingAmount) || 0;
+        }
 
         return acc;
       },
@@ -1021,6 +1034,8 @@ export default function SalesReport() {
         Upi: 0,
         Member: 0,
         Credit: 0,
+        MemberOutstanding: 0,
+        CreditOutstanding: 0,
       }
     );
   }, [dateScopedSales, activeOrderTypes]);
@@ -2195,12 +2210,14 @@ export default function SalesReport() {
             {
               label: "MEMBER",
               val: paymentBreakdownMetrics.Member,
+              outstanding: paymentBreakdownMetrics.MemberOutstanding,
               icon: "👤",
               color: "#ec4899",
             },
             {
               label: "CREDIT",
               val: paymentBreakdownMetrics.Credit,
+              outstanding: paymentBreakdownMetrics.CreditOutstanding,
               icon: "🏷️",
               color: "#e11d48",
             },
@@ -2242,6 +2259,15 @@ export default function SalesReport() {
                 >
                   {formatCurrency(item.val)}
                 </Text>
+                {item.outstanding !== undefined && (
+                  <Text 
+                    style={{ fontSize: 9, fontFamily: Fonts.bold, color: Theme.textMuted, marginTop: 1 }}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                  >
+                    Pending: {formatCurrency(item.outstanding)}
+                  </Text>
+                )}
               </TouchableOpacity>
             );
           })}
@@ -2256,8 +2282,16 @@ export default function SalesReport() {
           <Text style={{ fontFamily: Fonts.black, fontSize: 14, color: Theme.primary }}>{formatCurrency(filteredMetrics.MemberPaymentsCollected)}</Text>
         </View>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 4, marginTop: 6 }}>
+          <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: "#ec4899" }}>Member Sales Pending:</Text>
+          <Text style={{ fontFamily: Fonts.black, fontSize: 14, color: "#ec4899" }}>{formatCurrency(filteredMetrics.MemberOutstanding)}</Text>
+        </View>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 4, marginTop: 6 }}>
           <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: Theme.warning }}>Credit Payments Collected:</Text>
           <Text style={{ fontFamily: Fonts.black, fontSize: 14, color: Theme.warning }}>{formatCurrency(filteredMetrics.CreditPaymentsCollected)}</Text>
+        </View>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 4, marginTop: 6 }}>
+          <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: "#e11d48" }}>Credit Sales Pending:</Text>
+          <Text style={{ fontFamily: Fonts.black, fontSize: 14, color: "#e11d48" }}>{formatCurrency(filteredMetrics.CreditOutstanding)}</Text>
         </View>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 4, marginTop: 6 }}>
           <Text style={{ fontFamily: Fonts.extraBold, fontSize: 13, color: Theme.success }}>Total Collections:</Text>
@@ -2756,13 +2790,81 @@ export default function SalesReport() {
                         {formatCurrency(selectedOrder?.SysAmount)}
                       </Text>
                     </View>
-                    <View style={[styles.paidBadgeSmall, { paddingHorizontal: 6, paddingVertical: 2, backgroundColor: selectedOrder?.IsCancelled ? Theme.danger + "20" : Theme.success + "20", borderColor: selectedOrder?.IsCancelled ? Theme.danger + "40" : Theme.success + "40" }]}>
-                      <Ionicons name={selectedOrder?.IsCancelled ? "close-circle" : "checkmark-circle"} size={14} color={selectedOrder?.IsCancelled ? Theme.danger : Theme.success} />
-                      <Text style={{ color: selectedOrder?.IsCancelled ? Theme.danger : Theme.success, fontFamily: Fonts.black, fontSize: 10, marginLeft: 4 }}>
-                        {selectedOrder?.IsCancelled ? "CANCELLED" : "PAID"}
+                    <View style={[
+                      styles.paidBadgeSmall,
+                      {
+                        paddingHorizontal: 6,
+                        paddingVertical: 2,
+                        backgroundColor: selectedOrder?.IsCancelled 
+                          ? Theme.danger + "20" 
+                          : selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0
+                          ? Number(selectedOrder.OutstandingAmount) === Number(selectedOrder.SysAmount)
+                            ? "#ef444420"
+                            : "#f59e0b20"
+                          : Theme.success + "20",
+                        borderColor: selectedOrder?.IsCancelled 
+                          ? Theme.danger + "40" 
+                          : selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0
+                          ? Number(selectedOrder.OutstandingAmount) === Number(selectedOrder.SysAmount)
+                            ? "#ef444440"
+                            : "#f59e0b40"
+                          : Theme.success + "40"
+                      }
+                    ]}>
+                      <Ionicons 
+                        name={
+                          selectedOrder?.IsCancelled 
+                            ? "close-circle" 
+                            : selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0
+                            ? Number(selectedOrder.OutstandingAmount) === Number(selectedOrder.SysAmount)
+                              ? "alert-circle"
+                              : "time"
+                            : "checkmark-circle"
+                        } 
+                        size={14} 
+                        color={
+                          selectedOrder?.IsCancelled 
+                            ? Theme.danger 
+                            : selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0
+                            ? Number(selectedOrder.OutstandingAmount) === Number(selectedOrder.SysAmount)
+                              ? "#ef4444"
+                              : "#f59e0b"
+                            : Theme.success
+                        } 
+                      />
+                      <Text style={{ 
+                        color: selectedOrder?.IsCancelled 
+                          ? Theme.danger 
+                          : selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0
+                          ? Number(selectedOrder.OutstandingAmount) === Number(selectedOrder.SysAmount)
+                            ? "#ef4444"
+                            : "#f59e0b"
+                          : Theme.success, 
+                        fontFamily: Fonts.black, 
+                        fontSize: 10, 
+                        marginLeft: 4 
+                      }}>
+                        {selectedOrder?.IsCancelled 
+                          ? "CANCELLED" 
+                          : selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0
+                          ? Number(selectedOrder.OutstandingAmount) === Number(selectedOrder.SysAmount)
+                            ? "UNPAID"
+                            : "PARTIAL"
+                          : "PAID"}
                       </Text>
                     </View>
                   </View>
+                  {/* Paid / Pending details inside the modal */}
+                  {selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0 && !selectedOrder?.IsCancelled && (
+                    <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: Theme.border + "40", flexDirection: "row", justifyContent: "space-between" }}>
+                      <Text style={{ fontSize: 11, fontFamily: Fonts.bold, color: Theme.textSecondary }}>
+                        Paid: <Text style={{ color: Theme.success, fontFamily: Fonts.black }}>{formatCurrency(Number(selectedOrder.SysAmount) - Number(selectedOrder.OutstandingAmount))}</Text>
+                      </Text>
+                      <Text style={{ fontSize: 11, fontFamily: Fonts.bold, color: Theme.textSecondary }}>
+                        Pending: <Text style={{ color: "#ef4444", fontFamily: Fonts.black }}>{formatCurrency(Number(selectedOrder.OutstandingAmount))}</Text>
+                      </Text>
+                    </View>
+                  )}
                 </View>
 
                 <View style={{ flexDirection: "row", gap: 12 }}>

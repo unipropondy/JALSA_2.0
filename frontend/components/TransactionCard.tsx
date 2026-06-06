@@ -143,9 +143,24 @@ const TransactionCard = React.memo(
           <Text style={styles.txDatetime}>
             {settlementDate.toLocaleDateString([], { day: 'numeric', month: 'short' })} • {settlementDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </Text>
+          {item.OutstandingAmount !== undefined && Number(item.OutstandingAmount) > 0 && !item.IsCancelled && (
+            <Text style={{ fontSize: 9, fontFamily: Fonts.black, color: modeUpper === "MEMBER" ? "#ec4899" : "#e11d48", marginTop: 2 }}>
+              Pending: {formatCurrency(Number(item.OutstandingAmount))}
+            </Text>
+          )}
         </View>
         <View style={styles.paidIndicator}>
-           <Ionicons name="checkmark-circle" size={16} color={Theme.success} />
+           {item.IsCancelled || item.VoidAmount > 0 ? (
+             <Ionicons name="close-circle" size={16} color={Theme.danger} />
+           ) : item.OrderType !== "LEDGER" && (modeUpper === "MEMBER" || modeUpper === "CREDIT") && Number(item.OutstandingAmount) > 0 ? (
+             Number(item.OutstandingAmount) === Number(item.SysAmount) ? (
+               <Ionicons name="alert-circle" size={16} color="#e11d48" />
+             ) : (
+               <Ionicons name="time" size={16} color="#f59e0b" />
+             )
+           ) : (
+             <Ionicons name="checkmark-circle" size={16} color={Theme.success} />
+           )}
         </View>
       </TouchableOpacity>
     );
