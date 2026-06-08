@@ -2,6 +2,7 @@
 
 import { Platform } from "react-native";
 import { API_URL } from "../constants/Config";
+import { formatToSingaporeTime } from "../utils/timezoneHelper";
 
 // ✅ Guarded imports for native module to prevent crashes on non-Android platforms
 let SunmiModule: any = null;
@@ -263,13 +264,11 @@ class SunmiPrinterService {
       await SunmiModule.lineWrap(1);
 
       // ============ BILL DETAILS ============
-      const now = new Date();
-      const dateStr = `${now.getDate().toString().padStart(2, "0")}/${(now.getMonth() + 1).toString().padStart(2, "0")}/${now.getFullYear()}`;
-      const timeStr = now.toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-      });
+      const saleDate = saleData.originalDate ? new Date(saleData.originalDate) : 
+                       saleData.date ? new Date(saleData.date) : 
+                       new Date();
+      const dateStr = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Singapore', day: '2-digit', month: '2-digit', year: 'numeric' }).format(saleDate);
+      const timeStr = formatToSingaporeTime(saleDate);
 
       await this.left(`INVOICE NO: ${saleData.invoiceNumber || saleData.id}`);
       if (saleData.tableNo) {

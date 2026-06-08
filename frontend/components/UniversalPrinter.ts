@@ -6,6 +6,7 @@ import * as Sharing from "expo-sharing";
 import { Alert, Platform } from "react-native";
 import ThermalPrinter from "react-native-thermal-printer";
 import { API_URL } from "../constants/Config";
+import { formatToSingaporeDate, formatToSingaporeTime } from "../utils/timezoneHelper";
 import BillPDFGenerator from "./BillPDFGenerator";
 import { PrinterDetector } from "./PrinterDetector";
 import SunmiPrinterService from "./SunmiPrinterService";
@@ -1053,11 +1054,16 @@ class UniversalPrinter {
     if (company.phone) text += `[C]Tel: ${company.phone}\n`;
     text += "[C]------------------------------------------------\n";
 
+    const saleDate = saleData.originalDate ? new Date(saleData.originalDate) : 
+                     saleData.date ? new Date(saleData.date) : 
+                     new Date();
+
     text += `[L]Bill No: ${saleData.invoiceNumber || saleData.id || ""}\n`;
     if (saleData.tableNo) {
       text += `[L]<font size=\'big\'><B>TABLE: ${saleData.tableNo}</B></font>\n`;
     }
-    text += `[L]Date: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}\n`;
+    const dateFormatted = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Singapore', day: '2-digit', month: '2-digit', year: 'numeric' }).format(saleDate);
+    text += `[L]Date: ${dateFormatted} ${formatToSingaporeTime(saleDate)}\n`;
     text += `[L]Waiter: ${saleData.waiterName || "Staff"}\n`;
     text += "[L]------------------------------------------------\n";
 

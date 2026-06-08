@@ -7,6 +7,7 @@ import API from '../api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import { API_URL } from '@/constants/Config';
+import { formatToSingaporeDate, formatToSingaporeTime } from '../utils/timezoneHelper';
 
 interface CompanySettings {
   name: string;
@@ -751,13 +752,7 @@ private static escapeHtml(str: string): string {
             <div class="detail-row">
               <span class="detail-label">DATE:</span>
               <span class="detail-value">
-                ${(() => {
-                  const d = saleDate.getDate().toString().padStart(2, '0');
-                  const m = (saleDate.getMonth() + 1).toString().padStart(2, '0');
-                  const y = saleDate.getFullYear();
-                  const t = saleDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
-                  return `${d}/${m}/${y} ${t}`;
-                })()}
+                ${new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Singapore', day: '2-digit', month: '2-digit', year: 'numeric' }).format(saleDate)} ${formatToSingaporeTime(saleDate)}
               </span>
             </div>
             
