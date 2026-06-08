@@ -56,6 +56,41 @@ const formatMoney = (amount: number) => {
   }
 };
 
+const COUNTRIES = [
+  { code: "+65", label: "🇸🇬 +65", name: "Singapore" },
+  { code: "+60", label: "🇲🇾 +60", name: "Malaysia" },
+  { code: "+971", label: "🇦🇪 +971", name: "UAE" },
+  { code: "+91", label: "🇮🇳 +91", name: "India" },
+  { code: "+1", label: "🇺🇸 +1", name: "USA" },
+  { code: "+44", label: "🇬🇧 +44", name: "UK" },
+  { code: "+61", label: "🇦🇺 +61", name: "Australia" },
+  { code: "+62", label: "🇮🇩 +62", name: "Indonesia" },
+  { code: "+66", label: "🇹🇭 +66", name: "Thailand" },
+];
+
+function parsePhoneNumber(rawPhone: string) {
+  const clean = String(rawPhone || "").trim();
+  for (const country of COUNTRIES) {
+    if (clean.startsWith(country.code)) {
+      return {
+        countryCode: country.code,
+        localNumber: clean.slice(country.code.length)
+      };
+    }
+    const codeNoPlus = country.code.slice(1);
+    if (clean.startsWith(codeNoPlus)) {
+      return {
+        countryCode: country.code,
+        localNumber: clean.slice(codeNoPlus.length)
+      };
+    }
+  }
+  return {
+    countryCode: "+65",
+    localNumber: clean.startsWith("+") ? clean.slice(1) : clean
+  };
+}
+
 export default function MembersScreen() {
   const router = useRouter();
   const { user, token } = useAuthStore();
@@ -80,6 +115,11 @@ export default function MembersScreen() {
   const [editingMember, setEditingMember] = useState<MemberType | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  // Country Code Selector States
+  const [selectedCountryCode, setSelectedCountryCode] = useState("+65");
+  const [localPhone, setLocalPhone] = useState("");
+  const [showCountryPicker, setShowCountryPicker] = useState(false);
 
   // Recharge Modal State
   const [showRechargeModal, setShowRechargeModal] = useState(false);
@@ -322,12 +362,17 @@ export default function MembersScreen() {
       currentBalance: "0", 
       balance: "0" 
     });
+    setSelectedCountryCode("+65");
+    setLocalPhone("");
     setEditingMember(null);
     setModalMode("ADD");
   };
 
   const openEditModal = (member: MemberType) => {
     setEditingMember(member);
+    const parsed = parsePhoneNumber(member.Phone);
+    setSelectedCountryCode(parsed.countryCode);
+    setLocalPhone(parsed.localNumber);
     setFormData({
       name: member.Name,
       phone: member.Phone,
@@ -342,7 +387,7 @@ export default function MembersScreen() {
   };
 
   const handleSaveMember = async () => {
-    if (!formData.name.trim() || !formData.phone.trim()) {
+    if (!formData.name.trim() || !localPhone.trim()) {
       Alert.alert("Required", "Please fill Name and Phone.");
       return;
     }
@@ -351,6 +396,7 @@ export default function MembersScreen() {
     try {
       const isEdit = modalMode === "EDIT";
       const url = isEdit ? `${API_URL}/api/members/update` : `${API_URL}/api/members/add`;
+      const fullPhone = `${selectedCountryCode}${localPhone.trim()}`;
 
       const res = await fetch(url, {
         method: "POST",
@@ -358,7 +404,7 @@ export default function MembersScreen() {
         body: JSON.stringify({
           memberId: editingMember?.MemberId,
           name: formData.name.trim(),
-          phone: formData.phone.trim(),
+          phone: fullPhone,
           email: formData.email.trim(),
           address: formData.address.trim(),
           isActive: formData.isActive,
@@ -582,7 +628,25 @@ export default function MembersScreen() {
                 </View>
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>PHONE</Text>
-                  <TextInput style={styles.sheetInput} keyboardType="phone-pad" value={formData.phone} onChangeText={v => setFormData({ ...formData, phone: v })} placeholder="Contact Number" placeholderTextColor={Theme.textMuted} />
+                  <View style={{ flexDirection: "row", gap: 10 }}>
+                    <TouchableOpacity
+                      style={styles.countrySelector}
+                      onPress={() => setShowCountryPicker(true)}
+                    >
+                      <Text style={styles.countrySelectorText}>
+                        {selectedCountryCode}
+                      </Text>
+                      <Ionicons name="chevron-down" size={12} color={Theme.textSecondary} />
+                    </TouchableOpacity>
+                    <TextInput
+                      style={[styles.sheetInput, { flex: 1 }]}
+                      keyboardType="phone-pad"
+                      value={localPhone}
+                      onChangeText={v => setLocalPhone(v.replace(/[^0-9]/g, ""))}
+                      placeholder="Contact Number"
+                      placeholderTextColor={Theme.textMuted}
+                    />
+                  </View>
                 </View>
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>EMAIL</Text>
@@ -627,6 +691,55 @@ export default function MembersScreen() {
               </ScrollView>
             </View>
           </View>
+        </Modal>
+
+        {/* Country Picker Modal */}
+        <Modal
+          visible={showCountryPicker}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowCountryPicker(false)}
+        >
+          <TouchableOpacity 
+            style={styles.pickerOverlay} 
+            activeOpacity={1} 
+            onPress={() => setShowCountryPicker(false)}
+          >
+            <View style={[styles.formSheet, { maxHeight: '60%', width: '80%' }]}>
+              <View style={styles.sheetHeader}>
+                <Text style={styles.sheetTitle}>Select Country Code</Text>
+                <TouchableOpacity onPress={() => setShowCountryPicker(false)} style={styles.sheetClose}>
+                  <Ionicons name="close" size={24} color={Theme.textPrimary} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={{ padding: 25 }} showsVerticalScrollIndicator={false}>
+                {COUNTRIES.map((c) => (
+                  <TouchableOpacity
+                    key={c.code}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      paddingVertical: 14,
+                      borderBottomWidth: 0.5,
+                      borderBottomColor: Theme.border
+                    }}
+                    onPress={() => {
+                      setSelectedCountryCode(c.code);
+                      setShowCountryPicker(false);
+                    }}
+                  >
+                    <Text style={{ fontSize: 15, fontFamily: Fonts.bold, color: Theme.textPrimary }}>
+                      {c.label}  {c.name}
+                    </Text>
+                    {selectedCountryCode === c.code && (
+                      <Ionicons name="checkmark" size={20} color={Theme.primary} />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </TouchableOpacity>
         </Modal>
 
         {/* Delete Modal */}
@@ -1065,4 +1178,26 @@ const styles = StyleSheet.create({
   },
   lowBalanceWAText: { fontSize: 11, fontFamily: Fonts.bold, color: '#fff' },
   btnLabel: { color: Theme.textSecondary, fontSize: 15, fontFamily: Fonts.bold },
+  countrySelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 56,
+    backgroundColor: Theme.bgInput,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Theme.border,
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  countrySelectorText: {
+    fontSize: 15,
+    fontFamily: Fonts.bold,
+    color: Theme.textPrimary,
+  },
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });
