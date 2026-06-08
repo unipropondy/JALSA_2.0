@@ -384,16 +384,16 @@ async function initDB(pool) {
       END
     `);
 
-    // Backfill balance for existing customer credit balances as adjustments if no transactions exist yet
-    await runQuery("Backfill CustomerCreditTransactions", `
-      IF NOT EXISTS (SELECT TOP 1 1 FROM [dbo].[CustomerCreditTransactions])
-      BEGIN
-          INSERT INTO [dbo].[CustomerCreditTransactions] (MemberId, TransactionType, BillAmount, PaidAmount, OutstandingAmount, Status, Remarks, CreatedDate)
-          SELECT MemberId, 'ADJUSTMENT', CurrentBalance, 0, CurrentBalance, 'OPEN', 'Balance migration from legacy profile', GETDATE()
-          FROM MemberMaster
-          WHERE CurrentBalance > 0
-      END
-    `);
+    // Backfill DISABLED — user wants fresh start, no auto-population from MemberMaster
+    // await runQuery("Backfill CustomerCreditTransactions", `
+    //   IF NOT EXISTS (SELECT TOP 1 1 FROM [dbo].[CustomerCreditTransactions])
+    //   BEGIN
+    //       INSERT INTO [dbo].[CustomerCreditTransactions] (MemberId, TransactionType, BillAmount, PaidAmount, OutstandingAmount, Status, Remarks, CreatedDate)
+    //       SELECT MemberId, 'ADJUSTMENT', CurrentBalance, 0, CurrentBalance, 'OPEN', 'Balance migration from legacy profile', GETDATE()
+    //       FROM MemberMaster
+    //       WHERE CurrentBalance > 0
+    //   END
+    // `);
 
     await runQuery("Create CustomerCreditAllocations", `
       IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[CustomerCreditAllocations]') AND type in (N'U'))
