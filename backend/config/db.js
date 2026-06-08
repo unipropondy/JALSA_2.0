@@ -1,7 +1,7 @@
 const path = require("path");
 // Adjust path to root of backend folder where .env is located
 require("dotenv").config({ path: path.resolve(__dirname, "../.env") });
-const sql = require("mssql");
+const sql = require("mssql"); 
 
 const dbConfig = {
   user: process.env.DB_USER,
