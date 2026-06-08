@@ -233,12 +233,13 @@ export default function AIChatScreen() {
     try {
       if (visuals.type === "bar" || visuals.type === "pie") {
         const maxValue = Math.max(...visuals.data.map((item: any) => item.revenue || item.quantity || item.value || 1));
+        const isMobile = width < 480;
         
         return (
-          <View style={styles.dashboardCard}>
+          <View style={[styles.dashboardCard, isMobile && { padding: 8, marginTop: 10 }]}>
             <View style={styles.cardHeaderRow}>
-              <Ionicons name="stats-chart" size={16} color={Theme.primary} />
-              <Text style={styles.cardHeaderTitle}>Visual Analytics Breakdown</Text>
+              <Ionicons name="stats-chart" size={isMobile ? 12 : 16} color={Theme.primary} />
+              <Text style={[styles.cardHeaderTitle, isMobile && { fontSize: 9 }]}>Visual Analytics Breakdown</Text>
             </View>
             
             <View style={styles.barListContainer}>
@@ -250,8 +251,10 @@ export default function AIChatScreen() {
                 return (
                   <View key={idx} style={styles.barRow}>
                     <View style={styles.barLabelRow}>
-                      <Text style={styles.barLabelText}>{item.name || item.item_name || item.staff_name || "Detail"}</Text>
-                      <Text style={styles.barValueText}>
+                      <Text style={[styles.barLabelText, isMobile && { fontSize: 10 }]} numberOfLines={1}>
+                        {item.name || item.item_name || item.staff_name || "Detail"}
+                      </Text>
+                      <Text style={[styles.barValueText, isMobile && { fontSize: 10 }]}>
                         {item.revenue ? `SGD ${Number(val).toFixed(2)}` : val}
                       </Text>
                     </View>
@@ -282,39 +285,41 @@ export default function AIChatScreen() {
 
     const isDiscount = data.DiscountedBills !== undefined || data.TotalDiscountGiven !== undefined;
 
+    const isMobile = width < 480;
+
     if (isSales) {
       return (
         <View style={styles.kpiContainer}>
-          <View style={styles.kpiCard}>
-            <View style={[styles.kpiIconWrapper, { backgroundColor: Theme.success + "15" }]}>
-              <Ionicons name="cash-outline" size={18} color={Theme.success} />
+          <View style={[styles.kpiCard, isMobile && { minWidth: 85, padding: 6 }]}>
+            <View style={[styles.kpiIconWrapper, { backgroundColor: Theme.success + "15" }, isMobile && { width: 22, height: 22, marginBottom: 4 }]}>
+              <Ionicons name="cash-outline" size={isMobile ? 12 : 18} color={Theme.success} />
             </View>
             <Text style={styles.kpiLabel}>Revenue</Text>
-            <Text style={styles.kpiValue}>SGD {Number(data.TotalRevenue || 0).toFixed(2)}</Text>
+            <Text style={[styles.kpiValue, isMobile && { fontSize: 10 }]}>SGD {Number(data.TotalRevenue || 0).toFixed(2)}</Text>
           </View>
           
-          <View style={styles.kpiCard}>
-            <View style={[styles.kpiIconWrapper, { backgroundColor: Theme.primary + "15" }]}>
-              <Ionicons name="receipt-outline" size={18} color={Theme.primary} />
+          <View style={[styles.kpiCard, isMobile && { minWidth: 85, padding: 6 }]}>
+            <View style={[styles.kpiIconWrapper, { backgroundColor: Theme.primary + "15" }, isMobile && { width: 22, height: 22, marginBottom: 4 }]}>
+              <Ionicons name="receipt-outline" size={isMobile ? 12 : 18} color={Theme.primary} />
             </View>
             <Text style={styles.kpiLabel}>Bills Count</Text>
-            <Text style={styles.kpiValue}>{data.TotalOrders || 0}</Text>
+            <Text style={[styles.kpiValue, isMobile && { fontSize: 10 }]}>{data.TotalOrders || 0}</Text>
           </View>
 
-          <View style={styles.kpiCard}>
-            <View style={[styles.kpiIconWrapper, { backgroundColor: Theme.info + "15" }]}>
-              <Ionicons name="analytics-outline" size={18} color={Theme.info} />
+          <View style={[styles.kpiCard, isMobile && { minWidth: 85, padding: 6 }]}>
+            <View style={[styles.kpiIconWrapper, { backgroundColor: Theme.info + "15" }, isMobile && { width: 22, height: 22, marginBottom: 4 }]}>
+              <Ionicons name="analytics-outline" size={isMobile ? 12 : 18} color={Theme.info} />
             </View>
             <Text style={styles.kpiLabel}>Avg Ticket</Text>
-            <Text style={styles.kpiValue}>SGD {Number(data.AvgTicketSize || 0).toFixed(2)}</Text>
+            <Text style={[styles.kpiValue, isMobile && { fontSize: 10 }]}>SGD {Number(data.AvgTicketSize || 0).toFixed(2)}</Text>
           </View>
 
-          <View style={styles.kpiCard}>
-            <View style={[styles.kpiIconWrapper, { backgroundColor: Theme.warning + "15" }]}>
-              <Ionicons name="pricetag-outline" size={18} color={Theme.warning} />
+          <View style={[styles.kpiCard, isMobile && { minWidth: 85, padding: 6 }]}>
+            <View style={[styles.kpiIconWrapper, { backgroundColor: Theme.warning + "15" }, isMobile && { width: 22, height: 22, marginBottom: 4 }]}>
+              <Ionicons name="pricetag-outline" size={isMobile ? 12 : 18} color={Theme.warning} />
             </View>
             <Text style={styles.kpiLabel}>Discounts</Text>
-            <Text style={styles.kpiValue}>SGD {Number(data.TotalDiscount || 0).toFixed(2)}</Text>
+            <Text style={[styles.kpiValue, isMobile && { fontSize: 10 }]}>SGD {Number(data.TotalDiscount || 0).toFixed(2)}</Text>
           </View>
         </View>
       );
@@ -323,20 +328,20 @@ export default function AIChatScreen() {
     if (isDiscount) {
       return (
         <View style={styles.kpiContainer}>
-          <View style={styles.kpiCard}>
-            <View style={[styles.kpiIconWrapper, { backgroundColor: Theme.warning + "15" }]}>
-              <Ionicons name="gift-outline" size={18} color={Theme.warning} />
+          <View style={[styles.kpiCard, isMobile && { minWidth: 100, padding: 8 }]}>
+            <View style={[styles.kpiIconWrapper, { backgroundColor: Theme.warning + "15" }, isMobile && { width: 22, height: 22, marginBottom: 4 }]}>
+              <Ionicons name="gift-outline" size={isMobile ? 12 : 18} color={Theme.warning} />
             </View>
             <Text style={styles.kpiLabel}>Total Discounts</Text>
-            <Text style={styles.kpiValue}>SGD {Number(data.TotalDiscountGiven || 0).toFixed(2)}</Text>
+            <Text style={[styles.kpiValue, isMobile && { fontSize: 11 }]}>SGD {Number(data.TotalDiscountGiven || 0).toFixed(2)}</Text>
           </View>
 
-          <View style={styles.kpiCard}>
-            <View style={[styles.kpiIconWrapper, { backgroundColor: Theme.primary + "15" }]}>
-              <Ionicons name="ticket-outline" size={18} color={Theme.primary} />
+          <View style={[styles.kpiCard, isMobile && { minWidth: 100, padding: 8 }]}>
+            <View style={[styles.kpiIconWrapper, { backgroundColor: Theme.primary + "15" }, isMobile && { width: 22, height: 22, marginBottom: 4 }]}>
+              <Ionicons name="ticket-outline" size={isMobile ? 12 : 18} color={Theme.primary} />
             </View>
             <Text style={styles.kpiLabel}>Discounted Bills</Text>
-            <Text style={styles.kpiValue}>{data.DiscountedBills || 0}</Text>
+            <Text style={[styles.kpiValue, isMobile && { fontSize: 11 }]}>{data.DiscountedBills || 0}</Text>
           </View>
         </View>
       );
@@ -350,7 +355,7 @@ export default function AIChatScreen() {
     if (rawList.length === 0) return null;
 
     // Define standard groups
-    const paymentGroups: { [key: string]: { name: string; amount: number; count: number } } = {
+    const paymentGroups = {
       CASH: { name: "Cash", amount: 0, count: 0 },
       PAYNOW: { name: "PayNow", amount: 0, count: 0 },
       NETS: { name: "NETS", amount: 0, count: 0 },
@@ -411,19 +416,21 @@ export default function AIChatScreen() {
       })
       .sort((a, b) => b.amount - a.amount); // Show highest revenue first
 
+    const isMobile = width < 480;
+
     return (
-      <View style={styles.paymentCard}>
+      <View style={[styles.paymentCard, isMobile && { padding: 6 }]}>
         <View style={styles.cardHeaderRow}>
-          <Ionicons name="card" size={16} color={Theme.primary} />
-          <Text style={styles.cardHeaderTitle}>Payment Sales Breakdown</Text>
+          <Ionicons name="card" size={12} color={Theme.primary} />
+          <Text style={[styles.cardHeaderTitle, isMobile && { fontSize: 9 }]}>Payment Sales Breakdown</Text>
         </View>
 
         {/* Table Header */}
         <View style={styles.tableHeaderRow}>
-          <Text style={[styles.tableHeaderCell, { flex: 2 }]}>Payment Method</Text>
-          <Text style={[styles.tableHeaderCell, { flex: 1, textAlign: "right" }]}>Bills</Text>
-          <Text style={[styles.tableHeaderCell, { flex: 1.5, textAlign: "right" }]}>Amount</Text>
-          <Text style={[styles.tableHeaderCell, { flex: 1.2, textAlign: "right" }]}>Contrib %</Text>
+          <Text style={[styles.tableHeaderCell, { flex: isMobile ? 1.5 : 2 }, isMobile && { fontSize: 9 }]}>Method</Text>
+          <Text style={[styles.tableHeaderCell, { flex: 0.8, textAlign: "right" }, isMobile && { fontSize: 9 }]}>Bills</Text>
+          <Text style={[styles.tableHeaderCell, { flex: 1.5, textAlign: "right" }, isMobile && { fontSize: 9 }]}>Amount</Text>
+          <Text style={[styles.tableHeaderCell, { flex: 1.2, textAlign: "right" }, isMobile && { fontSize: 9 }]}>Contrib</Text>
         </View>
 
         {/* Rows */}
@@ -431,12 +438,12 @@ export default function AIChatScreen() {
           if (row.amount === 0 && row.count === 0) return null; // Hide empty payment modes
           return (
             <View key={index} style={[styles.tableRow, index % 2 === 1 && styles.tableRowAlt]}>
-              <Text style={[styles.tableCellText, { flex: 2, fontWeight: "700" }]}>{row.name}</Text>
-              <Text style={[styles.tableCellText, { flex: 1, textAlign: "right" }]}>{row.count}</Text>
-              <Text style={[styles.tableCellText, { flex: 1.5, textAlign: "right", color: Theme.success, fontWeight: "700" }]}>
+              <Text style={[styles.tableCellText, { flex: isMobile ? 1.5 : 2, fontWeight: "700" }, isMobile && { fontSize: 9 }]}>{row.name}</Text>
+              <Text style={[styles.tableCellText, { flex: 0.8, textAlign: "right" }, isMobile && { fontSize: 9 }]}>{row.count}</Text>
+              <Text style={[styles.tableCellText, { flex: 1.5, textAlign: "right", color: Theme.success, fontWeight: "700" }, isMobile && { fontSize: 9 }]}>
                 SGD {row.amount.toFixed(2)}
               </Text>
-              <Text style={[styles.tableCellText, { flex: 1.2, textAlign: "right", fontWeight: "800", color: Theme.primary }]}>
+              <Text style={[styles.tableCellText, { flex: 1.2, textAlign: "right", fontWeight: "800", color: Theme.primary }, isMobile && { fontSize: 9 }]}>
                 {row.percentage.toFixed(1)}%
               </Text>
             </View>
@@ -445,12 +452,12 @@ export default function AIChatScreen() {
 
         {/* Summary Footer */}
         <View style={styles.tableSummaryRow}>
-          <Text style={[styles.tableSummaryText, { flex: 2 }]}>Grand Total</Text>
-          <Text style={[styles.tableSummaryText, { flex: 1, textAlign: "right" }]}>{grandTotalCount}</Text>
-          <Text style={[styles.tableSummaryText, { flex: 1.5, textAlign: "right", color: Theme.success }]}>
+          <Text style={[styles.tableSummaryText, { flex: isMobile ? 1.5 : 2 }, isMobile && { fontSize: 10 }]}>Total</Text>
+          <Text style={[styles.tableSummaryText, { flex: 0.8, textAlign: "right" }, isMobile && { fontSize: 10 }]}>{grandTotalCount}</Text>
+          <Text style={[styles.tableSummaryText, { flex: 1.5, textAlign: "right", color: Theme.success }, isMobile && { fontSize: 10 }]}>
             SGD {grandTotalAmount.toFixed(2)}
           </Text>
-          <Text style={[styles.tableSummaryText, { flex: 1.2, textAlign: "right" }]}>100%</Text>
+          <Text style={[styles.tableSummaryText, { flex: 1.2, textAlign: "right", isMobile && { fontSize: 10 } }]}>100%</Text>
         </View>
       </View>
     );
@@ -458,7 +465,37 @@ export default function AIChatScreen() {
 
   const renderMessageItem = ({ item }: { item: Message }) => {
     const isUser = item.sender === "USER";
+    const isMobile = width < 480;
     return (
+      <View style={[styles.messageRow, isUser ? styles.userRow : styles.assistantRow]}>
+        {!isUser && (
+          <View style={[styles.assistantAvatar, isMobile && { width: 20, height: 20, borderRadius: 10 }]}>
+            <Ionicons name="sparkles" size={isMobile ? 10 : 14} color="#fff" />
+          </View>
+        )}
+        <View style={[
+          styles.bubble,
+          isUser ? styles.userBubble : styles.assistantBubble,
+          isMobile && { paddingHorizontal: 10, paddingVertical: 8 }
+        ]}>
+          <Text style={[styles.messageText, isUser ? styles.userText : styles.assistantText, isMobile && { fontSize: 12, lineHeight: 18 }]}>
+            {item.text}
+          </Text>
+
+          {item.intent === "get_payment_distribution" && renderPaymentBreakdown(item)}
+          {item.structuredData && item.intent !== "get_payment_distribution" && renderKPIGrid(item)}
+          {item.visuals && renderDashboardVisuals(item.visuals)}
+
+          <Text style={styles.timestamp}>
+            {formatToSingaporeTime(item.timestamp)}
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
+  const isMobile = width < 480;
+  return (
       <View style={[styles.messageRow, isUser ? styles.userRow : styles.assistantRow]}>
         {!isUser && (
           <View style={styles.assistantAvatar}>
@@ -509,16 +546,21 @@ export default function AIChatScreen() {
           data={messages}
           keyExtractor={(item) => item.id}
           renderItem={renderMessageItem}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, isMobile && { padding: 8, gap: 12 }]}
           ListFooterComponent={
             loading ? (
               <View style={styles.loadingBubbleContainer}>
-                <View style={styles.assistantAvatar}>
-                  <Ionicons name="sparkles" size={14} color="#fff" />
+                <View style={[styles.assistantAvatar, isMobile && { width: 20, height: 20, borderRadius: 10 }]}>
+                  <Ionicons name="sparkles" size={isMobile ? 10 : 14} color="#fff" />
                 </View>
-                <View style={[styles.bubble, styles.assistantBubble, styles.loadingBubble]}>
+                <View style={[
+                  styles.bubble,
+                  styles.assistantBubble,
+                  styles.loadingBubble,
+                  isMobile && { paddingHorizontal: 10, paddingVertical: 8 }
+                ]}>
                   <ActivityIndicator size="small" color={Theme.primary} />
-                  <Text style={styles.loadingText}>Running secure dynamic analysis...</Text>
+                  <Text style={[styles.loadingText, isMobile && { fontSize: 11 }]}>Running secure dynamic analysis...</Text>
                 </View>
               </View>
             ) : null
@@ -526,7 +568,7 @@ export default function AIChatScreen() {
         />
 
         {/* Quick Prompts with Responsive Layout */}
-        <View style={styles.quickPromptsWrapper}>
+        <View style={[styles.quickPromptsWrapper, isMobile && { paddingVertical: 8 }]}>
           {isTabletOrDesktop ? (
             <View style={styles.quickPromptsDesktopRow}>
               {QUICK_PROMPTS.map((p, idx) => (
@@ -545,21 +587,45 @@ export default function AIChatScreen() {
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.quickPromptsScroll}
+              contentContainerStyle={[styles.quickPromptsScroll, isMobile && { gap: 6, paddingHorizontal: 8 }]}
             >
               {QUICK_PROMPTS.map((p, idx) => (
                 <TouchableOpacity
                   key={idx}
-                  style={styles.promptBtn}
+                  style={[styles.promptBtn, isMobile && { paddingHorizontal: 10, paddingVertical: 6, minWidth: 100 }]}
                   onPress={() => handleQuickPromptClick(p.type)}
                   activeOpacity={0.7}
                 >
                   <Text style={styles.promptEmoji}>{p.emoji}</Text>
-                  <Text style={styles.promptBtnText}>{p.text}</Text>
+                  <Text style={[styles.promptBtnText, isMobile && { fontSize: 10 }]}>{p.text}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
           )}
+        </View>
+
+        {/* Chat Input Bar */}
+        <View style={[styles.inputBar, isMobile && { padding: 8, gap: 6 }]}>
+          <TextInput
+            style={[styles.input, isMobile && { height: 36, paddingHorizontal: 12, fontSize: 12 }]}
+            placeholder="Ask AI Analytics..."
+            placeholderTextColor={Theme.textSecondary}
+            value={inputText}
+            onChangeText={setInputText}
+            onSubmitEditing={() => handleSendMessage(inputText)}
+            returnKeyType="send"
+          />
+          <TouchableOpacity
+            style={[
+              styles.sendBtn,
+              isMobile && { width: 36, height: 36 },
+              !inputText.trim() && styles.sendBtnDisabled,
+            ]}
+            onPress={() => handleSendMessage(inputText)}
+            disabled={!inputText.trim()}
+          >
+            <Ionicons name="send" size={isMobile ? 14 : 18} color="#fff" />
+          </TouchableOpacity>
         </View>
 
       </KeyboardAvoidingView>
