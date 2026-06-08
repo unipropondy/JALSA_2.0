@@ -213,7 +213,7 @@ router.get("/all", async (req, res) => {
             ISNULL(ri.TotalLineItemDiscountAmount, 0) as TotalLineItemDiscountAmount,
             sh.RoundedBy as RoundedBy,
             ISNULL(ri.DiscountPercentage, 0) as DiscountPercentage,
-            ISNULL(cct_sale.OutstandingAmount, CASE WHEN ${normalizeReportPayModeSql("sts.PayMode")} IN ('CREDIT') THEN sh.SysAmount ELSE 0 END) AS OutstandingAmount,
+            ISNULL(cct_sale.OutstandingAmount, 0) AS OutstandingAmount,
             COALESCE(mm.Name, ccm.Name, mm_sale.Name, ccm_sale.Name) AS CustomerName,
             sh.GuestName as GuestName,
             sh.Pax as Pax
@@ -303,7 +303,7 @@ router.get("/all", async (req, res) => {
             ISNULL(ri.TotalLineItemDiscountAmount, 0) as TotalLineItemDiscountAmount,
             sh.RoundedBy as RoundedBy,
             ISNULL(ri.DiscountPercentage, 0) as DiscountPercentage,
-            ISNULL(cct_sale.OutstandingAmount, CASE WHEN ${normalizeReportPayModeSql("sts.PayMode")} IN ('CREDIT') THEN sh.SysAmount ELSE 0 END) AS OutstandingAmount,
+            ISNULL(cct_sale.OutstandingAmount, 0) AS OutstandingAmount,
             COALESCE(mm.Name, ccm.Name, mm_sale.Name, ccm_sale.Name) AS CustomerName,
             sh.GuestName as GuestName,
             sh.Pax as Pax
