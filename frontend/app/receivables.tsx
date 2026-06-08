@@ -215,11 +215,7 @@ export default function ReceivablesScreen() {
         setBillSettlements({});
         return true;
       }
-      if (router.canGoBack()) {
-        router.back();
-      } else {
-        router.replace("/(tabs)/category");
-      }
+      router.replace("/(tabs)/category" as any);
       return true;
     };
 
@@ -370,13 +366,7 @@ export default function ReceivablesScreen() {
         {/* --- Header --- */}
         <View style={styles.headerBar}>
           <TouchableOpacity
-            onPress={() => {
-              if (router.canGoBack()) {
-                router.back();
-              } else {
-                router.replace("/(tabs)/category");
-              }
-            }}
+            onPress={() => router.replace("/(tabs)/category" as any)}
             style={styles.circularBack}
           >
             <Ionicons name="chevron-back" size={24} color={Theme.textPrimary} />
