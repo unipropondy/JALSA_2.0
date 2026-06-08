@@ -8,6 +8,7 @@ import {
   FlatList,
   Image,
   Keyboard,
+  LayoutAnimation,
   Modal,
   Platform,
   Pressable,
@@ -411,7 +412,14 @@ export default function MenuScreen() {
   const isLandscape = width > height;
   const isTablet = Math.min(width, height) >= 500;
   const isPhone = !isTablet;
-  const isLarge = true; // Always show cart sidebar
+  const [showCart, setShowCart] = useState(true);
+
+  const toggleCart = () => {
+    if (Platform.OS !== "web") {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    }
+    setShowCart((prev) => !prev);
+  };
 
   const isFetchingCart = React.useRef(false);
 
@@ -567,18 +575,25 @@ export default function MenuScreen() {
       ? usableWidth * 0.38
       : width * 0.62;
 
-  const mainWidth =
-    (isLandscape && !isTablet ? usableWidth : width) - cartWidth;
+  const mainWidth = showCart
+    ? (isLandscape && !isTablet ? usableWidth : width) - cartWidth
+    : (isLandscape && !isTablet ? usableWidth : width);
 
   const columns = isTablet
     ? isLandscape
-      ? width > 1200
-        ? 5
+      ? showCart
+        ? (width > 1200 ? 5 : 3)
+        : (width > 1200 ? 7 : 5)
+      : showCart
+        ? 2
         : 3
-      : 2
     : isLandscape
-      ? 2
-      : 1; // Back to 2 columns as requested
+      ? showCart
+        ? 2
+        : 3
+      : showCart
+        ? 1
+        : 2;
 
   const gap = isPhone ? (isLandscape ? 12 : 8) : 12;
   // Increase internal padding subtraction (24 -> 32) to ensure cards don't touch edges or sidebar
@@ -655,27 +670,19 @@ export default function MenuScreen() {
             styles.headerCartBtn,
             isPhone &&
             isLandscape && { width: 36, height: 36, borderRadius: 8 },
+            showCart && { backgroundColor: Theme.primaryLight },
           ]}
-          onPress={() => router.push("/cart")}
+          onPress={toggleCart}
         >
           <Ionicons
-            name="cart-outline"
+            name={showCart ? "cart" : "cart-outline"}
             size={isPhone && isLandscape ? 20 : 24}
             color={Theme.primary}
           />
           <CartBadge isPhone={isPhone} isLandscape={isLandscape} />
         </TouchableOpacity>
 
-        <View style={styles.topActions}>
-          {!isLarge && (
-            <TouchableOpacity
-              style={[styles.iconBtn, { backgroundColor: Theme.success }]}
-              onPress={() => router.push("/cart")}
-            >
-              <Ionicons name="cart" size={18} color="#fff" />
-            </TouchableOpacity>
-          )}
-        </View>
+        <View style={styles.topActions} />
       </View>
     </View>
   );
@@ -1120,7 +1127,7 @@ export default function MenuScreen() {
                 )}
               </View>
             </View>
-            {isLarge && <CartSidebar width={cartWidth} />}
+            {showCart && <CartSidebar width={cartWidth} />}
           </View>
         ) : (
           <View style={{ flex: 1, backgroundColor: Theme.bgMain }}>
@@ -1197,7 +1204,7 @@ export default function MenuScreen() {
                   )}
                 </View>
               </View>
-              {isLarge && <CartSidebar width={cartWidth} />}
+              {showCart && <CartSidebar width={cartWidth} />}
             </View>
           </View>
         )}
@@ -1744,7 +1751,17 @@ const styles = StyleSheet.create({
   railLabelActive: { color: Theme.primary },
   railBottom: { gap: 20, alignItems: "center" },
   logoutBtn: { alignItems: "center" },
-  main: { flex: 1, padding: 12 },
+  main: {
+    flex: 1,
+    padding: 12,
+    ...Platform.select({
+      web: {
+        transitionProperty: "width",
+        transitionDuration: "0.3s",
+        transitionTimingFunction: "ease-in-out",
+      } as any,
+    }),
+  },
   topBar: {
     flexDirection: "row",
     alignItems: "center",
