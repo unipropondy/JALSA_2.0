@@ -7,6 +7,8 @@ const { getActiveOrganization } = require("../utils/organizationHelper");
 const { processSplitPayments } = require("../services/payment.service");
 const { getBusinessDaySqlBounds } = require("../utils/timezoneHelper");
 const { getBusinessTimezoneSettings, getCompanySettings } = require("../utils/settingsCache");
+const { sendBalanceNotification } = require("../utils/whatsappService");
+
 
 // Helper to generate a random 8-character hex ID (e.g. A996E780)
 const generateRandomBillId = () => {
@@ -1073,7 +1075,9 @@ router.post("/save", async (req, res) => {
     if (validationError) {
       console.warn(`[SAVE SALE] Validation failed: ${validationError}`);
       return res.status(400).json({ error: validationError });
-    }    let settlementId;
+    }
+    let isMemberPayment = false;
+    let settlementId;
     let displayOrderId = null;
     let guidOrderId;
 
@@ -1489,6 +1493,7 @@ router.post("/save", async (req, res) => {
             }
 
             if (memberPaidAmt > 0) {
+              isMemberPayment = true;
               await transaction.request()
                 .input("MemberId", memberId)
                 .input("Amount", memberPaidAmt)
@@ -1600,6 +1605,7 @@ router.post("/save", async (req, res) => {
               `);
             console.log(`[SAVE SALE] Updated credit customer balance and wrote single credit ledger debit: ${totalAmount}`);
           } else if (payUpper === "MEMBER") {
+            isMemberPayment = true;
             await transaction.request()
               .input("MemberId", memberId)
               .input("Amount", totalAmount || 0)
@@ -1948,6 +1954,17 @@ router.post("/save", async (req, res) => {
       });
     }
     
+    if (isMemberPayment && memberId) {
+      setImmediate(async () => {
+        try {
+          const checkPool = await poolPromise;
+          await sendBalanceNotification(memberId, checkPool);
+        } catch (err) {
+          console.error("[WhatsApp] sendBalanceNotification error in sales save setImmediate:", err.message);
+        }
+      });
+    }
+
     res.json({ success: true, settlementId, billNo: displayOrderId, orderId: displayOrderId });
   } catch (err) {
     console.error("SAVE SALE ERROR:", err);

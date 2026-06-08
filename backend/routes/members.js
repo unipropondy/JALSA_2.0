@@ -4,7 +4,7 @@ const sql = require("mssql");
 const { poolPromise } = require("../config/db");
 const { runInTransaction } = require("../utils/transactionHelper");
 const { processSplitPayments } = require("../services/payment.service");
-const { sendLowBalanceAlert, computeThreshold } = require("../utils/whatsappService");
+const { computeThreshold, sendBalanceNotification } = require("../utils/whatsappService");
 
 
 const toGuidOrNull = (value) => {
@@ -483,7 +483,16 @@ router.post("/pay", async (req, res) => {
       .query("UPDATE MemberMaster SET CurrentBalance = CurrentBalance - @Amount WHERE MemberId = @MemberId");
   }, { name: "MemberPayment", timeoutMs: 60000 });
 
+  setImmediate(async () => {
+    try {
+      await sendBalanceNotification(memberId, pool);
+    } catch (err) {
+      console.error("[WhatsApp] sendBalanceNotification error in pay setImmediate:", err.message);
+    }
+  });
+
   res.json({ success: true, memberPaymentId, paymentTransactionId });
+
   } catch (err) {
     console.error("[MEMBER PAYMENT ERROR]", err);
     res.status(500).json({ error: err.message });
@@ -533,6 +542,15 @@ router.post("/recharge", async (req, res) => {
 
       updated = result.recordset[0];
     }, { name: "MemberRecharge", timeoutMs: 30000 });
+
+    setImmediate(async () => {
+      try {
+        const pool = await poolPromise;
+        await sendBalanceNotification(memberId, pool);
+      } catch (err) {
+        console.error("[WhatsApp] sendBalanceNotification error in recharge setImmediate:", err.message);
+      }
+    });
 
     res.json({
       success: true,
@@ -605,9 +623,13 @@ router.post("/deductSale", async (req, res) => {
     }, { name: "MemberDeductSale", timeoutMs: 30000 });
 
     // Send WhatsApp outside the transaction (non-fatal)
-    if (alertFired) {
-      setImmediate(() => sendLowBalanceAlert(memberId, updatedBalance, pool));
-    }
+    setImmediate(async () => {
+      try {
+        await sendBalanceNotification(memberId, pool);
+      } catch (err) {
+        console.error("[WhatsApp] sendBalanceNotification error in deductSale setImmediate:", err.message);
+      }
+    });
 
     res.json({
       success: true,
@@ -619,6 +641,7 @@ router.post("/deductSale", async (req, res) => {
     const status = err.message.startsWith("Insufficient") ? 400 : 500;
     res.status(status).json({ error: err.message });
   }
+
 });
 
 // Unused credit customer/receivables endpoints removed

@@ -49,45 +49,53 @@ async function sendRaw(phone, message) {
 }
 
 /**
- * sendLowBalanceAlert
- * ───────────────────
- * Looks up the member's Name, Phone and CreditLimit, then sends a single
- * low-balance WhatsApp notification.
+ * sendBalanceNotification
+ * ───────────────────────
+ * Looks up the member's Name, Phone, CreditLimit, and CurrentBalance,
+ * calculates AvailableBalance, selects the correct template, and sends WhatsApp.
  *
- * @param {string}     memberId   – GUID
- * @param {number}     newBalance – CurrentBalance after deduction
- * @param {object}     pool       – mssql connection pool
+ * @param {string} memberId - GUID
+ * @param {object} pool     - mssql connection pool
  */
-async function sendLowBalanceAlert(memberId, newBalance, pool) {
+async function sendBalanceNotification(memberId, pool) {
   try {
     const result = await pool
       .request()
       .input("Id", sql.UniqueIdentifier, memberId)
-      .query("SELECT Name, Phone, CreditLimit FROM MemberMaster WHERE MemberId = @Id");
+      .query("SELECT Name, Phone, CreditLimit, CurrentBalance FROM MemberMaster WHERE MemberId = @Id");
 
     if (!result.recordset || result.recordset.length === 0) {
-      console.warn(`[WhatsApp] Member ${memberId} not found – alert skipped.`);
+      console.warn(`[WhatsApp] Member ${memberId} not found – notification skipped.`);
       return;
     }
 
-    const { Name, Phone, CreditLimit } = result.recordset[0];
-    if (!Phone) {
-      console.warn(`[WhatsApp] Member ${Name} has no phone – alert skipped.`);
+    const { Name, Phone, CreditLimit, CurrentBalance } = result.recordset[0];
+    if (!Phone || Phone.trim() === "") {
+      console.warn(`[WHATSAPP] Notification skipped - phone number missing`);
       return;
     }
 
-    const threshold = computeThreshold(Number(CreditLimit) || 0);
-    const balance   = Number(newBalance).toFixed(2);
-    const message   =
-      `Dear ${Name}, your prepaid balance is low (RM ${balance}). ` +
-      `Please recharge to continue ordering. Thank you! 🙏`;
+    const creditLimit = Number(CreditLimit) || 0;
+    const currentBalance = Number(CurrentBalance) || 0;
+    const availableBalance = creditLimit > 0 ? (creditLimit - currentBalance) : currentBalance;
 
-    await sendRaw(Phone, message);
-    console.log(`✅ [WhatsApp] Low-balance alert sent to ${Name} (${Phone}), balance=RM ${balance}`);
+    const formattedAvailable = availableBalance.toFixed(2);
+    const formattedCreditLimit = creditLimit.toFixed(2);
+
+    let message = "";
+    if (availableBalance < 50) {
+      message = `Dear ${Name},\n\nYour available balance is $${formattedAvailable}, which is below the minimum threshold of $50.\n\nPlease top up your account to continue enjoying uninterrupted service.\n\nThank you.`;
+      await sendRaw(Phone, message);
+      console.log(`[WHATSAPP] Low balance notification sent to Member ${Name}`);
+    } else {
+      message = `Dear ${Name},\n\nYour current available balance is $${formattedAvailable}.\nYour credit limit is $${formattedCreditLimit}.\n\nThank you for being a valued member.`;
+      await sendRaw(Phone, message);
+      console.log(`[WHATSAPP] Balance information notification sent to Member ${Name}`);
+    }
   } catch (err) {
-    // Non-fatal — log and swallow so the sale flow is not interrupted
-    console.error("[WhatsApp] sendLowBalanceAlert error:", err.message);
+    console.error("[WhatsApp] sendBalanceNotification error:", err.message);
   }
 }
 
-module.exports = { sendLowBalanceAlert, computeThreshold };
+module.exports = { computeThreshold, sendBalanceNotification };
+
