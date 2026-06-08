@@ -281,16 +281,19 @@ export default function ReceivablesScreen() {
       const res = await fetch(`${API_URL}/api/credit-customers/delete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ memberId: editingCustomer.MemberId }),
+        body: JSON.stringify({
+          memberId: editingCustomer.MemberId,
+          customerType: editingCustomer.CustomerType, // pass type so backend knows which table
+        }),
       });
-      if (res.ok) {
+      const resJson = await res.json().catch(() => ({}));
+      if (res.ok && resJson.success) {
         setShowDeleteModal(false);
         setEditingCustomer(null);
         fetchData();
         Alert.alert("Deleted", "Customer has been removed.");
       } else {
-        const errJson = await res.json().catch(() => ({}));
-        Alert.alert("Error", errJson.error || "Delete failed.");
+        Alert.alert("Error", resJson.error || "Delete failed.");
       }
     } catch (err) {
       Alert.alert("Error", "Connection problem.");
@@ -303,7 +306,12 @@ export default function ReceivablesScreen() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      
+
+      // ✅ Clear previous data first — prevents stale UI when DB is empty
+      setStats(null);
+      setAgingData([]);
+      setRecentCollections([]);
+
       // 1. Fetch dashboard stats
       const statsRes = await fetch(`${API_URL}/api/credit-customers/receivables/dashboard`, {
         headers: { Authorization: token ? `Bearer ${token}` : "" }
@@ -327,6 +335,7 @@ export default function ReceivablesScreen() {
       });
       const agingJson = await agingRes.json();
       if (agingJson.success) {
+        // If DB has no rows → agingJson.customers is [] → agingData becomes [] → UI shows placeholder
         const parsed = (agingJson.customers || []).map((c: any) => ({
           ...c,
           OutstandingBalance: Number(c.OutstandingBalance || 0),
@@ -349,6 +358,10 @@ export default function ReceivablesScreen() {
     } catch (err) {
       console.error("[FETCH RECEIVABLES DATA ERROR]", err);
       Alert.alert("Error", "Could not fetch credit statement dashboard.");
+      // ✅ Clean UI on error too — no ghost data
+      setStats(null);
+      setAgingData([]);
+      setRecentCollections([]);
     } finally {
       setLoading(false);
     }

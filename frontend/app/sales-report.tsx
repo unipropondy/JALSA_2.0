@@ -1,19 +1,20 @@
 import { API_URL } from "@/constants/Config";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { BlurView } from "expo-blur";
-import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { format } from "date-fns";
+import { BlurView } from "expo-blur";
 import * as FileSystemLegacy from "expo-file-system/legacy";
-import * as Sharing from "expo-sharing";
 import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
+import * as Sharing from "expo-sharing";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
   Modal,
   Platform,
+  Pressable,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -21,7 +22,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  Pressable,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -29,12 +29,12 @@ import { PieChart } from "react-native-gifted-charts";
 import { SafeAreaView } from "react-native-safe-area-context";
 import BillPrompt from "../components/BillPrompt";
 import CalendarPicker from "../components/CalendarPicker";
+import { useToast } from "../components/Toast";
 import TransactionCard from "../components/TransactionCard";
 import UniversalPrinter from "../components/UniversalPrinter";
-import { useToast } from "../components/Toast";
 import { Fonts } from "../constants/Fonts";
 import { Theme } from "../constants/theme";
-import { getSingaporeDateString, formatToSingaporeDate, formatToSingaporeTime } from "../utils/timezoneHelper";
+import { getSingaporeDateString } from "../utils/timezoneHelper";
 
 type FilterType = "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY" | "CUSTOM";
 type DetailReportType = "CATEGORY" | "DISH" | "SETTLEMENT";
@@ -333,12 +333,12 @@ export default function SalesReport() {
           setCategoryReport(
             Array.isArray(data)
               ? data.map((row: any) => ({
-                  CategoryName:
-                    row.categoryName || row.CategoryName || "Unmapped",
-                  Sold: row.totalQty ?? row.totalQuantitySold ?? 0,
-                  Voided: row.voidQty ?? 0,
-                  SalesAmount: row.totalAmount ?? row.totalSalesAmount ?? 0,
-                }))
+                CategoryName:
+                  row.categoryName || row.CategoryName || "Unmapped",
+                Sold: row.totalQty ?? row.totalQuantitySold ?? 0,
+                Voided: row.voidQty ?? 0,
+                SalesAmount: row.totalAmount ?? row.totalSalesAmount ?? 0,
+              }))
               : [],
           );
           setDishReport([]);
@@ -347,15 +347,15 @@ export default function SalesReport() {
           setDishReport(
             Array.isArray(data)
               ? data.map((row: any) => ({
-                  DishName: row.dishName || row.DishName || "Unknown Dish",
-                  CategoryName:
-                    row.categoryName || row.CategoryName || "Unmapped",
-                  SubCategoryName:
-                    row.subCategoryName || row.SubCategoryName || "Unmapped",
-                  Sold: row.totalQty ?? row.quantitySold ?? 0,
-                  Voided: row.voidQty ?? 0,
-                  SalesAmount: row.totalAmount ?? row.totalSalesAmount ?? 0,
-                }))
+                DishName: row.dishName || row.DishName || "Unknown Dish",
+                CategoryName:
+                  row.categoryName || row.CategoryName || "Unmapped",
+                SubCategoryName:
+                  row.subCategoryName || row.SubCategoryName || "Unmapped",
+                Sold: row.totalQty ?? row.quantitySold ?? 0,
+                Voided: row.voidQty ?? 0,
+                SalesAmount: row.totalAmount ?? row.totalSalesAmount ?? 0,
+              }))
               : [],
           );
           setCategoryReport([]);
@@ -364,12 +364,12 @@ export default function SalesReport() {
           setSettlementReport(
             Array.isArray(data)
               ? data.map((row: any) => ({
-                  Paymode: row.Paymode || "Unknown",
-                  SysAmount: row.SysAmount ?? 0,
-                  ManualAmount: row.ManualAmount ?? 0,
-                  SortageOrExces: row.SortageOrExces ?? 0,
-                  ReceiptCount: row.ReceiptCount ?? 0,
-                }))
+                Paymode: row.Paymode || "Unknown",
+                SysAmount: row.SysAmount ?? 0,
+                ManualAmount: row.ManualAmount ?? 0,
+                SortageOrExces: row.SortageOrExces ?? 0,
+                ReceiptCount: row.ReceiptCount ?? 0,
+              }))
               : [],
           );
           setCategoryReport([]);
@@ -478,144 +478,144 @@ export default function SalesReport() {
   };
 
   const fetchReportData = async () => {
-      const endObj = new Date();
-      const startObj = new Date();
+    const endObj = new Date();
+    const startObj = new Date();
 
-      if (downloadFilter === "WEEKLY") {
-        startObj.setDate(startObj.getDate() - 6);
-      } else if (downloadFilter === "MONTHLY") {
-        startObj.setDate(1);
-        endObj.setMonth(endObj.getMonth() + 1);
-        endObj.setDate(0);
-      } else if (downloadFilter === "YEARLY") {
-        startObj.setMonth(0, 1);
-        endObj.setMonth(11, 31);
-      } else if (downloadFilter === "CUSTOM" && downloadRangeStart && downloadRangeEnd) {
-        startObj.setTime(new Date(downloadRangeStart).getTime());
-        endObj.setTime(new Date(downloadRangeEnd).getTime());
+    if (downloadFilter === "WEEKLY") {
+      startObj.setDate(startObj.getDate() - 6);
+    } else if (downloadFilter === "MONTHLY") {
+      startObj.setDate(1);
+      endObj.setMonth(endObj.getMonth() + 1);
+      endObj.setDate(0);
+    } else if (downloadFilter === "YEARLY") {
+      startObj.setMonth(0, 1);
+      endObj.setMonth(11, 31);
+    } else if (downloadFilter === "CUSTOM" && downloadRangeStart && downloadRangeEnd) {
+      startObj.setTime(new Date(downloadRangeStart).getTime());
+      endObj.setTime(new Date(downloadRangeEnd).getTime());
+    }
+
+    const startStr = getSingaporeDateString(startObj);
+    const endStr = getSingaporeDateString(endObj);
+
+    const userName = await AsyncStorage.getItem("userName") || "SR";
+
+    const summaryUrl = `${API_URL}/api/sales/day-end-summary?startDate=${startStr}&endDate=${endStr}`;
+    const summaryRes = await fetch(summaryUrl);
+    const summaryData = await summaryRes.json();
+
+    if (!summaryData.success) {
+      throw new Error("Failed to fetch report data");
+    }
+
+    // We fetch dish report for item-wise data
+    const dishUrl = `${API_URL}/api/reports/dish?filter=custom&date=${startStr}`;
+    // wait, api/reports/dish expects a filter like daily, weekly, monthly, yearly, custom
+    // and for custom it might use the same logic?
+    // actually, api/reports/dish uses getReportDateWhereSql, which doesn't fully support custom dates unless handled.
+    // I'll just pass the filter if it's not custom, otherwise pass daily for now or omit items.
+    let items: any[] = [];
+    try {
+      const dishFilter = downloadFilter === "CUSTOM" ? "daily" : downloadFilter.toLowerCase();
+      const dRes = await fetch(`${API_URL}/api/reports/dish?filter=${dishFilter}&date=${startStr}`);
+      const dData = await dRes.json();
+      if (Array.isArray(dData)) {
+        items = dData.map((d: any) => ({
+          name: d.dishName || d.DishName,
+          quantity: d.totalQty,
+          price: d.totalAmount / (d.totalQty || 1),
+          revenue: d.totalAmount,
+          category: d.categoryName || d.CategoryName || "Unmapped",
+          subcategory: d.subCategoryName || d.SubCategoryName || "Unmapped",
+          voidQty: d.voidQty || 0,
+        }));
       }
+    } catch (e) {
+      console.warn("Failed to fetch item wise data for report", e);
+    }
 
-      const startStr = getSingaporeDateString(startObj);
-      const endStr = getSingaporeDateString(endObj);
-      
-      const userName = await AsyncStorage.getItem("userName") || "SR";
-
-      const summaryUrl = `${API_URL}/api/sales/day-end-summary?startDate=${startStr}&endDate=${endStr}`;
-      const summaryRes = await fetch(summaryUrl);
-      const summaryData = await summaryRes.json();
-
-      if (!summaryData.success) {
-        throw new Error("Failed to fetch report data");
-      }
-
-      // We fetch dish report for item-wise data
-      const dishUrl = `${API_URL}/api/reports/dish?filter=custom&date=${startStr}`;
-      // wait, api/reports/dish expects a filter like daily, weekly, monthly, yearly, custom
-      // and for custom it might use the same logic?
-      // actually, api/reports/dish uses getReportDateWhereSql, which doesn't fully support custom dates unless handled.
-      // I'll just pass the filter if it's not custom, otherwise pass daily for now or omit items.
-      let items: any[] = [];
-      try {
-        const dishFilter = downloadFilter === "CUSTOM" ? "daily" : downloadFilter.toLowerCase();
-        const dRes = await fetch(`${API_URL}/api/reports/dish?filter=${dishFilter}&date=${startStr}`);
-        const dData = await dRes.json();
-        if (Array.isArray(dData)) {
-           items = dData.map((d: any) => ({
-              name: d.dishName || d.DishName,
-              quantity: d.totalQty,
-              price: d.totalAmount / (d.totalQty || 1),
-              revenue: d.totalAmount,
-              category: d.categoryName || d.CategoryName || "Unmapped",
-              subcategory: d.subCategoryName || d.SubCategoryName || "Unmapped",
-              voidQty: d.voidQty || 0,
-           }));
+    const paymentBreakdown: any[] = [];
+    let memberPaymentsCollected = 0;
+    let creditPaymentsCollected = 0;
+    // Track credit *sales* (deferred revenue — not yet collected at point of sale)
+    // so they can be excluded from Total Collections to prevent double-counting
+    // when the same credit bill is also paid within the report period.
+    let creditSalesTotal = 0;
+    summaryData.paymodeDetail?.forEach((p: any) => {
+      const paymodeName = String(p.Paymode || 'CASH').toUpperCase();
+      if (paymodeName.startsWith('MEMBER PAYMENT')) {
+        memberPaymentsCollected += p.Amount || 0;
+        paymentBreakdown.push({
+          name: p.Paymode,
+          qty: p.ReceiptCount || 0,
+          amount: p.Amount || 0
+        });
+      } else if (paymodeName.startsWith('CREDIT PAYMENT')) {
+        creditPaymentsCollected += p.Amount || 0;
+        paymentBreakdown.push({
+          name: p.Paymode,
+          qty: p.ReceiptCount || 0,
+          amount: p.Amount || 0
+        });
+      } else {
+        // Capture credit sales (paymode = 'CREDIT') separately
+        if (paymodeName === 'CREDIT') {
+          creditSalesTotal += p.Amount || 0;
         }
-      } catch (e) {
-         console.warn("Failed to fetch item wise data for report", e);
+        paymentBreakdown.push({
+          name: p.Paymode,
+          qty: p.ReceiptCount || 0,
+          amount: p.Amount || 0
+        });
       }
+    });
 
-      const paymentBreakdown: any[] = [];
-      let memberPaymentsCollected = 0;
-      let creditPaymentsCollected = 0;
-      // Track credit *sales* (deferred revenue — not yet collected at point of sale)
-      // so they can be excluded from Total Collections to prevent double-counting
-      // when the same credit bill is also paid within the report period.
-      let creditSalesTotal = 0;
-      summaryData.paymodeDetail?.forEach((p: any) => {
-        const paymodeName = String(p.Paymode || 'CASH').toUpperCase();
-        if (paymodeName.startsWith('MEMBER PAYMENT')) {
-          memberPaymentsCollected += p.Amount || 0;
-          paymentBreakdown.push({
-            name: p.Paymode,
-            qty: p.ReceiptCount || 0,
-            amount: p.Amount || 0
-          });
-        } else if (paymodeName.startsWith('CREDIT PAYMENT')) {
-          creditPaymentsCollected += p.Amount || 0;
-          paymentBreakdown.push({
-            name: p.Paymode,
-            qty: p.ReceiptCount || 0,
-            amount: p.Amount || 0
-          });
-        } else {
-          // Capture credit sales (paymode = 'CREDIT') separately
-          if (paymodeName === 'CREDIT') {
-            creditSalesTotal += p.Amount || 0;
-          }
-          paymentBreakdown.push({
-            name: p.Paymode,
-            qty: p.ReceiptCount || 0,
-            amount: p.Amount || 0
-          });
-        }
-      });
+    const sa = summaryData.salesAnalysis || {};
+    const vd = summaryData.voidDetail || {};
 
-      const sa = summaryData.salesAnalysis || {};
-      const vd = summaryData.voidDetail || {};
+    return {
+      filterType: downloadFilter,
+      period: downloadFilter === "DAILY" ? startStr : `${startStr} to ${endStr}`,
+      companyName: summaryData.orgInfo?.Name || 'AL-HAZIMA RESTAURANT PTE LTD',
+      companyAddress: summaryData.orgInfo?.Address1_Line1 || 'No 4, Cheong Chin Nam Road, SINGAPORE 599729',
+      companyPhone: summaryData.orgInfo?.Address1_Telephone1 || '65130000',
+      cashierName: userName,
 
-      return {
-        filterType: downloadFilter,
-        period: downloadFilter === "DAILY" ? startStr : `${startStr} to ${endStr}`,
-        companyName: summaryData.orgInfo?.Name || 'AL-HAZIMA RESTAURANT PTE LTD',
-        companyAddress: summaryData.orgInfo?.Address1_Line1 || 'No 4, Cheong Chin Nam Road, SINGAPORE 599729',
-        companyPhone: summaryData.orgInfo?.Address1_Telephone1 || '65130000',
-        cashierName: userName,
-        
-        // Match backend generatePdfDocDefinition expectations
-        netSales: sa.baseSales || 0,
-        serviceCharge: sa.totalServiceCharge || 0,
-        taxCollected: sa.totalTax || 0,
-        roundedBy: sa.roundOff || 0,
-        totalRevenue: sa.totalSales || 0,
-        totalSales: sa.totalSales || 0,
-        totalDiscount: sa.totalDiscount || 0,
-        memberPaymentsCollected: Number(memberPaymentsCollected),
-        creditPaymentsCollected: Number(creditPaymentsCollected),
-        // Total Collections = actual cash/card received.
-        // Credit *sales* are deferred revenue (not collected at point of sale),
-        // so subtract them before adding credit payment collections.
-        totalCollections: (Number(sa.totalSales || 0) - creditSalesTotal) + Number(memberPaymentsCollected) + Number(creditPaymentsCollected),
-        
-        totalOrders: sa.billCount || 0,
-        totalItems: items.reduce((acc, curr) => acc + curr.quantity, 0),
-        
-        voidQty: vd.voidQty || 0,
-        voidAmount: vd.voidAmount || 0,
-        
-        cancelledCount: summaryData.cancelledDetail?.count || 0,
-        cancelledAmount: summaryData.cancelledDetail?.amount || 0,
-        
-        paymentBreakdown,
-        cancelledOrders: summaryData.cancelledOrders || [],
-        items: items.length > 0 ? items.map(i => ({
-          name: i.name,
-          qty: i.quantity,
-          amount: i.revenue,
-          category: i.category,
-          subcategory: i.subcategory,
-          voidQty: i.voidQty,
-        })) : undefined
-      };
+      // Match backend generatePdfDocDefinition expectations
+      netSales: sa.baseSales || 0,
+      serviceCharge: sa.totalServiceCharge || 0,
+      taxCollected: sa.totalTax || 0,
+      roundedBy: sa.roundOff || 0,
+      totalRevenue: sa.totalSales || 0,
+      totalSales: sa.totalSales || 0,
+      totalDiscount: sa.totalDiscount || 0,
+      memberPaymentsCollected: Number(memberPaymentsCollected),
+      creditPaymentsCollected: Number(creditPaymentsCollected),
+      // Total Collections = actual cash/card received.
+      // Credit *sales* are deferred revenue (not collected at point of sale),
+      // so subtract them before adding credit payment collections.
+      totalCollections: (Number(sa.totalSales || 0) - creditSalesTotal) + Number(memberPaymentsCollected) + Number(creditPaymentsCollected),
+
+      totalOrders: sa.billCount || 0,
+      totalItems: items.reduce((acc, curr) => acc + curr.quantity, 0),
+
+      voidQty: vd.voidQty || 0,
+      voidAmount: vd.voidAmount || 0,
+
+      cancelledCount: summaryData.cancelledDetail?.count || 0,
+      cancelledAmount: summaryData.cancelledDetail?.amount || 0,
+
+      paymentBreakdown,
+      cancelledOrders: summaryData.cancelledOrders || [],
+      items: items.length > 0 ? items.map(i => ({
+        name: i.name,
+        qty: i.quantity,
+        amount: i.revenue,
+        category: i.category,
+        subcategory: i.subcategory,
+        voidQty: i.voidQty,
+      })) : undefined
+    };
   };
 
   const handleDownloadPdf = async () => {
@@ -652,7 +652,7 @@ export default function SalesReport() {
           alert("Downloaded to: " + uri);
         }
       }
-      
+
       setShowDownloadPanel(false);
     } catch (error) {
       console.error("Download error:", error);
@@ -730,7 +730,7 @@ export default function SalesReport() {
                 : data.error || `Request failed (${response.status})`,
           subtitle: mailNotConfigured
             ? data.details ||
-              "Add EMAIL_USER + EMAIL_PASS (or SMTP_*) in Railway Variables, then redeploy."
+            "Add EMAIL_USER + EMAIL_PASS (or SMTP_*) in Railway Variables, then redeploy."
             : invalidRecipient
               ? data.details || data.suggestion
               : data.details,
@@ -885,7 +885,7 @@ export default function SalesReport() {
       const modeUpper = s.PayMode?.toUpperCase().trim() || "";
       const isUpiMode = modeUpper.includes("UPI") || modeUpper.includes("GPAY");
       const typeUpper = s.OrderType?.toUpperCase().trim() || "";
-      
+
       const modeMatch =
         activePaymentModes.includes(modeUpper) ||
         (activePaymentModes.includes("UPI") && isUpiMode) ||
@@ -1130,11 +1130,11 @@ export default function SalesReport() {
 
   const displayedPayments = useMemo(() => {
     if (!orderPayments || orderPayments.length === 0) return [];
-    
+
     // Calculate total of payments
     const totalPayments = orderPayments.reduce((sum, p) => sum + Number(p.Amount || 0), 0);
     const targetTotal = Number(selectedOrder?.SysAmount || 0);
-    
+
     // If there is a discrepancy within 0.10, adjust the last row to prevent rounding discrepancies in display
     const diff = targetTotal - totalPayments;
     if (Math.abs(diff) > 0 && Math.abs(diff) < 0.10 && orderPayments.length > 0) {
@@ -1146,7 +1146,7 @@ export default function SalesReport() {
       };
       return adjusted;
     }
-    
+
     return orderPayments;
   }, [orderPayments, selectedOrder]);
 
@@ -1175,12 +1175,12 @@ export default function SalesReport() {
           setOrderDetails(data);
         } else {
           setOrderDetails([
-            { 
-              DishName: selectedOrder?.IsCancelled 
-                ? "Items not captured (Legacy Cancelled Order)" 
-                : (selectedOrder?.OrderType === 'LEDGER' ? "Member Outstanding Payment" : "Item info not available"), 
-              Qty: selectedOrder?.OrderType === 'LEDGER' ? 1 : 0, 
-              Price: selectedOrder?.OrderType === 'LEDGER' ? selectedOrder?.SysAmount : 0 
+            {
+              DishName: selectedOrder?.IsCancelled
+                ? "Items not captured (Legacy Cancelled Order)"
+                : (selectedOrder?.OrderType === 'LEDGER' ? "Member Outstanding Payment" : "Item info not available"),
+              Qty: selectedOrder?.OrderType === 'LEDGER' ? 1 : 0,
+              Price: selectedOrder?.OrderType === 'LEDGER' ? selectedOrder?.SysAmount : 0
             },
           ]);
         }
@@ -1576,7 +1576,7 @@ export default function SalesReport() {
                           {formatCurrency(catSales)}
                         </Text>
                       </View>
-                      
+
                       {groupRows.map((row, rowIdx) => {
                         const currentSno = ++globalIdx;
                         return (
@@ -1765,8 +1765,8 @@ export default function SalesReport() {
             <View>
               <Text style={styles.rangeLabel}>FROM DATE</Text>
               <Text style={styles.dateText}>
-              {rangeStart ? format(new Date(rangeStart), "dd-MM-yy") : "Select"}
-            </Text>
+                {rangeStart ? format(new Date(rangeStart), "dd-MM-yy") : "Select"}
+              </Text>
             </View>
           </TouchableOpacity>
           <View style={{ width: 10 }} />
@@ -1784,8 +1784,8 @@ export default function SalesReport() {
             <View>
               <Text style={styles.rangeLabel}>TO DATE</Text>
               <Text style={styles.dateText}>
-              {rangeEnd ? format(new Date(rangeEnd), "dd-MM-yy") : "Select"}
-            </Text>
+                {rangeEnd ? format(new Date(rangeEnd), "dd-MM-yy") : "Select"}
+              </Text>
             </View>
           </TouchableOpacity>
         </View>
@@ -1975,25 +1975,25 @@ export default function SalesReport() {
                       </View>
                     )}
                   />
-                  
+
                   {/* Legend below the chart */}
-                  <View style={{ 
-                    flexDirection: "row", 
-                    flexWrap: "wrap", 
-                    justifyContent: "center", 
-                    gap: 6, 
-                    marginTop: 16, 
-                    paddingHorizontal: 4 
+                  <View style={{
+                    flexDirection: "row",
+                    flexWrap: "wrap",
+                    justifyContent: "center",
+                    gap: 6,
+                    marginTop: 16,
+                    paddingHorizontal: 4
                   }}>
                     {paymentMixCenterRows.map((row) => (
-                      <View 
-                        key={row.key} 
-                        style={{ 
-                          flexDirection: "row", 
-                          alignItems: "center", 
-                          backgroundColor: Theme.bgMuted, 
-                          paddingHorizontal: 8, 
-                          paddingVertical: 4, 
+                      <View
+                        key={row.key}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          backgroundColor: Theme.bgMuted,
+                          paddingHorizontal: 8,
+                          paddingVertical: 4,
                           borderRadius: 6,
                           borderWidth: 1,
                           borderColor: Theme.border,
@@ -2115,9 +2115,9 @@ export default function SalesReport() {
                 <Text style={styles.metricValueSmall}>
                   {filteredMetrics.TotalTransactions > 0
                     ? (
-                        filteredMetrics.TotalItems /
-                        filteredMetrics.TotalTransactions
-                      ).toFixed(1)
+                      filteredMetrics.TotalItems /
+                      filteredMetrics.TotalTransactions
+                    ).toFixed(1)
                     : 0}
                 </Text>
               </View>
@@ -2167,12 +2167,12 @@ export default function SalesReport() {
           )}
         </View>
         <View style={[
-          styles.breakdownRow, 
-          { 
-            flexWrap: "wrap", 
-            justifyContent: SCREEN_W > 768 ? "space-between" : "flex-start", 
+          styles.breakdownRow,
+          {
+            flexWrap: "wrap",
+            justifyContent: SCREEN_W > 768 ? "space-between" : "flex-start",
             width: "100%",
-            gap: 10 
+            gap: 10
           }
         ]}>
           {[
@@ -2215,8 +2215,8 @@ export default function SalesReport() {
               color: "#e11d48",
             },
           ].map((item, idx) => {
-            const layoutStyle = SCREEN_W > 768 
-              ? { flex: 1, minWidth: 0 } 
+            const layoutStyle = SCREEN_W > 768
+              ? { flex: 1, minWidth: 0 }
               : { width: (SCREEN_W - 88) / 3 - 8 }; // Perfectly calculated column width for 3x2 mobile grid
 
             const modeKey = item.label === "PAY NOW" ? "PAYNOW" : item.label;
@@ -2245,7 +2245,7 @@ export default function SalesReport() {
               >
                 <Text style={styles.breakdownIcon}>{item.icon}</Text>
                 <Text style={styles.breakdownLabel}>{item.label}</Text>
-                <Text 
+                <Text
                   style={[styles.breakdownValue, { color: item.color }]}
                   numberOfLines={1}
                   adjustsFontSizeToFit
@@ -2253,7 +2253,7 @@ export default function SalesReport() {
                   {formatCurrency(item.val)}
                 </Text>
                 {item.outstanding !== undefined && (
-                  <Text 
+                  <Text
                     style={{ fontSize: 9, fontFamily: Fonts.bold, color: Theme.textMuted, marginTop: 1 }}
                     numberOfLines={1}
                     adjustsFontSizeToFit
@@ -2266,7 +2266,7 @@ export default function SalesReport() {
           })}
         </View>
         <View style={{ height: 1, backgroundColor: Theme.border, marginVertical: 16, opacity: 0.5 }} />
-        
+
         <View style={{ backgroundColor: Theme.bgCard, borderRadius: 16, borderWidth: 1, borderColor: Theme.border, padding: 16, gap: 12, ...Theme.shadowSm }}>
           <Text style={{ fontFamily: Fonts.black, fontSize: 11, color: Theme.textSecondary, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 2 }}>
             Reconciliation Summary
@@ -2461,64 +2461,64 @@ export default function SalesReport() {
                         </Text>
                         {selectedOrder?.SER_NAME && (
                           <View
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            gap: 4,
-                            backgroundColor: Theme.primaryLight,
-                            paddingHorizontal: 6,
-                            paddingVertical: 2,
-                            borderRadius: 4,
-                          }}
-                        >
-                          <Ionicons
-                            name="person"
-                            size={9}
-                            color={Theme.primary}
-                          />
-                          <Text
                             style={{
-                              color: Theme.primary,
-                              fontFamily: Fonts.bold,
-                              fontSize: 9,
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 4,
+                              backgroundColor: Theme.primaryLight,
+                              paddingHorizontal: 6,
+                              paddingVertical: 2,
+                              borderRadius: 4,
                             }}
                           >
-                            {selectedOrder.SER_NAME}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                    {(selectedOrder?.GuestName || selectedOrder?.Pax) && (
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          flexWrap: "wrap",
-                          marginTop: 6,
-                          gap: 10,
-                        }}
-                      >
-                        {selectedOrder?.GuestName && (
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                            <Ionicons name="person-outline" size={11} color={Theme.textSecondary} />
-                            <Text style={{ fontSize: 10, fontFamily: Fonts.bold, color: Theme.textPrimary }}>
-                              Guest: {selectedOrder.GuestName}
-                            </Text>
-                          </View>
-                        )}
-                        {selectedOrder?.Pax && (
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                            <Ionicons name="people-outline" size={11} color={Theme.textSecondary} />
-                            <Text style={{ fontSize: 10, fontFamily: Fonts.bold, color: Theme.textPrimary }}>
-                              {selectedOrder.Pax} Pax
+                            <Ionicons
+                              name="person"
+                              size={9}
+                              color={Theme.primary}
+                            />
+                            <Text
+                              style={{
+                                color: Theme.primary,
+                                fontFamily: Fonts.bold,
+                                fontSize: 9,
+                              }}
+                            >
+                              {selectedOrder.SER_NAME}
                             </Text>
                           </View>
                         )}
                       </View>
-                    )}
+                      {(selectedOrder?.GuestName || selectedOrder?.Pax) && (
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            flexWrap: "wrap",
+                            marginTop: 6,
+                            gap: 10,
+                          }}
+                        >
+                          {selectedOrder?.GuestName && (
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                              <Ionicons name="person-outline" size={11} color={Theme.textSecondary} />
+                              <Text style={{ fontSize: 10, fontFamily: Fonts.bold, color: Theme.textPrimary }}>
+                                Guest: {selectedOrder.GuestName}
+                              </Text>
+                            </View>
+                          )}
+                          {selectedOrder?.Pax && (
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                              <Ionicons name="people-outline" size={11} color={Theme.textSecondary} />
+                              <Text style={{ fontSize: 10, fontFamily: Fonts.bold, color: Theme.textPrimary }}>
+                                {selectedOrder.Pax} Pax
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      )}
+                    </View>
                   </View>
-                </View>
-                <TouchableOpacity
+                  <TouchableOpacity
                     onPress={() => setSelectedOrder(null)}
                     style={{ marginLeft: 10 }}
                   >
@@ -2529,7 +2529,7 @@ export default function SalesReport() {
                     />
                   </TouchableOpacity>
                 </View>
- 
+
                 {/* 🚨 CANCELLED BANNER - Compact Version */}
                 {selectedOrder?.IsCancelled ? (
                   <View style={styles.cancelledOrderBadge}>
@@ -2836,7 +2836,7 @@ export default function SalesReport() {
                     <View style={{ height: 1, backgroundColor: Theme.border + "50", marginVertical: 2 }} />
                   )}
                   {/* Final total + paid badge */}
-                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                     <View>
                       <Text style={[styles.totalLabel, { fontSize: 10, color: Theme.textSecondary, textTransform: "uppercase", letterSpacing: 1 }]}>
                         Total Amount
@@ -2853,74 +2853,74 @@ export default function SalesReport() {
                           {
                             paddingHorizontal: 6,
                             paddingVertical: 2,
-                            backgroundColor: selectedOrder?.IsCancelled 
-                              ? Theme.danger + "20" 
+                            backgroundColor: selectedOrder?.IsCancelled
+                              ? Theme.danger + "20"
                               : isMemberOrder
-                              ? Theme.success + "20"
-                              : selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0
-                              ? Number(selectedOrder.OutstandingAmount) === Number(selectedOrder.SysAmount)
-                                ? "#ef444420"
-                                : "#f59e0b20"
-                              : Theme.success + "20",
-                            borderColor: selectedOrder?.IsCancelled 
-                              ? Theme.danger + "40" 
+                                ? Theme.success + "20"
+                                : selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0
+                                  ? Number(selectedOrder.OutstandingAmount) === Number(selectedOrder.SysAmount)
+                                    ? "#ef444420"
+                                    : "#f59e0b20"
+                                  : Theme.success + "20",
+                            borderColor: selectedOrder?.IsCancelled
+                              ? Theme.danger + "40"
                               : isMemberOrder
-                              ? Theme.success + "40"
-                              : selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0
-                              ? Number(selectedOrder.OutstandingAmount) === Number(selectedOrder.SysAmount)
-                                ? "#ef444440"
-                                : "#f59e0b40"
-                              : Theme.success + "40"
+                                ? Theme.success + "40"
+                                : selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0
+                                  ? Number(selectedOrder.OutstandingAmount) === Number(selectedOrder.SysAmount)
+                                    ? "#ef444440"
+                                    : "#f59e0b40"
+                                  : Theme.success + "40"
                           }
                         ]}>
-                          <Ionicons 
+                          <Ionicons
                             name={
-                              selectedOrder?.IsCancelled 
-                                ? "close-circle" 
+                              selectedOrder?.IsCancelled
+                                ? "close-circle"
                                 : isMemberOrder
-                                ? "checkmark-circle"
-                                : selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0
-                                ? Number(selectedOrder.OutstandingAmount) === Number(selectedOrder.SysAmount)
-                                  ? "alert-circle"
-                                  : "time"
-                                : "checkmark-circle"
-                            } 
-                            size={14} 
+                                  ? "checkmark-circle"
+                                  : selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0
+                                    ? Number(selectedOrder.OutstandingAmount) === Number(selectedOrder.SysAmount)
+                                      ? "alert-circle"
+                                      : "time"
+                                    : "checkmark-circle"
+                            }
+                            size={14}
                             color={
-                              selectedOrder?.IsCancelled 
-                                ? Theme.danger 
+                              selectedOrder?.IsCancelled
+                                ? Theme.danger
                                 : isMemberOrder
+                                  ? Theme.success
+                                  : selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0
+                                    ? Number(selectedOrder.OutstandingAmount) === Number(selectedOrder.SysAmount)
+                                      ? "#ef4444"
+                                      : "#f59e0b"
+                                    : Theme.success
+                            }
+                          />
+                          <Text style={{
+                            color: selectedOrder?.IsCancelled
+                              ? Theme.danger
+                              : isMemberOrder
                                 ? Theme.success
                                 : selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0
-                                ? Number(selectedOrder.OutstandingAmount) === Number(selectedOrder.SysAmount)
-                                  ? "#ef4444"
-                                  : "#f59e0b"
-                                : Theme.success
-                            } 
-                          />
-                          <Text style={{ 
-                            color: selectedOrder?.IsCancelled 
-                              ? Theme.danger 
-                              : isMemberOrder
-                              ? Theme.success
-                              : selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0
-                              ? Number(selectedOrder.OutstandingAmount) === Number(selectedOrder.SysAmount)
-                                ? "#ef4444"
-                                : "#f59e0b"
-                              : Theme.success, 
-                            fontFamily: Fonts.black, 
-                            fontSize: 10, 
-                            marginLeft: 4 
+                                  ? Number(selectedOrder.OutstandingAmount) === Number(selectedOrder.SysAmount)
+                                    ? "#ef4444"
+                                    : "#f59e0b"
+                                  : Theme.success,
+                            fontFamily: Fonts.black,
+                            fontSize: 10,
+                            marginLeft: 4
                           }}>
-                            {selectedOrder?.IsCancelled 
-                              ? "CANCELLED" 
+                            {selectedOrder?.IsCancelled
+                              ? "CANCELLED"
                               : isMemberOrder
-                              ? "PAID"
-                              : selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0
-                              ? Number(selectedOrder.OutstandingAmount) === Number(selectedOrder.SysAmount)
-                                ? "UNPAID"
-                                : "PARTIAL"
-                              : "PAID"}
+                                ? "PAID"
+                                : selectedOrder?.OutstandingAmount !== undefined && Number(selectedOrder.OutstandingAmount) > 0
+                                  ? Number(selectedOrder.OutstandingAmount) === Number(selectedOrder.SysAmount)
+                                    ? "UNPAID"
+                                    : "PARTIAL"
+                                  : "PAID"}
                           </Text>
                         </View>
                       );
@@ -3022,7 +3022,7 @@ export default function SalesReport() {
                             style={[
                               styles.chipText,
                               activePaymentModes.includes(m) &&
-                                styles.activeChipText,
+                              styles.activeChipText,
                             ]}
                           >
                             {m}
@@ -3047,7 +3047,7 @@ export default function SalesReport() {
                             style={[
                               styles.chipText,
                               activeOrderTypes.includes(t) &&
-                                styles.activeChipText,
+                              styles.activeChipText,
                             ]}
                           >
                             {t}
@@ -3175,7 +3175,7 @@ export default function SalesReport() {
                     <Text style={styles.modalTitle}>Sales Report</Text>
                     <Text style={styles.modalSub}>Select period and download format</Text>
                   </View>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     onPress={() => !isDownloading && setShowDownloadPanel(false)}
                     style={styles.modalCloseBtn}
                   >
@@ -3201,15 +3201,15 @@ export default function SalesReport() {
                             downloadFilter === f && styles.activePeriodBtn,
                           ]}
                         >
-                          <MaterialCommunityIcons 
+                          <MaterialCommunityIcons
                             name={
-                              f === "DAILY" ? "calendar-today" : 
-                              f === "WEEKLY" ? "calendar-week" : 
-                              f === "MONTHLY" ? "calendar-month" : 
-                              f === "YEARLY" ? "calendar-star" : "calendar-range"
-                            } 
-                            size={18} 
-                            color={downloadFilter === f ? "#fff" : Theme.textSecondary} 
+                              f === "DAILY" ? "calendar-today" :
+                                f === "WEEKLY" ? "calendar-week" :
+                                  f === "MONTHLY" ? "calendar-month" :
+                                    f === "YEARLY" ? "calendar-star" : "calendar-range"
+                            }
+                            size={18}
+                            color={downloadFilter === f ? "#fff" : Theme.textSecondary}
                           />
                           <Text style={[styles.periodText, downloadFilter === f && styles.activePeriodText]}>
                             {f.charAt(0) + f.slice(1).toLowerCase()}
@@ -3260,7 +3260,7 @@ export default function SalesReport() {
                         <Text style={styles.optionDesc}>Generate PDF and save to device</Text>
                       </View>
                     </View>
-                    
+
                     <TouchableOpacity
                       onPress={handleDownloadPdf}
                       disabled={isDownloading || isSendingEmail || (downloadFilter === "CUSTOM" && (!downloadRangeStart || !downloadRangeEnd || new Date(downloadRangeEnd) < new Date(downloadRangeStart)))}
@@ -3330,7 +3330,7 @@ export default function SalesReport() {
                     {showEmailValidationError && (
                       <Text style={styles.errorHint}>{emailValidation.error}</Text>
                     )}
-                    
+
                     {!!emailSuggestion && !emailValidation.isValid && (
                       <TouchableOpacity
                         onPress={() => {
@@ -3406,7 +3406,7 @@ export default function SalesReport() {
                     rangeStart={downloadRangeStart}
                     rangeEnd={downloadRangeEnd}
                     isRangeMode={true}
-                    onModeChange={() => {}}
+                    onModeChange={() => { }}
                     onRangeChange={(start, end) => {
                       setDownloadRangeStart(start);
                       setDownloadRangeEnd(end);
@@ -3416,9 +3416,9 @@ export default function SalesReport() {
                     }}
                     onDateChange={(date) => {
                       if (downloadPickerMode === "START") {
-                         setDownloadRangeStart(date);
+                        setDownloadRangeStart(date);
                       } else {
-                         setDownloadRangeEnd(date);
+                        setDownloadRangeEnd(date);
                       }
                       setShowDownloadDatePicker(false);
                     }}
@@ -3457,7 +3457,7 @@ export default function SalesReport() {
                 >
                   <View style={styles.modalHeader}>
                     <Text style={styles.modalTitle}>
-                      {selectedFilter === "CUSTOM" 
+                      {selectedFilter === "CUSTOM"
                         ? (rangeStart && !rangeEnd ? "Select End Date" : "Select Start Date")
                         : "Select Date"}
                     </Text>

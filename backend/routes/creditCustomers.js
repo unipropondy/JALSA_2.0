@@ -92,12 +92,39 @@ router.post("/update", async (req, res) => {
 router.post("/delete", async (req, res) => {
   try {
     const pool = await poolPromise;
-    const { memberId } = req.body;
+    const { memberId, customerType } = req.body;
     if (!memberId) return res.status(400).json({ error: "Missing customer ID (memberId)" });
 
+    // Step 1: Delete allocations linked to this member's transactions (FK chain)
     await pool.request()
-      .input("Id", sql.UniqueIdentifier, memberId)
-      .query("DELETE FROM CreditCustomerMaster WHERE CustomerId = @Id");
+      .input("MemberId", sql.UniqueIdentifier, memberId)
+      .query(`
+        DELETE FROM CustomerCreditAllocations
+        WHERE PaymentTransactionId IN (
+          SELECT TransactionId FROM CustomerCreditTransactions WHERE MemberId = @MemberId
+        )
+        OR InvoiceTransactionId IN (
+          SELECT TransactionId FROM CustomerCreditTransactions WHERE MemberId = @MemberId
+        )
+      `);
+
+    // Step 2: Delete all credit transactions for this member
+    await pool.request()
+      .input("MemberId", sql.UniqueIdentifier, memberId)
+      .query("DELETE FROM CustomerCreditTransactions WHERE MemberId = @MemberId");
+
+    // Step 3: Delete the customer record based on type
+    if (customerType === "MEMBER") {
+      // Regular members live in MemberMaster — just zero out their credit balance
+      await pool.request()
+        .input("MemberId", sql.UniqueIdentifier, memberId)
+        .query("UPDATE MemberMaster SET CurrentBalance = 0 WHERE MemberId = @MemberId");
+    } else {
+      // CREDIT customers are stored in CreditCustomerMaster — fully delete
+      await pool.request()
+        .input("Id", sql.UniqueIdentifier, memberId)
+        .query("DELETE FROM CreditCustomerMaster WHERE CustomerId = @Id");
+    }
 
     res.json({ success: true });
   } catch (err) {
@@ -546,6 +573,7 @@ router.get("/receivables/aging", async (req, res) => {
       LEFT JOIN BillBalances b ON m.MemberId = b.MemberId
       WHERE m.IsActive = 1
       GROUP BY m.MemberId, m.Name, m.Phone, m.CustomerType
+      HAVING ISNULL(SUM(b.NetOutstanding), 0) > 0
       ORDER BY m.Name
     `;
     
