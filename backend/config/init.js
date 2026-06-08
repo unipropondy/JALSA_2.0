@@ -392,6 +392,7 @@ async function initDB(pool) {
           SELECT MemberId, 'ADJUSTMENT', CurrentBalance, 0, CurrentBalance, 'OPEN', 'Balance migration from legacy profile', GETDATE()
           FROM MemberMaster
           WHERE CurrentBalance > 0
+      END
     `);
 
     await runQuery("Create CustomerCreditAllocations", `
