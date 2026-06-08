@@ -457,7 +457,7 @@ export default function AIChatScreen() {
           <Text style={[styles.tableSummaryText, { flex: 1.5, textAlign: "right", color: Theme.success }, isMobile && { fontSize: 10 }]}>
             SGD {grandTotalAmount.toFixed(2)}
           </Text>
-          <Text style={[styles.tableSummaryText, { flex: 1.2, textAlign: "right", isMobile && { fontSize: 10 } }]}>100%</Text>
+          <Text style={[styles.tableSummaryText, { flex: 1.2, textAlign: "right" }, isMobile && { fontSize: 10 }]}>100%</Text>
         </View>
       </View>
     );
