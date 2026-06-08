@@ -1274,7 +1274,7 @@ class UniversalPrinter {
       text += this.formatTwoCols48(allItemsHaveSC ? "Service Charge:" : "Item Service Charge:", `${symbol}${serviceChargeAmount.toFixed(2)}`);
     }
 
-    if (hasGST) {
+    if (hasGST && gstAmount > 0) {
       text += this.formatTwoCols48(`GST (${gstRate}%):`, `${symbol}${gstAmount.toFixed(2)}`);
       text += "[L]------------------------------------------------\n";
     }
