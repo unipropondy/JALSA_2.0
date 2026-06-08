@@ -213,11 +213,14 @@ router.get("/all", async (req, res) => {
             ISNULL(ri.TotalLineItemDiscountAmount, 0) as TotalLineItemDiscountAmount,
             sh.RoundedBy as RoundedBy,
             ISNULL(ri.DiscountPercentage, 0) as DiscountPercentage,
-            ISNULL(cct_sale.OutstandingAmount, CASE WHEN ${normalizeReportPayModeSql("sts.PayMode")} IN ('CREDIT') THEN sh.SysAmount ELSE 0 END) AS OutstandingAmount
+            ISNULL(cct_sale.OutstandingAmount, CASE WHEN ${normalizeReportPayModeSql("sts.PayMode")} IN ('CREDIT') THEN sh.SysAmount ELSE 0 END) AS OutstandingAmount,
+            COALESCE(mm.Name, ccm.Name) AS CustomerName
           FROM SettlementHeader sh
           LEFT JOIN SettlementTotalSales sts ON sh.SettlementID = sts.SettlementID
           LEFT JOIN RestaurantInvoice ri ON sh.SettlementID = ri.RestaurantBillId
           LEFT JOIN CustomerCreditTransactions cct_sale ON sh.SettlementID = cct_sale.SettlementId AND cct_sale.TransactionType = 'CREDIT_SALE'
+          LEFT JOIN MemberMaster mm ON sh.MemberId = mm.MemberId
+          LEFT JOIN CreditCustomerMaster ccm ON sh.MemberId = ccm.CustomerId
           WHERE ${shWhere}
 
           UNION ALL
@@ -252,7 +255,8 @@ router.get("/all", async (req, res) => {
             0 AS TotalLineItemDiscountAmount,
             0 AS RoundedBy,
             0 AS DiscountPercentage,
-            0 AS OutstandingAmount
+            0 AS OutstandingAmount,
+            COALESCE(mm.Name, m.Name) AS CustomerName
           FROM CustomerCreditTransactions cct
           LEFT JOIN CreditCustomerMaster m ON cct.MemberId = m.CustomerId
           LEFT JOIN MemberMaster mm ON cct.MemberId = mm.MemberId
@@ -293,11 +297,14 @@ router.get("/all", async (req, res) => {
             ISNULL(ri.TotalLineItemDiscountAmount, 0) as TotalLineItemDiscountAmount,
             sh.RoundedBy as RoundedBy,
             ISNULL(ri.DiscountPercentage, 0) as DiscountPercentage,
-            ISNULL(cct_sale.OutstandingAmount, CASE WHEN ${normalizeReportPayModeSql("sts.PayMode")} IN ('CREDIT') THEN sh.SysAmount ELSE 0 END) AS OutstandingAmount
+            ISNULL(cct_sale.OutstandingAmount, CASE WHEN ${normalizeReportPayModeSql("sts.PayMode")} IN ('CREDIT') THEN sh.SysAmount ELSE 0 END) AS OutstandingAmount,
+            COALESCE(mm.Name, ccm.Name) AS CustomerName
           FROM SettlementHeader sh
           LEFT JOIN SettlementTotalSales sts ON sh.SettlementID = sts.SettlementID
           LEFT JOIN RestaurantInvoice ri ON sh.SettlementID = ri.RestaurantBillId
           LEFT JOIN CustomerCreditTransactions cct_sale ON sh.SettlementID = cct_sale.SettlementId AND cct_sale.TransactionType = 'CREDIT_SALE'
+          LEFT JOIN MemberMaster mm ON sh.MemberId = mm.MemberId
+          LEFT JOIN CreditCustomerMaster ccm ON sh.MemberId = ccm.CustomerId
 
           UNION ALL
 
@@ -331,7 +338,8 @@ router.get("/all", async (req, res) => {
             0 AS TotalLineItemDiscountAmount,
             0 AS RoundedBy,
             0 AS DiscountPercentage,
-            0 AS OutstandingAmount
+            0 AS OutstandingAmount,
+            COALESCE(mm.Name, m.Name) AS CustomerName
           FROM CustomerCreditTransactions cct
           LEFT JOIN CreditCustomerMaster m ON cct.MemberId = m.CustomerId
           LEFT JOIN MemberMaster mm ON cct.MemberId = mm.MemberId

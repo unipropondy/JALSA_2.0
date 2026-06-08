@@ -2716,6 +2716,15 @@ export default function SalesReport() {
                   )}
                 </ScrollView>
 
+                {/* Member / Credit Customer Info */}
+                {selectedOrder?.CustomerName && (
+                  <View style={{ marginBottom: 12, paddingHorizontal: 4 }}>
+                    <Text style={{ fontSize: 13, fontFamily: Fonts.black, color: Theme.textPrimary }}>
+                      {String(selectedOrder.PayMode || '').toUpperCase().includes("MEMBER") ? "Member" : "Credit Customer"}: {selectedOrder.CustomerName}
+                    </Text>
+                  </View>
+                )}
+
                 {/* Payment Details Breakdown */}
                 {displayedPayments.length > 0 && (
                   <View style={{ marginTop: 12, marginBottom: 4, paddingHorizontal: 4 }}>

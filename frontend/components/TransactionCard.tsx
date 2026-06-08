@@ -85,6 +85,11 @@ const TransactionCard = React.memo(
               ? `${item.OrderId || 'Member Payment Collected'}: ${item.Section || 'Customer'}`
               : (SCREEN_W < 450 ? `#${formatOrderId(item).split("-").pop()}` : `Order #${formatOrderId(item)}`)}
           </Text>
+          {item.OrderType !== "LEDGER" && item.CustomerName && (modeUpper === "CREDIT" || modeUpper === "MEMBER") && (
+            <Text style={styles.txMemberName}>
+              {modeUpper === "CREDIT" ? "Credit Customer: " : "Member: "}{item.CustomerName}
+            </Text>
+          )}
           <Text style={styles.txSmall} numberOfLines={1}>
             {item.OrderType === "LEDGER"
               ? `${
@@ -290,6 +295,12 @@ const styles = StyleSheet.create({
     color: '#2563eb',
     fontSize: 9,
     fontFamily: Fonts.black,
+  },
+  txMemberName: {
+    fontSize: 11.5,
+    fontFamily: Fonts.black,
+    color: Theme.textPrimary,
+    marginTop: 2,
   },
 });
 
