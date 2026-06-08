@@ -568,7 +568,7 @@ async function syncTableStatus(req, tableId) {
 
     SELECT 
       Status, entry_status AS entryStatus, PAYMENT_STATUS AS paymentStatus, TotalAmount, CONVERT(VARCHAR, StartTime, 126) AS StartTime, 
-      CurrentOrderId, TableNumber as tableNo, DiningSection as section,
+      CurrentOrderId, TableNumber as tableNo, DiningSection as section, CustomerName as customerName, Pax as pax,
       CASE 
         WHEN Status IN (1, 2, 3) AND StartTime IS NOT NULL AND DATEDIFF(MINUTE, StartTime, GETDATE()) >= 60 THEN 1 
         ELSE 0 
@@ -611,6 +611,8 @@ async function syncTableStatus(req, tableId) {
       isHoldOvertime: updated.isHoldOvertime || 0,
       entryStatus: updated.entryStatus || null,
       paymentStatus: updated.paymentStatus !== undefined ? Number(updated.paymentStatus) : null,
+      customerName: updated.customerName || null,
+      pax: updated.pax || null,
     });
   }
   return updated;

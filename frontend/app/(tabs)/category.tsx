@@ -303,6 +303,8 @@ type TableItem = {
   isOvertime?: number;
   isHoldOvertime?: number;
   entryStatus?: string;
+  customerName?: string;
+  pax?: number;
 };
 
 const SECTIONS = ["SECTION_1", "SECTION_2", "SECTION_3", "TAKEAWAY"];
@@ -503,6 +505,8 @@ export default function Category() {
             isHoldOvertime: Number(item.isHoldOvertime) || 0,
             lastModified: item.ModifiedOn,
             entryStatus: item.entryStatus || item.entry_status,
+            customerName: item.customerName || item.CustomerName || null,
+            pax: item.pax || item.Pax || null,
           }))
         
         const uniqueTables = convertedData.filter((item, index, self) =>
@@ -537,8 +541,8 @@ export default function Category() {
             totalAmount: t.totalAmount,
             isHoldOvertime: t.isHoldOvertime === 1 || !!t.isHoldOvertime,
             lastModified: (t as any).lastModified,
-            customerName: (t as any).customerName,
-            pax: (t as any).pax
+            customerName: t.customerName || undefined,
+            pax: t.pax || undefined
           };
         });
 

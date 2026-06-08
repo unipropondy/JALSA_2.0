@@ -126,6 +126,8 @@ async function pollTables() {
           ISNULL(TotalAmount, 0) as totalAmount, 
           CurrentOrderId as currentOrderId,
           entry_status AS entryStatus,
+          CustomerName as customerName,
+          Pax as pax,
           CASE 
             WHEN Status IN (1, 2, 3) AND StartTime IS NOT NULL AND StartTime > '2000-01-01' AND DATEDIFF(MINUTE, StartTime, GETDATE()) >= 60 THEN 1 
             ELSE 0 
@@ -147,7 +149,9 @@ async function pollTables() {
           prevState.status !== table.Status || 
           prevState.entryStatus !== table.entryStatus ||
           prevState.totalAmount !== table.totalAmount ||
-          prevState.lockedByName !== table.lockedByName;
+          prevState.lockedByName !== table.lockedByName ||
+          prevState.customerName !== table.customerName ||
+          prevState.pax !== table.pax;
 
         if (hasChanged) {
           // Update local memory state
@@ -155,7 +159,9 @@ async function pollTables() {
             status: table.Status,
             entryStatus: table.entryStatus,
             totalAmount: table.totalAmount,
-            lockedByName: table.lockedByName
+            lockedByName: table.lockedByName,
+            customerName: table.customerName,
+            pax: table.pax
           });
 
           // Only emit if this is not the very first load/state initialization
@@ -170,7 +176,9 @@ async function pollTables() {
               modifiedOn: table.ModifiedOn,
               isOvertime: table.isOvertime || 0,
               isHoldOvertime: table.isHoldOvertime || 0,
-              entryStatus: table.entryStatus || null
+              entryStatus: table.entryStatus || null,
+              customerName: table.customerName || null,
+              pax: table.pax || null
             });
             console.log(`🔌 [DB Poller Sync] Table ${table.label} updated -> Emit socket. Status: ${table.Status}, QR: ${table.entryStatus}`);
           } else {

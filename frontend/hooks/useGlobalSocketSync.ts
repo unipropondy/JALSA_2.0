@@ -61,6 +61,9 @@ export function useGlobalSocketSync() {
       const lockedByName = data.lockedByName;
       const entryStatus = data.entryStatus || data.EntryStatus;
       
+      const customerName = data.customerName !== undefined ? data.customerName : data.CustomerName;
+      const pax = data.pax !== undefined ? data.pax : data.Pax;
+      
       const store = useTableStatusStore.getState();
       const cleanTableId = String(tableId || "").replace(/^\{|\}$/g, "").trim().toLowerCase();
       let existingTable = store.tables.find((t: any) => {
@@ -94,7 +97,9 @@ export function useGlobalSocketSync() {
           true, 
           isHoldOvertime,
           data.modifiedOn || data.ModifiedOn,
-          entryStatus
+          entryStatus,
+          customerName,
+          pax
         );
       }
 
