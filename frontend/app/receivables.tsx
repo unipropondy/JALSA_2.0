@@ -337,6 +337,23 @@ export default function ReceivablesScreen() {
     });
   };
 
+  const handlePayBillInFull = (bill: any) => {
+    if (!selectedCustomer) return;
+    setShowLedgerModal(false);
+    router.push({
+      pathname: "/payment",
+      params: {
+        memberId: selectedCustomer.MemberId,
+        collectAmount: String(Math.max(0, bill.OutstandingAmount || 0)),
+        memberName: selectedCustomer.Name,
+        memberPhone: selectedCustomer.Phone,
+        isMember: selectedCustomer.CustomerType === "MEMBER" ? "true" : "false",
+        remarks: `Payment for Bill #${bill.BillNo}`,
+        allocations: JSON.stringify([{ settlementId: bill.SettlementId, amount: bill.OutstandingAmount }])
+      }
+    });
+  };
+
   // Filter customers by search query
   const filteredCustomers = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
@@ -883,6 +900,17 @@ export default function ReceivablesScreen() {
                                     </View>
                                   </View>
 
+                                  {bill.OutstandingAmount > 0.01 && (
+                                    <TouchableOpacity
+                                      onPress={() => handlePayBillInFull(bill)}
+                                      style={styles.payBillInFullBtn}
+                                      activeOpacity={0.8}
+                                    >
+                                      <Ionicons name="card-outline" size={14} color="#fff" />
+                                      <Text style={styles.payBillInFullText}>Pay Bill in Full</Text>
+                                    </TouchableOpacity>
+                                  )}
+
                                   {/* Expanded Settlement History */}
                                   {expandedBillId === bill.TransactionId && (
                                     <View style={styles.billSettlementsContainer}>
@@ -1080,6 +1108,22 @@ const styles = StyleSheet.create({
   billBreakdown: { flexDirection: "row", justifyContent: "space-between" },
   billBreakLabel: { fontSize: 8, fontFamily: Fonts.black, color: Theme.textMuted, letterSpacing: 0.5, marginBottom: 2 },
   billBreakValue: { fontSize: 13, fontFamily: Fonts.bold, color: Theme.textPrimary },
+  payBillInFullBtn: {
+    backgroundColor: Theme.success,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginTop: 12,
+    gap: 6,
+  },
+  payBillInFullText: {
+    color: "#fff",
+    fontFamily: Fonts.bold,
+    fontSize: 12,
+  },
   
   // Expanded Bill Settlements
   billSettlementsContainer: { marginTop: 12, borderTopWidth: 1, borderTopColor: Theme.border, paddingTop: 10 },

@@ -116,6 +116,18 @@ export default function PaymentScreen() {
   const isMember = params.isMember === "true";
   const isLedgerCollection = !!memberId;
 
+  const allocationsParam = useMemo(() => {
+    if (!params.allocations) return null;
+    try {
+      return JSON.parse(params.allocations as string);
+    } catch (e) {
+      console.error("Failed to parse allocations parameter:", e);
+      return null;
+    }
+  }, [params.allocations]);
+
+  const remarksParam = (params.remarks as string) || "Credit payment collection via POS checkout";
+
   const isFocused = useIsFocused() && pathname === "/payment";
   const pathnameRef = React.useRef(pathname);
   pathnameRef.current = pathname;
@@ -691,8 +703,8 @@ export default function PaymentScreen() {
             memberId: memberId,
             amount: total,
             payments: finalPayments,
-            allocations: null,
-            remarks: `Credit payment collection via POS checkout`,
+            allocations: allocationsParam,
+            remarks: remarksParam,
             userId: user?.userId
           })
         });
