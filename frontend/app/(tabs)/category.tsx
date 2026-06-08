@@ -332,6 +332,10 @@ const SECTION_ICONS: Record<string, string> = {
 
 import { socket } from "../../constants/socket";
 
+// Track the last table that was opened with guest details.
+// If the user exits the menu without sending items, we clean this guest data.
+let lastGuestOpenedTable: { tableId: string; customerName: string | null; pax: number | null } | null = null;
+
 export default function Category() {
   const { width, height } = useWindowDimensions();
   const router = useRouter();
@@ -450,6 +454,58 @@ export default function Category() {
 
   useFocusEffect(
     React.useCallback(() => {
+      // If the user previously entered guest details, but exited without placing an order (status is still EMPTY/0),
+      // we clear those guest details.
+      if (lastGuestOpenedTable) {
+        const { tableId } = lastGuestOpenedTable;
+        const store = useTableStatusStore.getState();
+        const tableData = store.tableMap[tableId];
+        const status = tableData
+          ? (tableData.status === 'SENT' ? 1 : tableData.status === 'BILL_REQUESTED' ? 2 : tableData.status === 'HOLD' ? 3 : tableData.status === 'LOCKED' ? 5 : 0)
+          : 0;
+
+        if (status === 0) {
+          console.log(`[Category] Table ${tableId} exited without adding items. Clearing guest data...`);
+          
+          // Clear guest details in the database
+          fetch(`${API_URL}/api/tables/save-guest`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              tableId,
+              customerName: null,
+              pax: null,
+              userId: useAuthStore.getState().user?.userId,
+            }),
+          }).catch(err => console.warn("Failed to clear guest details on exit:", err));
+
+          // Optimistically clear in the local state store
+          const targetTable = store.tables.find(t => t.tableId === tableId);
+          const section = targetTable ? targetTable.section : "SECTION_1";
+          const label = targetTable ? targetTable.tableNo : "";
+          
+          store.updateTableStatus(
+            tableId,
+            section,
+            label,
+            "EMPTY",
+            "EMPTY",
+            undefined,
+            undefined,
+            0,
+            false,
+            false,
+            undefined,
+            undefined,
+            null as any, // clear customerName
+            null as any  // clear pax
+          );
+        }
+        
+        // Clear the tracker
+        lastGuestOpenedTable = null;
+      }
+
       // Re-fetch only if data is likely stale (older than 30s)
       const lastUpdate = useTableStatusStore.getState().tables[0]?.startTime || 0;
       if (Date.now() - lastUpdate > 30000) {
@@ -541,8 +597,8 @@ export default function Category() {
             totalAmount: t.totalAmount,
             isHoldOvertime: t.isHoldOvertime === 1 || !!t.isHoldOvertime,
             lastModified: (t as any).lastModified,
-            customerName: t.customerName || undefined,
-            pax: t.pax || undefined
+            customerName: t.customerName ?? undefined,
+            pax: t.pax ?? undefined
           };
         });
 
@@ -923,6 +979,13 @@ export default function Category() {
     try {
       const cleanName = guestNameInput.trim().substring(0, 9);
       const cleanPax = guestPaxInput.trim() ? parseInt(guestPaxInput.trim()) : null;
+
+      // Track this table for potential cleanup if user exits without adding items
+      lastGuestOpenedTable = {
+        tableId: pendingGuestItem.id,
+        customerName: cleanName || null,
+        pax: cleanPax || null
+      };
 
       const res = await fetch(`${API_URL}/api/tables/save-guest`, {
         method: "POST",
@@ -1851,6 +1914,7 @@ export default function Category() {
                 onPress={() => {
                   setGuestModalVisible(false);
                   if (pendingGuestItem) {
+                    lastGuestOpenedTable = null;
                     proceedWithTable(pendingGuestItem, null);
                     setPendingGuestItem(null);
                   }
