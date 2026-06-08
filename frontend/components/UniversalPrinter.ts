@@ -493,7 +493,9 @@ class UniversalPrinter {
     const deviceNo = data.deviceNo || "1";
     const orderNo = data.orderNo || data.orderId || "N/A";
     const waiter = data.waiterName || "Staff";
-    const timestamp = format(new Date(), "dd/MM/yyyy HH:mm");
+    const kotDateStr = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Singapore', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date());
+    const kotTimeStr = formatToSingaporeTime(new Date(), { hour: '2-digit', minute: '2-digit', hour12: false });
+    const timestamp = `${kotDateStr} ${kotTimeStr}`;
     const kitchenName = data.kitchenName || "";
 
     return `
@@ -720,7 +722,9 @@ class UniversalPrinter {
     const kitchenName = data.kitchenName || "";
 
     let text = `[C]<B>${title}</B>\n`;
-    text += `[C]${format(new Date(), "dd/MM/yy HH:mm")}\n`;
+    const kotDateStr = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Singapore', day: '2-digit', month: '2-digit', year: '2-digit' }).format(new Date());
+    const kotTimeStr = formatToSingaporeTime(new Date(), { hour: '2-digit', minute: '2-digit', hour12: false });
+    text += `[C]${kotDateStr} ${kotTimeStr}\n`;
     text += "[L]--------------------------------\n";
 
     // 🏠 Big centered table number
