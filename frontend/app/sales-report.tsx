@@ -919,9 +919,13 @@ export default function SalesReport() {
   const filteredMetrics = useMemo(() => {
     return dateScopedSales.reduce(
       (acc, s) => {
+        const isSubsequentSplit = s.SettlementID && s.SettlementID.includes("-") && s.SettlementID.split("-").pop().match(/^\d+$/);
+
         if (s.IsCancelled) {
-          acc.CancelledCount += 1;
-          acc.CancelledAmount += s.VoidAmount || 0;
+          if (!isSubsequentSplit) {
+            acc.CancelledCount += 1;
+            acc.CancelledAmount += s.VoidAmount || 0;
+          }
           return acc;
         }
 
@@ -935,10 +939,12 @@ export default function SalesReport() {
         }
 
         acc.TotalSales += s.SysAmount || 0;
-        acc.TotalTransactions += 1;
-        acc.TotalItems += (s.ReceiptCount || 0);
-        acc.TotalVoids += s.VoidQty || 0;
-        acc.TotalVoidAmount += s.VoidAmount || 0;
+        if (!isSubsequentSplit) {
+          acc.TotalTransactions += 1;
+          acc.TotalItems += (s.ReceiptCount || 0);
+          acc.TotalVoids += s.VoidQty || 0;
+          acc.TotalVoidAmount += s.VoidAmount || 0;
+        }
 
         const mode = s.PayMode?.trim().toUpperCase() || "";
         const isUpi = mode.includes("UPI") || mode.includes("GPAY");

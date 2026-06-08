@@ -194,8 +194,8 @@ router.get("/all", async (req, res) => {
             sh.BillNo, 
             sh.SER_NAME,
             ${normalizeReportPayModeSql("sts.PayMode")} as PayMode,
-            sh.SysAmount as SysAmount,
-            sh.ManualAmount as ManualAmount,
+            ISNULL(sts.SysAmount, sh.SysAmount) as SysAmount,
+            ISNULL(sts.ManualAmount, sh.ManualAmount) as ManualAmount,
             sh.SubTotal as SubTotal,
             ISNULL(sh.DiscountAmount, 0) as DiscountAmount,
             sh.DiscountType as DiscountType,
@@ -274,8 +274,8 @@ router.get("/all", async (req, res) => {
             sh.BillNo, 
             sh.SER_NAME,
             ${normalizeReportPayModeSql("sts.PayMode")} as PayMode,
-            sh.SysAmount as SysAmount,
-            sh.ManualAmount as ManualAmount,
+            ISNULL(sts.SysAmount, sh.SysAmount) as SysAmount,
+            ISNULL(sts.ManualAmount, sh.ManualAmount) as ManualAmount,
             sh.SubTotal as SubTotal,
             ISNULL(sh.DiscountAmount, 0) as DiscountAmount,
             sh.DiscountType as DiscountType,
@@ -343,6 +343,7 @@ router.get("/all", async (req, res) => {
 
     const result = await pool.request().query(queryStr);
     const records = result.recordset || [];
+    let finalRecords = [];
     if (records.length > 0) {
       const masterOrderIds = records
         .map(r => r.MasterOrderId)
@@ -378,6 +379,16 @@ router.get("/all", async (req, res) => {
         }
       }
 
+      // Group split payment transactions under the same SettlementID
+      const groups = {};
+      records.forEach(row => {
+        if (!row.SettlementID) return;
+        if (!groups[row.SettlementID]) {
+          groups[row.SettlementID] = [];
+        }
+        groups[row.SettlementID].push(row);
+      });
+
       records.forEach(row => {
         const parentId = row.MasterOrderId ? String(row.MasterOrderId).toLowerCase() : null;
         
@@ -391,17 +402,41 @@ router.get("/all", async (req, res) => {
         }
 
         // 2. Split details
-        if (row.BillNo && row.BillNo.includes('-S')) {
-          row.isSplit = true;
-          row.splitNo = 'S' + row.BillNo.split('-S').pop();
+        const group = groups[row.SettlementID];
+        if (group && group.length > 1) {
+          // It's a split payment!
+          const index = group.indexOf(row);
+          if (index === 0) {
+            row.isSplit = false;
+            row.splitNo = "";
+            finalRecords.push(row);
+          } else {
+            const suffix = `-S${index}`;
+            const newRow = {
+              ...row,
+              SettlementID: `${row.SettlementID}-${index}`,
+              OrderId: `${row.OrderId}${suffix}`,
+              BillNo: `${row.BillNo}${suffix}`,
+              isSplit: true,
+              splitNo: `S${index}`
+            };
+            finalRecords.push(newRow);
+          }
         } else {
-          row.isSplit = false;
-          row.splitNo = "";
+          // Standard check for split by item that already has suffix
+          if (row.BillNo && row.BillNo.includes('-S')) {
+            row.isSplit = true;
+            row.splitNo = 'S' + row.BillNo.split('-S').pop();
+          } else {
+            row.isSplit = false;
+            row.splitNo = "";
+          }
+          finalRecords.push(row);
         }
       });
     }
 
-    res.json(records);
+    res.json(finalRecords);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -454,8 +489,13 @@ router.get("/range", async (req, res) => {
 router.get("/detail/:id", async (req, res) => {
   try {
     const pool = await poolPromise;
+    let cleanId = req.params.id;
+    if (cleanId && cleanId.length > 36) {
+      cleanId = cleanId.substring(0, 36);
+    }
+
     const itemsResult = await pool.request()
-      .input("Id", sql.UniqueIdentifier, req.params.id)
+      .input("Id", sql.UniqueIdentifier, cleanId)
       .query("SELECT * FROM SettlementItemDetail WHERE SettlementID = @Id");
     
     const items = itemsResult.recordset || [];
@@ -463,7 +503,7 @@ router.get("/detail/:id", async (req, res) => {
     if (items.length > 0) {
       // Fetch the master OrderId for this settlement from RestaurantInvoice
       const orderIdResult = await pool.request()
-        .input("Id", sql.UniqueIdentifier, req.params.id)
+        .input("Id", sql.UniqueIdentifier, cleanId)
         .query("SELECT OrderId FROM RestaurantInvoice WHERE RestaurantBillId = @Id");
         
       const orderId = orderIdResult.recordset[0]?.OrderId;
@@ -513,8 +553,13 @@ router.get("/detail/:id", async (req, res) => {
 router.get("/detail/:id/payments", async (req, res) => {
   try {
     const pool = await poolPromise;
+    let cleanId = req.params.id;
+    if (cleanId && cleanId.length > 36) {
+      cleanId = cleanId.substring(0, 36);
+    }
+
     const result = await pool.request()
-      .input("Id", sql.UniqueIdentifier, req.params.id)
+      .input("Id", sql.UniqueIdentifier, cleanId)
       .query(`
         SELECT 
           ptd.PaymentTransactionId,
@@ -533,7 +578,7 @@ router.get("/detail/:id/payments", async (req, res) => {
     if (payments.length === 0) {
       // Fallback: Query SettlementTotalSales or SettlementHeader to get the single payment mode and total amount
       const fallbackResult = await pool.request()
-        .input("Id", sql.UniqueIdentifier, req.params.id)
+        .input("Id", sql.UniqueIdentifier, cleanId)
         .query(`
           SELECT 
             sh.SettlementID AS ReferenceId,

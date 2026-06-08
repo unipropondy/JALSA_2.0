@@ -107,11 +107,15 @@ export default function SplitPaymentComponent({
     return Math.max(0, targetTotal - totalPaid);
   }, [targetTotal, totalPaid]);
 
-  // Initial row with full targetTotal
+  // Initial rows: default to 2 payment rows
   useEffect(() => {
     if (availableMethods.length > 0 && rows.length === 0) {
       const firstMode = availableMethods[0];
-      const initialStatus = isQRMode(firstMode.payMode) ? "Pending" : "Paid";
+      const secondMode = availableMethods.length > 1 ? availableMethods[1] : availableMethods[0];
+      
+      const firstStatus = isQRMode(firstMode.payMode) ? "Pending" : "Paid";
+      const secondStatus = isQRMode(secondMode.payMode) ? "Pending" : "Paid";
+      
       setRows([
         {
           id: Math.random().toString(36).substring(7),
@@ -119,7 +123,15 @@ export default function SplitPaymentComponent({
           payMode: firstMode.payMode,
           amount: targetTotal.toFixed(2),
           referenceNo: "",
-          status: initialStatus,
+          status: firstStatus,
+        },
+        {
+          id: Math.random().toString(36).substring(7),
+          payModeId: secondMode.position,
+          payMode: secondMode.payMode,
+          amount: "0.00",
+          referenceNo: "",
+          status: secondStatus,
         },
       ]);
     }
