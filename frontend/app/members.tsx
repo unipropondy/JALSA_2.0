@@ -446,16 +446,16 @@ export default function MembersScreen() {
     const creditLimit    = item.CreditLimit    || 0;
     const currentBalance = item.CurrentBalance || 0;
     const totalBalance   = item.Balance        || 0;
-    const threshold      = getLowBalanceThreshold(creditLimit);
-    const isLow          = currentBalance < threshold;
+    const availableCredit = creditLimit > 0 ? (creditLimit - currentBalance) : currentBalance;
+    const isLowCredit    = availableCredit < 50;
     const alertSent      = item.LowBalanceAlertSent === true || item.LowBalanceAlertSent === 1;
 
     return (
       <View style={styles.memberCard}>
         {/* ── Card Header ── */}
         <View style={styles.cardHeader}>
-          <View style={[styles.avatarCircle, isLow && { backgroundColor: Theme.warning + '20' }]}>
-            <Text style={[styles.avatarLetter, isLow && { color: Theme.warning }]}>{item.Name.charAt(0).toUpperCase()}</Text>
+          <View style={[styles.avatarCircle, isLowCredit && { backgroundColor: Theme.danger + '15' }]}>
+            <Text style={[styles.avatarLetter, isLowCredit && { color: Theme.danger }]}>{item.Name.charAt(0).toUpperCase()}</Text>
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.memberName}>{item.Name}</Text>
@@ -521,6 +521,19 @@ export default function MembersScreen() {
           </View>
         ) : null}
 
+        {/* ── Low Credit Warning Badge ── */}
+        {isLowCredit && (
+          <View style={styles.lowCreditWarningBadge}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="alert-circle" size={16} color={Theme.danger} />
+              <Text style={styles.lowCreditWarningTitle}>⚠ Low Credit Balance</Text>
+            </View>
+            <Text style={styles.lowCreditWarningStatus}>
+              {alertSent ? "WhatsApp Alert Sent" : "Pending Alert"}
+            </Text>
+          </View>
+        )}
+
         {/* ── Prepaid Balance Card ── */}
         <View style={styles.financialSummaryBlock}>
           <View style={styles.financialCol}>
@@ -539,9 +552,9 @@ export default function MembersScreen() {
             <Text style={styles.financialLabel}>AVAILABLE CREDIT</Text>
             <Text style={[
               styles.financialVal,
-              { color: Theme.success }
+              { color: isLowCredit ? Theme.danger : Theme.success }
             ]}>
-              {formatMoney(creditLimit - currentBalance)}
+              {formatMoney(availableCredit)}
             </Text>
           </View>
         </View>
@@ -1199,5 +1212,27 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  lowCreditWarningBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Theme.danger + '15',
+    borderColor: Theme.danger + '40',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginTop: 12,
+  },
+  lowCreditWarningTitle: {
+    fontSize: 12,
+    fontFamily: Fonts.black,
+    color: Theme.danger,
+  },
+  lowCreditWarningStatus: {
+    fontSize: 11,
+    fontFamily: Fonts.bold,
+    color: Theme.textSecondary,
   },
 });
