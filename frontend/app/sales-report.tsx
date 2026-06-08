@@ -2506,7 +2506,8 @@ export default function SalesReport() {
                       </View>
                     )}
                   </View>
-                  <TouchableOpacity
+                </View>
+                <TouchableOpacity
                     onPress={() => setSelectedOrder(null)}
                     style={{ marginLeft: 10 }}
                   >
