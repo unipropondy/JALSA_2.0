@@ -1554,10 +1554,12 @@ export default function PaymentScreen() {
                             <Text style={styles.breakValue}>{currencySymbol}{displayedServiceCharge.toFixed(2)}</Text>
                           </View>
                         )}
-                        <View style={styles.breakRow}>
-                          <Text style={styles.breakLabel}>GST ({settingsStore.gstPercentage || 0}%)</Text>
-                          <Text style={styles.breakValue}>{currencySymbol}{displayedTax.toFixed(2)}</Text>
-                        </View>
+                        {displayedTax > 0 && (
+                          <View style={styles.breakRow}>
+                            <Text style={styles.breakLabel}>GST ({settingsStore.gstPercentage || 0}%)</Text>
+                            <Text style={styles.breakValue}>{currencySymbol}{displayedTax.toFixed(2)}</Text>
+                          </View>
+                        )}
 
                         {displayedRoundOff !== 0 && (
                           <View style={styles.breakRow}>

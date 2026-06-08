@@ -4,6 +4,7 @@ const router = express.Router();
 const sql = require("mssql");
 const { poolPromise } = require("../config/db");
 const { getActiveOrganization } = require("../utils/organizationHelper");
+const { getCompanySettings } = require("../utils/settingsCache");
 const DEFAULT_GUID = "00000000-0000-0000-0000-000000000000";
 
 // 🔹 QR Setting Helper: Check if QR Code ordering is enabled
@@ -244,6 +245,9 @@ async function syncToProfessionalTables(
   const activeOrg = await getActiveOrganization();
   const bizId = activeOrg.businessUnitId;
 
+  const companySettings = await getCompanySettings();
+  const serviceChargePercentage = companySettings ? Number(companySettings.ServiceChargePercentage || 0) : 0;
+
   // 🚀 OPTIMIZATION 1: Combined Initial Lookups (TableNo, BizId, OrderHeader)
   const initRes = await transaction
     .request()
@@ -384,7 +388,8 @@ async function syncToProfessionalTables(
       p_tw = `tw${idx}`,
       p_disc = `disc${idx}`,
       p_disctype = `disctype${idx}`,
-      p_created = `created${idx}`;
+      p_created = `created${idx}`,
+      p_sc = `sc${idx}`;
 
     itemRequest.input(p_id, sql.UniqueIdentifier, lineItemId);
     itemRequest.input(p_dish, sql.UniqueIdentifier, finalProdId);
@@ -403,6 +408,25 @@ async function syncToProfessionalTables(
       ? (item.discountType || item.DiscountType)
       : ((item.discount || 0) > 0 ? 'percentage' : 'fixed');
     itemRequest.input(p_disctype, sql.NVarChar(50), resolvedDiscountType);
+
+    const isSC = item.isServiceCharge === true || String(item.isServiceCharge) === '1' || String(item.isServiceCharge).toLowerCase() === 'true';
+    let itemSC = null;
+    if (isSC) {
+      const qtyVal = Number(item.qty || 1);
+      const priceVal = Number(unitPrice || 0);
+      const discVal = Number(item.discount || 0);
+      let itemDiscount = 0;
+      if (discVal > 0) {
+        if (resolvedDiscountType === 'percentage') {
+          itemDiscount = (priceVal * qtyVal) * (discVal / 100);
+        } else {
+          itemDiscount = discVal * qtyVal;
+        }
+      }
+      const itemSubtotal = (priceVal * qtyVal) - itemDiscount;
+      itemSC = itemSubtotal * (serviceChargePercentage / 100);
+    }
+    itemRequest.input(p_sc, sql.Decimal(18, 2), itemSC);
 
     let itemDate = null;
     const rawCreated = item.DateCreated || item.dateCreated || item.CreatedOn;
@@ -429,14 +453,14 @@ async function syncToProfessionalTables(
           StatusCode = CASE WHEN @${p_status} = 0 THEN 0 ELSE (CASE WHEN @${p_status} > StatusCode THEN @${p_status} ELSE StatusCode END) END, 
           Description = @${p_name}, DishName = @${p_name},SongName = @${p_song}, ModifiedBy = @userId, ModifiedOn = GETDATE(), 
           ModifiersJSON = @${p_mods}, OrderNumber = @orderNo, Remarks = @${p_note}, isTakeAway = @${p_tw},
-          DiscountAmount = @${p_disc}, DiscountType = @${p_disctype},
+          DiscountAmount = @${p_disc}, DiscountType = @${p_disctype}, ServiceCharge = @${p_sc},
           CreatedOn = CASE WHEN StatusCode = 1 AND @${p_status} = 2 THEN GETDATE() ELSE ISNULL(CreatedOn, @${p_created}) END
         WHERE OrderDetailId = @${p_id};
       END
       ELSE
       BEGIN
-        INSERT INTO RestaurantOrderDetailCur (OrderDetailId, OrderId, DishId, Description, DishName,SongName, Quantity, PricePerUnit, ActualAmount, TotalDetailLineAmount, BaseAmount, StatusCode, CreatedBy, CreatedOn, ModifiersJSON, OrderNumber, Remarks, isTakeAway, BusinessUnitId, OrderDateTime, DiscountAmount, DiscountType)
-        VALUES (@${p_id}, @orderId, @${p_dish}, @${p_name}, @${p_name}, @${p_song}, @${p_qty}, @${p_cost}, @${p_cost} * @${p_qty}, @${p_cost} * @${p_qty}, @${p_cost} * @${p_qty}, @${p_status}, @userId, CASE WHEN @${p_status} = 2 THEN GETDATE() ELSE @${p_created} END, @${p_mods}, @orderNo, @${p_note}, @${p_tw}, @bizId, GETDATE(), @${p_disc}, @${p_disctype});
+        INSERT INTO RestaurantOrderDetailCur (OrderDetailId, OrderId, DishId, Description, DishName,SongName, Quantity, PricePerUnit, ActualAmount, TotalDetailLineAmount, BaseAmount, StatusCode, CreatedBy, CreatedOn, ModifiersJSON, OrderNumber, Remarks, isTakeAway, BusinessUnitId, OrderDateTime, DiscountAmount, DiscountType, ServiceCharge)
+        VALUES (@${p_id}, @orderId, @${p_dish}, @${p_name}, @${p_name}, @${p_song}, @${p_qty}, @${p_cost}, @${p_cost} * @${p_qty}, @${p_cost} * @${p_qty}, @${p_cost} * @${p_qty}, @${p_status}, @userId, CASE WHEN @${p_status} = 2 THEN GETDATE() ELSE @${p_created} END, @${p_mods}, @orderNo, @${p_note}, @${p_tw}, @bizId, GETDATE(), @${p_disc}, @${p_disctype}, @${p_sc});
       END
 
       -- Sync Modifiers for Item ${idx}

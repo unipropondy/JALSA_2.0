@@ -319,7 +319,7 @@ private static escapeHtml(str: string): string {
     const billNo = saleData.invoiceNumber || saleData.orderId || saleData.id || `ORD-${saleDate.getFullYear()}${(saleDate.getMonth()+1).toString().padStart(2,'0')}${saleDate.getDate().toString().padStart(2,'0')}-${Math.floor(1000 + Math.random()*9000)}`;
     
     const hasGST = company.gstPercentage > 0;
-    const gstRate = company.gstPercentage || 9;
+    const gstRate = company.gstPercentage !== undefined && company.gstPercentage !== null ? company.gstPercentage : 9;
     let finalTotal = saleData.total || saleData.totalAmount || 0;
     const currencySymbol = company.currencySymbol || '$';
 
@@ -813,12 +813,12 @@ private static escapeHtml(str: string): string {
                <span>${currencySymbol}${serviceChargeAmount.toFixed(2)}</span>
              </div>
              ` : ''}
-            ${hasGST ? `
-            <div class="total-row">
-              <span>GST (${gstRate}%):</span>
-              <span>${currencySymbol}${gstAmount.toFixed(2)}</span>
-            </div>
-            ` : ''}
+             ${hasGST && gstAmount > 0 ? `
+             <div class="total-row">
+               <span>GST (${gstRate}%):</span>
+               <span>${currencySymbol}${gstAmount.toFixed(2)}</span>
+             </div>
+             ` : ''}
              ${printedRoundOff && printedRoundOff !== 0 ? `
              <div class="total-row">
                <span>Round Off:</span>

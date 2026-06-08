@@ -450,6 +450,7 @@ export default function Category() {
     // Only fetch settings if not already loaded
     usePaymentSettingsStore.getState().fetchSettings();
     import("@/stores/generalSettingsStore").then(m => m.useGeneralSettingsStore.getState().fetchSettings());
+    import("@/stores/companySettingsStore").then(m => m.useCompanySettingsStore.getState().fetchSettings("1"));
   }, []);
 
   useFocusEffect(

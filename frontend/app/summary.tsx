@@ -1127,7 +1127,7 @@ export default function SummaryScreen() {
                   </>
                 )}
 
-                {scRate > 0 && (
+                {scRate > 0 && serviceChargeAmount > 0 && (
                   <View
                     style={[
                       styles.summaryRow,
@@ -1155,7 +1155,7 @@ export default function SummaryScreen() {
                   </View>
                 )}
 
-                {gstRate > 0 && (
+                {gstRate > 0 && gstAmount > 0 && (
                   <View
                     style={[
                       styles.summaryRow,
