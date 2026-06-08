@@ -6,7 +6,7 @@ const { runInTransaction } = require("../utils/transactionHelper");
 const { getActiveOrganization } = require("../utils/organizationHelper");
 const { processSplitPayments } = require("../services/payment.service");
 const { getBusinessDaySqlBounds } = require("../utils/timezoneHelper");
-const { getBusinessTimezoneSettings } = require("../utils/settingsCache");
+const { getBusinessTimezoneSettings, getCompanySettings } = require("../utils/settingsCache");
 
 // Helper to generate a random 8-character hex ID (e.g. A996E780)
 const generateRandomBillId = () => {
@@ -750,18 +750,13 @@ router.get("/day-end-summary", async (req, res) => {
     
     const pool = await poolPromise;
 
-    // 0. Organization Info
-    const orgRes = await pool.request().query(`
-      SELECT TOP 1
-        Name,
-        Address1_Line1,
-        Address1_Line2,
-        Address1_City,
-        Address1_PostalCode,
-        Address1_Telephone1
-      FROM Organization
-    `);
-    const orgInfo = orgRes.recordset[0] || {};
+    // 0. Organization Info (from CompanySettings)
+    const companySettings = await getCompanySettings();
+    const orgInfo = {
+      Name: companySettings?.CompanyName || 'AL-HAZIMA RESTAURANT PTE LTD',
+      Address1_Line1: companySettings?.Address || 'No 4, Cheong Chin Nam Road, SINGAPORE 599729',
+      Address1_Telephone1: companySettings?.Phone || '65130000'
+    };
 
     // A. Paymode Detail (Aggregate all settlements in range)
     const paymodeRes = await pool.request()
@@ -2129,10 +2124,11 @@ router.get("/consolidated-report/pdf", async (req, res) => {
     }
 
     // Prepare report data for PDF generation
+    const companySettings = await getCompanySettings();
     const reportData = {
-      companyName: 'AL-HAZIMA RESTAURANT PTE LTD',
-      companyAddress: 'No 6 Chiming Glen Rasta Road, SINGAPORE 589729',
-      companyPhone: '+65 6840000',
+      companyName: companySettings?.CompanyName || 'AL-HAZIMA RESTAURANT PTE LTD',
+      companyAddress: companySettings?.Address || 'No 6 Chiming Glen Rasta Road, SINGAPORE 589729',
+      companyPhone: companySettings?.Phone || '+65 6840000',
       period: periodStr,
       netSales: Number(aggregateData.netSales || 0),
       serviceCharge: Number(aggregateData.serviceCharge || 0),

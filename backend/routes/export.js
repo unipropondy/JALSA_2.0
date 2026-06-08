@@ -383,6 +383,19 @@ router.post('/download-pdf', async (req, res) => {
     const { reportData } = req.body;
     if (!reportData) return res.status(400).json({ error: 'Report data is required' });
     
+    // Fetch and merge actual company settings from DB
+    try {
+      const { getCompanySettings } = require('../utils/settingsCache');
+      const companySettings = await getCompanySettings();
+      if (companySettings) {
+        reportData.companyName = companySettings.CompanyName || reportData.companyName;
+        reportData.companyAddress = companySettings.Address || reportData.companyAddress;
+        reportData.companyPhone = companySettings.Phone || reportData.companyPhone;
+      }
+    } catch (e) {
+      console.warn("Could not fetch company settings for PDF download:", e.message);
+    }
+    
     const docDef = generatePdfDocDefinition(reportData);
     const pdfBuffer = await createPdfBinary(docDef);
     
@@ -530,6 +543,19 @@ router.post('/email-pdf', async (req, res) => {
     const { reportData, email } = req.body;
     if (!reportData) {
       return res.status(400).json({ success: false, error: 'Report data is required' });
+    }
+    
+    // Fetch and merge actual company settings from DB
+    try {
+      const { getCompanySettings } = require('../utils/settingsCache');
+      const companySettings = await getCompanySettings();
+      if (companySettings) {
+        reportData.companyName = companySettings.CompanyName || reportData.companyName;
+        reportData.companyAddress = companySettings.Address || reportData.companyAddress;
+        reportData.companyPhone = companySettings.Phone || reportData.companyPhone;
+      }
+    } catch (e) {
+      console.warn("Could not fetch company settings for PDF email:", e.message);
     }
     const recipientCheck = normalizeAndValidateRecipient(email);
     if (!recipientCheck.ok) {
