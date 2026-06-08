@@ -3496,7 +3496,7 @@ const styles = StyleSheet.create({
   dashboardTitle: {
     color: Theme.textPrimary,
     fontFamily: Fonts.black,
-    fontSize: 22,
+    fontSize: 23,
   },
   dashboardSubtitle: {
     color: Theme.textSecondary,
@@ -3663,8 +3663,8 @@ const styles = StyleSheet.create({
   },
   tileLabel: {
     color: Theme.textSecondary,
-    fontFamily: Fonts.bold,
-    fontSize: 10,
+    fontFamily: Fonts.black,
+    fontSize: 13,
     textTransform: "uppercase",
     letterSpacing: 0.6,
     flex: 1,
