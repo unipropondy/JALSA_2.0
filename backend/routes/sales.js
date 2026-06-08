@@ -214,13 +214,15 @@ router.get("/all", async (req, res) => {
             sh.RoundedBy as RoundedBy,
             ISNULL(ri.DiscountPercentage, 0) as DiscountPercentage,
             ISNULL(cct_sale.OutstandingAmount, CASE WHEN ${normalizeReportPayModeSql("sts.PayMode")} IN ('CREDIT') THEN sh.SysAmount ELSE 0 END) AS OutstandingAmount,
-            COALESCE(mm.Name, ccm.Name) AS CustomerName
+            COALESCE(mm.Name, ccm.Name, mm_sale.Name, ccm_sale.Name) AS CustomerName
           FROM SettlementHeader sh
           LEFT JOIN SettlementTotalSales sts ON sh.SettlementID = sts.SettlementID
           LEFT JOIN RestaurantInvoice ri ON sh.SettlementID = ri.RestaurantBillId
           LEFT JOIN CustomerCreditTransactions cct_sale ON sh.SettlementID = cct_sale.SettlementId AND cct_sale.TransactionType = 'CREDIT_SALE'
           LEFT JOIN MemberMaster mm ON sh.MemberId = mm.MemberId
           LEFT JOIN CreditCustomerMaster ccm ON sh.MemberId = ccm.CustomerId
+          LEFT JOIN MemberMaster mm_sale ON cct_sale.MemberId = mm_sale.MemberId
+          LEFT JOIN CreditCustomerMaster ccm_sale ON cct_sale.MemberId = ccm_sale.CustomerId
           WHERE ${shWhere}
 
           UNION ALL
@@ -298,13 +300,15 @@ router.get("/all", async (req, res) => {
             sh.RoundedBy as RoundedBy,
             ISNULL(ri.DiscountPercentage, 0) as DiscountPercentage,
             ISNULL(cct_sale.OutstandingAmount, CASE WHEN ${normalizeReportPayModeSql("sts.PayMode")} IN ('CREDIT') THEN sh.SysAmount ELSE 0 END) AS OutstandingAmount,
-            COALESCE(mm.Name, ccm.Name) AS CustomerName
+            COALESCE(mm.Name, ccm.Name, mm_sale.Name, ccm_sale.Name) AS CustomerName
           FROM SettlementHeader sh
           LEFT JOIN SettlementTotalSales sts ON sh.SettlementID = sts.SettlementID
           LEFT JOIN RestaurantInvoice ri ON sh.SettlementID = ri.RestaurantBillId
           LEFT JOIN CustomerCreditTransactions cct_sale ON sh.SettlementID = cct_sale.SettlementId AND cct_sale.TransactionType = 'CREDIT_SALE'
           LEFT JOIN MemberMaster mm ON sh.MemberId = mm.MemberId
           LEFT JOIN CreditCustomerMaster ccm ON sh.MemberId = ccm.CustomerId
+          LEFT JOIN MemberMaster mm_sale ON cct_sale.MemberId = mm_sale.MemberId
+          LEFT JOIN CreditCustomerMaster ccm_sale ON cct_sale.MemberId = ccm_sale.CustomerId
 
           UNION ALL
 
