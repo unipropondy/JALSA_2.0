@@ -1760,37 +1760,31 @@ export default function Category() {
         animationType="fade"
         onRequestClose={() => {
           setGuestModalVisible(false);
-          if (pendingGuestItem) {
-            proceedWithTable(pendingGuestItem, null);
-            setPendingGuestItem(null);
-          }
+          setPendingGuestItem(null);
         }}
       >
         <TouchableOpacity
-          style={styles.menuOverlay}
+          style={styles.centerOverlay}
           activeOpacity={1}
           onPress={() => {
             setGuestModalVisible(false);
-            if (pendingGuestItem) {
-              proceedWithTable(pendingGuestItem, null);
-              setPendingGuestItem(null);
-            }
+            setPendingGuestItem(null);
           }}
         >
-          <View
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={() => {}} // Stop propagation
             style={{
               backgroundColor: Theme.bgCard,
               padding: 24,
               borderRadius: Theme.radiusLg,
-              width: isTablet ? 400 : "85%",
+              width: isTablet ? 350 : "80%",
               elevation: 10,
               shadowColor: "#000",
               shadowOffset: { width: 0, height: 4 },
               shadowOpacity: 0.15,
               shadowRadius: 12,
             }}
-            onStartShouldSetResponder={() => true}
-            onTouchEnd={(e) => e.stopPropagation()}
           >
             <Text style={{ fontSize: 18, fontFamily: Fonts.bold, color: Theme.textPrimary, marginBottom: 16 }}>
               Table {pendingGuestItem?.label} details
@@ -1836,8 +1830,8 @@ export default function Category() {
               placeholder="Number of persons"
               placeholderTextColor={Theme.textMuted}
               value={guestPaxInput}
-              onChangeText={setGuestPaxInput}
-              keyboardType="number-pad"
+              onChangeText={(text) => setGuestPaxInput(text.replace(/[^0-9]/g, ''))}
+              keyboardType="numeric"
             />
 
             <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 12 }}>
@@ -1859,7 +1853,7 @@ export default function Category() {
                 }}
               >
                 <Text style={{ color: Theme.textSecondary, fontFamily: Fonts.semiBold, fontSize: 14 }}>
-                  Cancel
+                  Skip
                 </Text>
               </TouchableOpacity>
 
@@ -1880,7 +1874,7 @@ export default function Category() {
                 </Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
 
@@ -2198,7 +2192,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  /* â”€â”€ More Menu Modal â”€â”€ */
+  /* ———— More Menu Modal ———— */
   menuOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
@@ -2206,6 +2200,12 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     paddingTop: 60,
     paddingRight: 20,
+  },
+  centerOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   menuContent: {
     width: 260,
