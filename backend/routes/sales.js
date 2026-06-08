@@ -57,33 +57,29 @@ const getReportDateRange = (req) => {
 };
 
 const getReportDateWhereSql = (filter = "daily", saleDateColumn = "sh.LastSettlementDate", date = null) => {
-  // Precisely match IST (UTC+5.5) against the drifting Server clock (UTC+7.8)
-  // Offset = 7.8 - 5.5 = 2.3 hours = 138 minutes
-  const targetDate = date ? `'${date}'` : 'DATEADD(MINUTE, -138, GETDATE())';
+  // Completely for Singapore timezone (SGT, UTC+8).
+  // Database stores local SGT timestamps natively (via GETDATE() or local server time).
+  const targetDate = date ? `'${date}'` : 'GETDATE()';
   const safeTargetDate = `CAST(CAST(${targetDate} AS DATETIME) AS DATE)`;
 
   switch (String(filter).toLowerCase()) {
     case "weekly":
-      return `${saleDateColumn} >= DATEADD(DAY, -6, CAST(${safeTargetDate} AS DATETIME)) AND ${saleDateColumn} <= DATEADD(HOUR, 36, CAST(${safeTargetDate} AS DATETIME))`;
+      return `${saleDateColumn} >= DATEADD(DAY, -6, CAST(${safeTargetDate} AS DATETIME)) AND ${saleDateColumn} < DATEADD(DAY, 1, CAST(${safeTargetDate} AS DATETIME))`;
     case "monthly":
       return `MONTH(CAST(${saleDateColumn} AS DATETIME)) = MONTH(${safeTargetDate}) AND YEAR(CAST(${saleDateColumn} AS DATETIME)) = YEAR(${safeTargetDate})`;
     case "yearly":
       return `YEAR(CAST(${saleDateColumn} AS DATETIME)) = YEAR(${safeTargetDate})`;
     case "daily":
     default:
-      // Precisely match the IST day (00:00 to 23:59 IST)
-      // IST 00:00 = Server 02:48 AM
-      const istStart = `DATEADD(MINUTE, 168, CAST(${safeTargetDate} AS DATETIME))`;
-      return `${saleDateColumn} >= ${istStart} AND ${saleDateColumn} < DATEADD(DAY, 1, ${istStart})`;
+      const sgtStart = `CAST(${safeTargetDate} AS DATETIME)`;
+      return `${saleDateColumn} >= ${sgtStart} AND ${saleDateColumn} < DATEADD(DAY, 1, ${sgtStart})`;
   }
 };
 
 const getReportDateWhereSqlForRange = (startDateStr, endDateStr, saleDateColumn = "sh.LastSettlementDate") => {
-  const targetStart = `'${startDateStr}'`;
-  const targetEnd = `'${endDateStr}'`;
-  const istStart = `DATEADD(MINUTE, 168, CAST(${targetStart} AS DATETIME))`;
-  const istEnd = `DATEADD(MINUTE, 168, DATEADD(DAY, 1, CAST(${targetEnd} AS DATETIME)))`;
-  return `${saleDateColumn} >= ${istStart} AND ${saleDateColumn} < ${istEnd}`;
+  const sgtStart = `CAST('${startDateStr}' AS DATETIME)`;
+  const sgtEnd = `DATEADD(DAY, 1, CAST('${endDateStr}' AS DATETIME))`;
+  return `${saleDateColumn} >= ${sgtStart} AND ${saleDateColumn} < ${sgtEnd}`;
 };
 
 const normalizeReportFilter = (filter = "daily") => {
@@ -187,7 +183,7 @@ router.get("/all", async (req, res) => {
         SELECT * FROM (
           SELECT 
             sh.SettlementID, 
-            DATEADD(MINUTE, -468, sh.LastSettlementDate) AS SettlementDate, 
+            DATEADD(MINUTE, -480, sh.LastSettlementDate) AS SettlementDate, 
             sh.BillNo AS OrderId, 
             sh.OrderType,
             sh.TableNo, 
@@ -208,7 +204,7 @@ router.get("/all", async (req, res) => {
             ISNULL(sh.VoidItemAmount, 0) as VoidAmount,
             sh.IsCancelled,
             sh.CancellationReason,
-            DATEADD(MINUTE, -468, sh.CancelledDate) as CancelledDate,
+            DATEADD(MINUTE, -480, sh.CancelledDate) as CancelledDate,
             sh.CancelledByUserName,
             ri.OrderId AS MasterOrderId,
             ISNULL(ri.TotalDiscountAmount, 0) as TotalDiscountAmount,
@@ -226,7 +222,7 @@ router.get("/all", async (req, res) => {
 
           SELECT 
             cct.TransactionId AS SettlementID,
-            DATEADD(MINUTE, -468, cct.CreatedDate) AS SettlementDate,
+            DATEADD(MINUTE, -480, cct.CreatedDate) AS SettlementDate,
             CASE WHEN mm.MemberId IS NOT NULL THEN 'Member Payment Collected' ELSE 'Credit Payment Collected' END AS OrderId,
             'LEDGER' AS OrderType,
             'LEDGER' AS TableNo,
@@ -267,7 +263,7 @@ router.get("/all", async (req, res) => {
         SELECT TOP 200 * FROM (
           SELECT 
             sh.SettlementID, 
-            DATEADD(MINUTE, -468, sh.LastSettlementDate) AS SettlementDate, 
+            DATEADD(MINUTE, -480, sh.LastSettlementDate) AS SettlementDate, 
             sh.BillNo AS OrderId, 
             sh.OrderType,
             sh.TableNo, 
@@ -288,7 +284,7 @@ router.get("/all", async (req, res) => {
             ISNULL(sh.VoidItemAmount, 0) as VoidAmount,
             sh.IsCancelled,
             sh.CancellationReason,
-            DATEADD(MINUTE, -468, sh.CancelledDate) as CancelledDate,
+            DATEADD(MINUTE, -480, sh.CancelledDate) as CancelledDate,
             sh.CancelledByUserName,
             ri.OrderId AS MasterOrderId,
             ISNULL(ri.TotalDiscountAmount, 0) as TotalDiscountAmount,
@@ -305,7 +301,7 @@ router.get("/all", async (req, res) => {
 
           SELECT 
             cct.TransactionId AS SettlementID,
-            DATEADD(MINUTE, -468, cct.CreatedDate) AS SettlementDate,
+            DATEADD(MINUTE, -480, cct.CreatedDate) AS SettlementDate,
             CASE WHEN mm.MemberId IS NOT NULL THEN 'Member Payment Collected' ELSE 'Credit Payment Collected' END AS OrderId,
             'LEDGER' AS OrderType,
             'LEDGER' AS TableNo,
@@ -417,8 +413,8 @@ router.get("/transactions", async (req, res) => {
       .input("Start", sql.DateTime, startDate || new Date(new Date().setDate(new Date().getDate() - 30)))
       .input("End", sql.DateTime, endDate || new Date())
       .query(`
-        SELECT sh.SettlementID, DATEADD(MINUTE, -468, sh.LastSettlementDate) as LastSettlementDate, sh.BillNo, sh.SysAmount AS TotalAmount, sts.PayMode,
-        CONVERT(VARCHAR(8), DATEADD(MINUTE, -468, sh.LastSettlementDate), 112) + '-' + RIGHT('0000' + CAST(sh.OrderId AS VARCHAR(10)), 4) AS OrderId,
+        SELECT sh.SettlementID, DATEADD(MINUTE, -480, sh.LastSettlementDate) as LastSettlementDate, sh.BillNo, sh.SysAmount AS TotalAmount, sts.PayMode,
+        CONVERT(VARCHAR(8), DATEADD(MINUTE, -480, sh.LastSettlementDate), 112) + '-' + RIGHT('0000' + CAST(sh.OrderId AS VARCHAR(10)), 4) AS OrderId,
         sh.IsCancelled, sh.CancellationReason
         FROM SettlementHeader sh
         LEFT JOIN SettlementTotalSales sts ON sh.SettlementID = sts.SettlementID

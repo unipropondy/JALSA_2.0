@@ -611,7 +611,7 @@ export default function SalesReport() {
     try {
       setIsDownloading(true);
       const reportData = await fetchReportData();
-      const filename = `Sales_Report_${downloadFilter}_${new Date().toISOString().split("T")[0]}.pdf`;
+      const filename = `Sales_Report_${downloadFilter}_${format(new Date(), "yyyy-MM-dd")}.pdf`;
 
       const response = await fetch(`${API_URL}/api/export/download-pdf`, {
         method: "POST",

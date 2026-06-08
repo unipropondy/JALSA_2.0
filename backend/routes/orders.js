@@ -64,6 +64,16 @@ function resolveItemTakeaway(item = {}) {
   };
 }
 
+function getSingaporeDateString() {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Singapore',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  return formatter.format(new Date()).replace(/-/g, '');
+}
+
 /**
  * Get or Generate Order ID for a table
  * Returns existing ID if table is active, otherwise generates a new one.
@@ -77,9 +87,8 @@ async function getOrGenerateOrderId(req, tableId) {
       const activeOrg = await getActiveOrganization();
       const currentBizId = activeOrg.businessUnitId;
 
-      const istDate = new Date(new Date().getTime() + 5.5 * 60 * 60 * 1000);
-      const todayStr = istDate.toISOString().split("T")[0];
-      const datePrefix = todayStr.replace(/-/g, "");
+      const datePrefix = getSingaporeDateString();
+      const todayStr = `${datePrefix.slice(0, 4)}-${datePrefix.slice(4, 6)}-${datePrefix.slice(6, 8)}`;
 
       let dailySequence = 1;
 
@@ -102,8 +111,7 @@ async function getOrGenerateOrderId(req, tableId) {
       return `${datePrefix}-${String(dailySequence).padStart(4, "0")}`;
     } catch (err) {
       console.error("🔥 [Critical] Takeaway OrderID Generation Failed:", err.message);
-      const istDate = new Date(new Date().getTime() + 5.5 * 60 * 60 * 1000);
-      const datePrefix = istDate.toISOString().split("T")[0].replace(/-/g, "");
+      const datePrefix = getSingaporeDateString();
       const countRes = await pool
         .request()
         .query(
@@ -164,9 +172,8 @@ async function getOrGenerateOrderId(req, tableId) {
     const activeOrg = await getActiveOrganization();
     const currentBizId = activeOrg.businessUnitId;
 
-    const istDate = new Date(new Date().getTime() + 5.5 * 60 * 60 * 1000);
-    const todayStr = istDate.toISOString().split("T")[0];
-    const datePrefix = todayStr.replace(/-/g, "");
+    const datePrefix = getSingaporeDateString();
+    const todayStr = `${datePrefix.slice(0, 4)}-${datePrefix.slice(4, 6)}-${datePrefix.slice(6, 8)}`;
 
     let dailySequence = 1;
 
@@ -202,8 +209,7 @@ async function getOrGenerateOrderId(req, tableId) {
   } catch (err) {
     console.error("🔥 [Critical] OrderID Generation Failed:", err.message);
     // FALLBACK: Use count as emergency instead of returning "NEW"
-    const istDate = new Date(new Date().getTime() + 5.5 * 60 * 60 * 1000);
-    const datePrefix = istDate.toISOString().split("T")[0].replace(/-/g, "");
+    const datePrefix = getSingaporeDateString();
     const countRes = await pool
       .request()
       .query(

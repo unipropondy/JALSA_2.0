@@ -36,8 +36,8 @@ export default function DayEndScreen() {
   const [data, setData] = useState<any>(null);
   const [selectedFilter, setSelectedFilter] = useState<"DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY" | "CUSTOM">("DAILY");
   const [dateRange, setDateRange] = useState({
-    start: new Date().toISOString().split("T")[0],
-    end: new Date().toISOString().split("T")[0],
+    start: format(new Date(), "yyyy-MM-dd"),
+    end: format(new Date(), "yyyy-MM-dd"),
   });
 
   useEffect(() => {
@@ -45,7 +45,7 @@ export default function DayEndScreen() {
     
     // Auto-update date if the day changes while the app is open
     const interval = setInterval(() => {
-      const now = new Date().toISOString().split("T")[0];
+      const now = format(new Date(), "yyyy-MM-dd");
       if (now !== dateRange.start && selectedFilter === "DAILY") {
         setDateRange({ start: now, end: now });
       }
