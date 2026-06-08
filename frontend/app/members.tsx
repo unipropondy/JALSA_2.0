@@ -229,8 +229,20 @@ export default function MembersScreen() {
     const cleanPhone = member.Phone.replace(/[^0-9]/g, "");
     const phoneWithCountry = hasPlus ? cleanPhone : (cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone);
     
-    const outstanding = member.CurrentBalance || 0;
-    const message = `Hi ${member.Name},\n\nThis is a friendly reminder that you have a pending outstanding balance of *${formatMoney(outstanding)}* with us.\n\nKindly settle the pending dues at your earliest convenience. Thank you!`;
+    const creditLimit = member.CreditLimit || 0;
+    const currentBalance = member.CurrentBalance || 0;
+    const availableBalance = creditLimit > 0 ? (creditLimit - currentBalance) : currentBalance;
+
+    const formattedAvailable = availableBalance.toFixed(2);
+    const formattedCreditLimit = creditLimit.toFixed(2);
+    const formattedConsumed = currentBalance.toFixed(2);
+
+    let message = "";
+    if (availableBalance < 50) {
+      message = `Hi ${member.Name},\n\nYour available credit is $${formattedAvailable}, which is below the minimum threshold of $50.\n\nPlease top up your account to continue enjoying uninterrupted service.\n\nThank you.`;
+    } else {
+      message = `Hi ${member.Name},\n\nYour current available credit is $${formattedAvailable}.\n\nCredit Limit: $${formattedCreditLimit}\nConsumed Amount: $${formattedConsumed}\n\nThank you for being a valued member.`;
+    }
 
     const url = `whatsapp://send?phone=${phoneWithCountry}&text=${encodeURIComponent(message)}`;
     
