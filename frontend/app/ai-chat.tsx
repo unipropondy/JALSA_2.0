@@ -493,31 +493,7 @@ export default function AIChatScreen() {
       </View>
     );
   };
-
   const isMobile = width < 480;
-  return (
-      <View style={[styles.messageRow, isUser ? styles.userRow : styles.assistantRow]}>
-        {!isUser && (
-          <View style={styles.assistantAvatar}>
-            <Ionicons name="sparkles" size={14} color="#fff" />
-          </View>
-        )}
-        <View style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}>
-          <Text style={[styles.messageText, isUser ? styles.userText : styles.assistantText]}>
-            {item.text}
-          </Text>
-
-          {item.intent === "get_payment_distribution" && renderPaymentBreakdown(item)}
-          {item.structuredData && item.intent !== "get_payment_distribution" && renderKPIGrid(item)}
-          {item.visuals && renderDashboardVisuals(item.visuals)}
-
-          <Text style={styles.timestamp}>
-            {formatToSingaporeTime(item.timestamp)}
-          </Text>
-        </View>
-      </View>
-    );
-  };
 
   return (
     <SafeAreaView style={styles.container}>
