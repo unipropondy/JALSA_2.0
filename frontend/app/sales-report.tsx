@@ -1399,13 +1399,7 @@ export default function SalesReport() {
                     >
                       {isDishReport ? "Item" : "Category"}
                     </Text>
-                    {isDishReport && (
-                      <Text
-                        style={[styles.reportCell, styles.subCategoryNameCell]}
-                      >
-                        Subcategory
-                      </Text>
-                    )}
+
                     <Text
                       style={[
                         styles.reportCell,
@@ -1544,7 +1538,7 @@ export default function SalesReport() {
                         >
                           ▼ {category}
                         </Text>
-                        <View style={styles.subCategoryNameCell} />
+
                         <Text
                           style={[
                             styles.reportCell,
@@ -1606,16 +1600,7 @@ export default function SalesReport() {
                             >
                               {row.DishName}
                             </Text>
-                            <Text
-                              numberOfLines={1}
-                              style={[
-                                styles.reportCell,
-                                styles.reportCellText,
-                                styles.subCategoryNameCell,
-                              ]}
-                            >
-                              {row.SubCategoryName || "Unmapped"}
-                            </Text>
+
                             <Text
                               style={[
                                 styles.reportCell,
