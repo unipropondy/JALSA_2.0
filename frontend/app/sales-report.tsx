@@ -170,7 +170,6 @@ export default function SalesReport() {
     "CARD",
     "NETS",
     "PAYNOW",
-    "UPI",
     "VOID",
     "MEMBER",
     "CREDIT",
@@ -1089,10 +1088,8 @@ export default function SalesReport() {
       rows.push({ key: "CARD", pct: paymentMix.card, color: "#818cf8" });
     if (paymentBreakdownMetrics.Nets > 0)
       rows.push({ key: "NETS", pct: paymentMix.nets, color: "#3b82f6" });
-    if (paymentBreakdownMetrics.PayNow > 0)
-      rows.push({ key: "DIGITAL", pct: paymentMix.paynow, color: "#f59e0b" });
-    if (paymentBreakdownMetrics.Upi > 0)
-      rows.push({ key: "UPI", pct: paymentMix.upi, color: "#a855f7" });
+    if (paymentBreakdownMetrics.PayNow > 0 || paymentBreakdownMetrics.Upi > 0)
+      rows.push({ key: "PAYNOW", pct: paymentMix.paynow + paymentMix.upi, color: "#f59e0b" });
     if (paymentBreakdownMetrics.Member > 0)
       rows.push({ key: "MEMBER", pct: paymentMix.member, color: "#ec4899" });
     if (paymentBreakdownMetrics.Credit > 0)
@@ -1113,10 +1110,10 @@ export default function SalesReport() {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    const modeKey = label === "DIGITAL" ? "PAYNOW" : label;
+    const modeKey = label === "PAY NOW" ? "PAYNOW" : label;
     const isOnlyActive = activePaymentModes.length === 1 && activePaymentModes[0] === modeKey;
     if (isOnlyActive) {
-      setActivePaymentModes(["CASH", "CARD", "NETS", "PAYNOW", "UPI", "VOID", "MEMBER", "CREDIT"]);
+      setActivePaymentModes(["CASH", "CARD", "NETS", "PAYNOW", "VOID", "MEMBER", "CREDIT"]);
     } else {
       setActivePaymentModes([modeKey]);
     }
@@ -1806,7 +1803,10 @@ export default function SalesReport() {
         )}
         {renderMetricTile(
           "Member Payments",
-          formatCurrency(filteredMetrics.MemberPaymentsCollected),
+          // filteredMetrics.Member = member POS sales (prepaid wallet deductions)
+          // filteredMetrics.MemberPaymentsCollected = LEDGER credit-account payment collections
+          // Both represent cash received via member accounts
+          formatCurrency(filteredMetrics.Member + filteredMetrics.MemberPaymentsCollected),
           "cash-outline",
           Theme.primary,
         )}
@@ -1943,9 +1943,9 @@ export default function SalesReport() {
                         label: "NETS",
                       },
                       {
-                        value: paymentBreakdownMetrics.PayNow,
+                        value: paymentBreakdownMetrics.PayNow + paymentBreakdownMetrics.Upi,
                         color: "#f59e0b",
-                        label: "DIGITAL",
+                        label: "PAYNOW",
                       },
                       {
                         value: paymentBreakdownMetrics.Member,
@@ -1956,11 +1956,6 @@ export default function SalesReport() {
                         value: paymentBreakdownMetrics.Credit,
                         color: "#e11d48",
                         label: "CREDIT",
-                      },
-                      {
-                        value: paymentBreakdownMetrics.Upi,
-                        color: "#a855f7",
-                        label: "UPI",
                       },
                     ].filter((d) => d.value > 0)}
                     donut
@@ -2154,7 +2149,7 @@ export default function SalesReport() {
                 if (Platform.OS !== "web") {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 }
-                setActivePaymentModes(["CASH", "CARD", "NETS", "PAYNOW", "UPI", "VOID", "MEMBER", "CREDIT"]);
+                setActivePaymentModes(["CASH", "CARD", "NETS", "PAYNOW", "VOID", "MEMBER", "CREDIT"]);
               }}
               style={{
                 backgroundColor: Theme.primary + "15",
@@ -2200,16 +2195,10 @@ export default function SalesReport() {
               color: "#3b82f6",
             },
             {
-              label: "DIGITAL",
-              val: paymentBreakdownMetrics.PayNow,
+              label: "PAY NOW",
+              val: paymentBreakdownMetrics.PayNow + paymentBreakdownMetrics.Upi,
               icon: "📱",
               color: "#f59e0b",
-            },
-            {
-              label: "UPI",
-              val: paymentBreakdownMetrics.Upi,
-              icon: "⚡",
-              color: "#a855f7",
             },
             {
               label: "MEMBER",
@@ -2230,7 +2219,7 @@ export default function SalesReport() {
               ? { flex: 1, minWidth: 0 } 
               : { width: (SCREEN_W - 88) / 3 - 8 }; // Perfectly calculated column width for 3x2 mobile grid
 
-            const modeKey = item.label === "DIGITAL" ? "PAYNOW" : item.label;
+            const modeKey = item.label === "PAY NOW" ? "PAYNOW" : item.label;
             const isSomeFilterApplied = activePaymentModes.length < 8;
             const isThisActive = activePaymentModes.includes(modeKey);
             const isActive = isSomeFilterApplied && isThisActive;
@@ -3020,7 +3009,7 @@ export default function SalesReport() {
                   <View style={styles.sidebarSection}>
                     <Text style={styles.sectionLabel}>PAYMENT MODES</Text>
                     <View style={styles.chipRow}>
-                      {["CASH", "CARD", "NETS", "PAYNOW", "UPI", "VOID", "MEMBER", "CREDIT"].map((m) => (
+                      {["CASH", "CARD", "NETS", "PAYNOW", "VOID", "MEMBER", "CREDIT"].map((m) => (
                         <TouchableOpacity
                           key={m}
                           onPress={() => togglePaymentMode(m)}
@@ -3135,7 +3124,7 @@ export default function SalesReport() {
                 <View style={styles.sidebarFooter}>
                   <TouchableOpacity
                     onPress={() => {
-                      setActivePaymentModes(["CASH", "CARD", "NETS", "PAYNOW", "UPI", "VOID", "MEMBER", "CREDIT"]);
+                      setActivePaymentModes(["CASH", "CARD", "NETS", "PAYNOW", "VOID", "MEMBER", "CREDIT"]);
                       setActiveOrderTypes(["DINE-IN", "TAKEAWAY"]);
                       setSortOrder("NEWEST");
                       setShowCancelledOrders(true);

@@ -562,24 +562,6 @@ export default function AIChatScreen() {
           )}
         </View>
 
-        {/* Input Bar */}
-        <View style={styles.inputBar}>
-          <TextInput
-            style={styles.input}
-            placeholder="Type business query (e.g. compare sales this week vs last week)"
-            placeholderTextColor={Theme.textSecondary}
-            value={inputText}
-            onChangeText={setInputText}
-            onSubmitEditing={() => handleSendMessage(inputText)}
-          />
-          <TouchableOpacity
-            style={[styles.sendBtn, !inputText.trim() && styles.sendBtnDisabled]}
-            disabled={!inputText.trim()}
-            onPress={() => handleSendMessage(inputText)}
-          >
-            <Ionicons name="send" size={18} color="#fff" />
-          </TouchableOpacity>
-        </View>
       </KeyboardAvoidingView>
 
       {/* Filter Options Modal */}

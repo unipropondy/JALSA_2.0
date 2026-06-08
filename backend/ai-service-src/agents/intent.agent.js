@@ -89,9 +89,15 @@ function getLocalFallbackIntent(userMessage) {
   }
 
   if (
-    msg.includes('top') || msg.includes('best') || msg.includes('popular') || msg.includes('item') || 
-    msg.includes('dish') || msg.includes('menu') || msg.includes('selling') || msg.includes('sales report') || 
-    msg.includes('sales') || msg.includes('sales analysis') || msg.includes('report') || msg.includes('katta') || msg.includes('sales-report')
+    msg.includes('top') || msg.includes('best') || msg.includes('popular') || 
+    msg.includes('item') || msg.includes('dish') || msg.includes('menu') || msg.includes('selling')
+  ) {
+    return { intent: 'get_top_selling_items', params: { startDate, endDate, limit: 5, titlePeriod } };
+  }
+
+  if (
+    msg.includes('sales report') || msg.includes('sales') || msg.includes('sales analysis') || 
+    msg.includes('report') || msg.includes('katta') || msg.includes('sales-report')
   ) {
     return { intent: 'get_sales_metrics', params: { startDate, endDate, titlePeriod } };
   }
