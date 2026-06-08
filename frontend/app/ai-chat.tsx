@@ -19,6 +19,7 @@ import { useRouter } from "expo-router";
 import { Theme } from "@/constants/theme";
 import { useAuthStore } from "@/stores/authStore";
 import { API_URL } from "@/constants/Config";
+import { formatToSingaporeTime } from "../utils/timezoneHelper";
 
 interface Message {
   id: string;
@@ -474,7 +475,7 @@ export default function AIChatScreen() {
           {item.visuals && renderDashboardVisuals(item.visuals)}
 
           <Text style={styles.timestamp}>
-            {item.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            {formatToSingaporeTime(item.timestamp)}
           </Text>
         </View>
       </View>

@@ -27,6 +27,7 @@ import { Fonts } from "@/constants/Fonts";
 import { Theme } from "@/constants/theme";
 import { useAuthStore } from "@/stores/authStore";
 import { useCompanySettingsStore } from "@/stores/companySettingsStore";
+import { formatToSingaporeDate, formatToSingaporeTime } from "../utils/timezoneHelper";
 
 type CustomerAgingType = {
   MemberId: string;
@@ -316,7 +317,7 @@ export default function ReceivablesScreen() {
     if (outstandingBills.length > 0) {
       message += `\n\nPending Bills Breakdown:\n`;
       outstandingBills.forEach((bill) => {
-        const dateStr = new Date(bill.InvoiceDate).toLocaleDateString([], { day: "numeric", month: "short" });
+        const dateStr = formatToSingaporeDate(bill.InvoiceDate);
         message += `• *${bill.BillNo}* (${dateStr}) : ${currencySymbol}${bill.OutstandingAmount.toFixed(2)}\n`;
       });
     }
@@ -687,8 +688,7 @@ export default function ReceivablesScreen() {
                 </View>
               ) : (
                 recentCollections.map((col) => {
-                  const cd = new Date(col.CreatedDate);
-                  const formattedColDate = cd.toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" }) + " " + cd.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+                  const formattedColDate = formatToSingaporeDate(col.CreatedDate, { day: "numeric", month: "short", year: "numeric" }) + " " + formatToSingaporeTime(col.CreatedDate, { hour: "2-digit", minute: "2-digit", hour12: false });
                   return (
                     <View key={col.TransactionId} style={styles.collectionRowCard}>
                       <View style={{ flex: 1 }}>

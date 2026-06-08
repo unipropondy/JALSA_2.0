@@ -21,6 +21,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Theme } from "../constants/theme";
 import { Fonts } from "../constants/Fonts";
+import { formatToSingaporeDate, formatToSingaporeTime } from "../utils/timezoneHelper";
 
 export default function TimeEntryScreen() {
   const [userName, setUserName] = useState("");
@@ -175,7 +176,7 @@ export default function TimeEntryScreen() {
           <Ionicons name="arrow-back" size={20} color={Theme.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Staff Attendance</Text>
-        <Text style={styles.headerTime}>{currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+        <Text style={styles.headerTime}>{formatToSingaporeTime(currentTime)}</Text>
       </View>
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
@@ -283,8 +284,8 @@ export default function TimeEntryScreen() {
                       </View>
                     </View>
                     <View style={styles.historyDetailRight}>
-                      <Text style={styles.historyTime}>{new Date(log.ClockinTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
-                      <Text style={styles.historyDate}>{new Date(log.ClockinTime).toLocaleDateString([], { month: 'short', day: 'numeric' })}</Text>
+                      <Text style={styles.historyTime}>{formatToSingaporeTime(log.ClockinTime)}</Text>
+                      <Text style={styles.historyDate}>{formatToSingaporeDate(log.ClockinTime, { month: 'short', day: 'numeric' })}</Text>
                     </View>
                   </View>
                 );

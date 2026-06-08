@@ -24,6 +24,7 @@ import { API_URL } from "@/constants/Config";
 import { Fonts } from "../constants/Fonts";
 import { Theme } from "../constants/theme";
 import { useAuthStore } from "@/stores/authStore";
+import { formatToSingaporeDate, formatToSingaporeTime } from "../utils/timezoneHelper";
 import SplitPaymentComponent from "../components/payment/SplitPaymentComponent";
 
 
@@ -824,7 +825,7 @@ export default function MembersScreen() {
                             <View>
                               <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: Theme.textPrimary }}>Bill #{tx.BillNo}</Text>
                               <Text style={{ fontFamily: Fonts.medium, fontSize: 10, color: Theme.textMuted }}>
-                                {dateObj.toLocaleDateString([], { day: 'numeric', month: 'short' })} • {dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                {formatToSingaporeDate(tx.LastSettlementDate)} • {formatToSingaporeTime(tx.LastSettlementDate)}
                               </Text>
                             </View>
                             <Text style={{ fontFamily: Fonts.black, fontSize: 14, color: Theme.textPrimary }}>
@@ -880,10 +881,7 @@ export default function MembersScreen() {
                         DATE & TIME
                       </Text>
                       <Text style={{ fontFamily: Fonts.black, fontSize: 15, color: Theme.textPrimary }}>
-                        {(() => {
-                          const dateObj = new Date(selectedBill.LastSettlementDate);
-                          return `${dateObj.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })} • ${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-                        })()}
+                        {`${formatToSingaporeDate(selectedBill.LastSettlementDate, { day: 'numeric', month: 'short', year: 'numeric' })} • ${formatToSingaporeTime(selectedBill.LastSettlementDate)}`}
                       </Text>
                     </View>
                   )}

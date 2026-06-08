@@ -24,6 +24,7 @@ import { Fonts } from "@/constants/Fonts";
 import { Theme } from "@/constants/theme";
 import { useToast } from "../../components/Toast";
 import { useShallow } from 'zustand/react/shallow';
+import { formatToSingaporeTime } from "../../utils/timezoneHelper";
 import QRCode from 'react-native-qrcode-svg';
 
 import StoreSettingsModal from "@/components/payment/StoreSettingsModal";
@@ -129,14 +130,11 @@ const TableItemComponent = React.memo(
 
     let timeText = "";
     if (rawStartTime && status !== 0 && status !== 5) {
-      const time = new Date(rawStartTime);
-      if (!isNaN(time.getTime())) {
-        timeText = time.toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-        });
-      }
+      timeText = formatToSingaporeTime(rawStartTime, {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
     }
 
     return (

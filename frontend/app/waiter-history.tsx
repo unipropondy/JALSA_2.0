@@ -21,6 +21,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { API_URL } from "@/constants/Config";
 import { Fonts } from "@/constants/Fonts";
 import { Theme } from "@/constants/theme";
+import { formatToSingaporeDate, formatToSingaporeTime } from "../utils/timezoneHelper";
 
 export default function WaiterHistoryScreen() {
   const router = useRouter();
@@ -319,7 +320,7 @@ export default function WaiterHistoryScreen() {
                         <View style={{ flex: 1 }}>
                           <Text style={styles.orderIdText}>Order #{item.ORDER_ID}</Text>
                           <Text style={styles.dateTimeText}>
-                            {new Date(item.CreatedDate).toLocaleDateString()} • {new Date(item.CreatedDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {formatToSingaporeDate(item.CreatedDate, { day: 'numeric', month: 'numeric', year: 'numeric' })} • {formatToSingaporeTime(item.CreatedDate)}
                           </Text>
                         </View>
                         <View style={styles.badge}>

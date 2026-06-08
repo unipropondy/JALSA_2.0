@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Fonts } from "../constants/Fonts";
 import { Theme } from "../constants/theme";
+import { formatToSingaporeDate, formatToSingaporeTime } from "../utils/timezoneHelper";
 
 interface TransactionCardProps {
   item: any;
@@ -20,7 +21,6 @@ interface TransactionCardProps {
 const TransactionCard = React.memo(
   ({ item, onPress, formatOrderId, formatCurrency }: TransactionCardProps) => {
     const { width: SCREEN_W } = useWindowDimensions();
-    const settlementDate = new Date(item.SettlementDate);
 
     const modeUpper = String(item.PayMode || "").toUpperCase();
     const isUpi = modeUpper.includes("UPI") || modeUpper.includes("GPAY");
@@ -141,7 +141,7 @@ const TransactionCard = React.memo(
             {formatCurrency(item.SysAmount || 0)}
           </Text>
           <Text style={styles.txDatetime}>
-            {settlementDate.toLocaleDateString([], { day: 'numeric', month: 'short' })} • {settlementDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            {formatToSingaporeDate(item.SettlementDate)} • {formatToSingaporeTime(item.SettlementDate)}
           </Text>
           {/* Only show Pending for CREDIT customers — Members are prepaid */}
           {item.OutstandingAmount !== undefined && Number(item.OutstandingAmount) > 0 && !item.IsCancelled && modeUpper !== "MEMBER" && (

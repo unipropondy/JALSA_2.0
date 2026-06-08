@@ -34,6 +34,7 @@ import UniversalPrinter from "../components/UniversalPrinter";
 import { useToast } from "../components/Toast";
 import { Fonts } from "../constants/Fonts";
 import { Theme } from "../constants/theme";
+import { getSingaporeDateString, formatToSingaporeDate, formatToSingaporeTime } from "../utils/timezoneHelper";
 
 type FilterType = "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY" | "CUSTOM";
 type DetailReportType = "CATEGORY" | "DISH" | "SETTLEMENT";
@@ -154,7 +155,7 @@ export default function SalesReport() {
   const { width: SCREEN_W } = useWindowDimensions();
   const [sales, setSales] = useState<any[]>([]);
   const [summary, setSummary] = useState<any>(null);
-  const todayDate = new Date().toLocaleDateString("en-CA");
+  const todayDate = getSingaporeDateString();
   const [selectedDate, setSelectedDate] = useState(todayDate);
   const [selectedFilter, setSelectedFilter] = useState<FilterType>("DAILY");
   const [, setLoading] = useState(true);
@@ -423,8 +424,8 @@ export default function SalesReport() {
         end.setTime(new Date(rangeEnd).getTime());
       }
 
-      const startStr = start.toLocaleDateString("en-CA");
-      const endStr = end.toLocaleDateString("en-CA");
+      const startStr = getSingaporeDateString(start);
+      const endStr = getSingaporeDateString(end);
 
       const response = await fetch(`${API_URL}/api/sales/all?startDate=${startStr}&endDate=${endStr}`, {
         headers: { "Content-Type": "application/json" },
@@ -465,8 +466,8 @@ export default function SalesReport() {
         end.setTime(new Date(rangeEnd).getTime());
       }
 
-      const startStr = start.toLocaleDateString("en-CA");
-      const endStr = end.toLocaleDateString("en-CA");
+      const startStr = getSingaporeDateString(start);
+      const endStr = getSingaporeDateString(end);
       const url = `${API_URL}/api/sales/range?startDate=${startStr}&endDate=${endStr}`;
       const response = await fetch(url);
       const data = await response.json();
@@ -495,8 +496,8 @@ export default function SalesReport() {
         endObj.setTime(new Date(downloadRangeEnd).getTime());
       }
 
-      const startStr = startObj.toLocaleDateString("en-CA");
-      const endStr = endObj.toLocaleDateString("en-CA");
+      const startStr = getSingaporeDateString(startObj);
+      const endStr = getSingaporeDateString(endObj);
       
       const userName = await AsyncStorage.getItem("userName") || "SR";
 
@@ -786,7 +787,7 @@ export default function SalesReport() {
     const newDate = new Date(selectedDate);
     newDate.setDate(newDate.getDate() + days);
     // Preserve the local date without converting to UTC
-    setSelectedDate(newDate.toLocaleDateString('en-CA'));
+    setSelectedDate(getSingaporeDateString(newDate));
   };
 
 
@@ -796,7 +797,7 @@ export default function SalesReport() {
     if (selectedFilter === "DAILY") {
       result = sales.filter((s) => {
         if (!s.SettlementDate) return false;
-        const itemDate = new Date(s.SettlementDate).toLocaleDateString("en-CA");
+        const itemDate = getSingaporeDateString(new Date(s.SettlementDate));
         return itemDate === selectedDate;
       });
     } else if (selectedFilter === "WEEKLY") {
