@@ -130,17 +130,174 @@ export default function ReceivablesScreen() {
   const [billSettlements, setBillSettlements] = useState<Record<string, BillSettlementType[]>>({});
   const [loadingSettlements, setLoadingSettlements] = useState(false);
 
-  // Runtime diagnostics logging
-  useEffect(() => {
-    if (showLedgerModal) {
-      console.log(`[DIAGNOSTICS] showLedgerModal=true. Screen dims: ${screenWidth}x${screenHeight}. isMobile: ${isMobile}. sheetHeight: ${sheetDiagHeight}, footerHeight: ${footerDiagHeight}`);
-    }
-  }, [showLedgerModal, screenWidth, screenHeight, isMobile, sheetDiagHeight, footerDiagHeight]);
-
   // Ledger and Outstanding details
   const [transactions, setTransactions] = useState<CreditTransactionType[]>([]);
   const [outstandingBills, setOutstandingBills] = useState<OutstandingBillType[]>([]);
   const [loadingDetails, setLoadingDetails] = useState(false);
+
+  // Add/Edit Credit Customer Modal States
+  const [modalMode, setModalMode] = useState<"ADD" | "EDIT" | "NONE" >("NONE");
+  const [editingCustomer, setEditingCustomer] = useState<CustomerAgingType | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  
+  // Country Code Picker States
+  const [selectedCountryCode, setSelectedCountryCode] = useState("+65");
+  const [localPhone, setLocalPhone] = useState("");
+  const [showCountryPicker, setShowCountryPicker] = useState(false);
+
+  // Form State
+  const [formData, setFormData] = useState({
+    name: "",
+    phone: "",
+    email: "",
+    address: "",
+    isActive: true,
+    creditLimit: "1000",
+    currentBalance: "0",
+    balance: "0",
+  });
+
+  const COUNTRIES = [
+    { code: "+65", label: "🇸🇬 +65", name: "Singapore" },
+    { code: "+60", label: "🇲🇾 +60", name: "Malaysia" },
+    { code: "+971", label: "🇦🇪 +971", name: "UAE" },
+    { code: "+91", label: "🇮🇳 +91", name: "India" },
+    { code: "+1", label: "🇺🇸 +1", name: "USA" },
+    { code: "+44", label: "🇬🇧 +44", name: "UK" },
+    { code: "+61", label: "🇦🇺 +61", name: "Australia" },
+    { code: "+62", label: "🇮🇩 +62", name: "Indonesia" },
+    { code: "+66", label: "🇹🇭 +66", name: "Thailand" },
+  ];
+
+  function parsePhoneNumber(rawPhone: string) {
+    const clean = String(rawPhone || "").trim();
+    for (const country of COUNTRIES) {
+      if (clean.startsWith(country.code)) {
+        return {
+          countryCode: country.code,
+          localNumber: clean.slice(country.code.length)
+        };
+      }
+      const codeNoPlus = country.code.slice(1);
+      if (clean.startsWith(codeNoPlus)) {
+        return {
+          countryCode: country.code,
+          localNumber: clean.slice(codeNoPlus.length)
+        };
+      }
+    }
+    return {
+      countryCode: "+65",
+      localNumber: clean.startsWith("+") ? clean.slice(1) : clean
+    };
+  }
+
+  const openAddModal = () => {
+    setFormData({ 
+      name: "", 
+      phone: "", 
+      email: "", 
+      address: "",
+      isActive: true,
+      creditLimit: "1000", 
+      currentBalance: "0", 
+      balance: "0" 
+    });
+    setSelectedCountryCode("+65");
+    setLocalPhone("");
+    setEditingCustomer(null);
+    setModalMode("ADD");
+  };
+
+  const openEditModal = (cust: CustomerAgingType) => {
+    setEditingCustomer(cust);
+    const parsed = parsePhoneNumber(cust.Phone);
+    setSelectedCountryCode(parsed.countryCode);
+    setLocalPhone(parsed.localNumber);
+    setFormData({
+      name: cust.Name,
+      phone: cust.Phone,
+      email: "",
+      address: "", 
+      isActive: true,
+      creditLimit: "1000", // Preloaded default credit limit, user will adjust
+      currentBalance: "0",
+      balance: "0",
+    });
+    setModalMode("EDIT");
+  };
+
+  const handleSaveCustomer = async () => {
+    if (!formData.name.trim() || !localPhone.trim()) {
+      Alert.alert("Required", "Please fill Name and Phone.");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const isEdit = modalMode === "EDIT";
+      const url = isEdit 
+        ? `${API_URL}/api/credit-customers/update` 
+        : `${API_URL}/api/credit-customers/add`;
+      const fullPhone = `${selectedCountryCode}${localPhone.trim()}`;
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          memberId: editingCustomer?.MemberId,
+          name: formData.name.trim(),
+          phone: fullPhone,
+          email: formData.email.trim(),
+          address: formData.address.trim(),
+          isActive: formData.isActive,
+          creditLimit: parseFloat(formData.creditLimit) || 0,
+          currentBalance: parseFloat(formData.currentBalance) || 0,
+          balance: 0,
+          userId: user?.userId,
+        }),
+      });
+
+      if (res.ok) {
+        setModalMode("NONE");
+        fetchData();
+        Alert.alert("Success", isEdit ? "Customer updated." : "Customer added.");
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        Alert.alert("Error", errJson.error || "Save failed.");
+      }
+    } catch (err) {
+      Alert.alert("Error", "Connection problem.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteCustomer = async () => {
+    if (!editingCustomer) return;
+    setIsSaving(true);
+    try {
+      const res = await fetch(`${API_URL}/api/credit-customers/delete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId: editingCustomer.MemberId }),
+      });
+      if (res.ok) {
+        setShowDeleteModal(false);
+        setEditingCustomer(null);
+        fetchData();
+        Alert.alert("Deleted", "Customer has been removed.");
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        Alert.alert("Error", errJson.error || "Delete failed.");
+      }
+    } catch (err) {
+      Alert.alert("Error", "Connection problem.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   // Fetch Dashboard Stats and Aging data
   const fetchData = useCallback(async () => {
@@ -375,6 +532,10 @@ export default function ReceivablesScreen() {
             <Text style={styles.screenTitle}>Credit & Receivables</Text>
             <Text style={styles.screenSubtitle}>Ledger-based accounting & collections</Text>
           </View>
+          <TouchableOpacity onPress={openAddModal} style={[styles.refreshBtn, { backgroundColor: Theme.primary, borderColor: Theme.primary, paddingHorizontal: 12, width: 'auto', flexDirection: 'row', gap: 6 }]}>
+            <Ionicons name="add" size={20} color="#fff" />
+            <Text style={{ color: '#fff', fontFamily: Fonts.bold, fontSize: 13 }}>Add Credit</Text>
+          </TouchableOpacity>
           <TouchableOpacity onPress={fetchData} style={styles.refreshBtn} disabled={loading}>
             {loading ? (
               <ActivityIndicator size="small" color={Theme.primary} />
@@ -387,7 +548,7 @@ export default function ReceivablesScreen() {
         <ScrollView
           style={{ flex: 1 }}
           showsVerticalScrollIndicator={false}
-          refreshControl={
+          refreshControl = {
             <RefreshControl refreshing={loading} onRefresh={fetchData} tintColor={Theme.primary} />
           }
         >
@@ -549,13 +710,15 @@ export default function ReceivablesScreen() {
                 </View>
               ) : (
                 filteredCustomers.map((item) => (
-                  <TouchableOpacity
+                  <View
                      key={item.MemberId}
                      style={styles.customerCard}
-                     activeOpacity={0.8}
-                     onPress={() => handleOpenCustomer(item)}
                   >
-                    <View style={styles.cardHeader}>
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={() => handleOpenCustomer(item)}
+                      style={styles.cardHeader}
+                    >
                       <View style={styles.avatarCircle}>
                         <Text style={styles.avatarLetter}>{item.Name.charAt(0).toUpperCase()}</Text>
                       </View>
@@ -569,7 +732,7 @@ export default function ReceivablesScreen() {
                           {currencySymbol}{item.OutstandingBalance.toFixed(2)}
                         </Text>
                       </View>
-                    </View>
+                    </TouchableOpacity>
 
                     {/* Aging summary preview bar */}
                     <View style={styles.agingBarContainer}>
@@ -597,7 +760,28 @@ export default function ReceivablesScreen() {
                         )}
                       </View>
                     </View>
-                  </TouchableOpacity>
+
+                    {/* Actions Row: Edit / Delete */}
+                    <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: Theme.border + '50' }}>
+                      <TouchableOpacity 
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Theme.primary + '10', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}
+                        onPress={() => openEditModal(item)}
+                      >
+                        <Ionicons name="create-outline" size={16} color={Theme.primary} />
+                        <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: Theme.primary }}>Edit</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Theme.danger + '10', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}
+                        onPress={() => {
+                          setEditingCustomer(item);
+                          setShowDeleteModal(true);
+                        }}
+                      >
+                        <Ionicons name="trash-outline" size={16} color={Theme.danger} />
+                        <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: Theme.danger }}>Delete</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
                 ))
               )}
             </View>
@@ -996,6 +1180,176 @@ export default function ReceivablesScreen() {
 
 
 
+        {/* Form Modal */}
+        <Modal visible={modalMode !== "NONE"} transparent animationType="slide">
+          <View style={styles.modalOverlay}>
+            <View style={styles.formSheet}>
+              <View style={styles.sheetHeader}>
+                <Text style={styles.sheetTitle}>{modalMode === "EDIT" ? "Edit Credit Customer" : "Add Credit Customer"}</Text>
+                <TouchableOpacity onPress={() => setModalMode("NONE")} style={styles.sheetClose}>
+                  <Ionicons name="close" size={24} color={Theme.textPrimary} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={{ padding: 20 }} showsVerticalScrollIndicator={false}>
+                {modalMode !== "EDIT" && (
+                  <>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>NAME</Text>
+                      <TextInput style={styles.sheetInput} value={formData.name} onChangeText={v => setFormData({ ...formData, name: v })} placeholder="Full Name" placeholderTextColor={Theme.textMuted} />
+                    </View>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>PHONE</Text>
+                      <View style={{ flexDirection: "row", gap: 10 }}>
+                        <TouchableOpacity
+                          style={styles.countrySelector}
+                          onPress={() => setShowCountryPicker(true)}
+                        >
+                          <Text style={styles.countrySelectorText}>
+                            {selectedCountryCode}
+                          </Text>
+                          <Ionicons name="chevron-down" size={12} color={Theme.textSecondary} />
+                        </TouchableOpacity>
+                        <TextInput
+                          style={[styles.sheetInput, { flex: 1 }]}
+                          keyboardType="phone-pad"
+                          value={localPhone}
+                          onChangeText={v => setLocalPhone(v.replace(/[^0-9]/g, ""))}
+                          placeholder="Contact Number"
+                          placeholderTextColor={Theme.textMuted}
+                        />
+                      </View>
+                    </View>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>EMAIL</Text>
+                      <TextInput style={styles.sheetInput} keyboardType="email-address" value={formData.email} onChangeText={v => setFormData({ ...formData, email: v })} placeholder="Email Address" placeholderTextColor={Theme.textMuted} />
+                    </View>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>ADDRESS</Text>
+                      <TextInput style={[styles.sheetInput, { height: 80, textAlignVertical: 'top', paddingTop: 12 }]} multiline value={formData.address} onChangeText={v => setFormData({ ...formData, address: v })} placeholder="Address" placeholderTextColor={Theme.textMuted} />
+                    </View>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>STATUS</Text>
+                      <View style={{ flexDirection: 'row', gap: 10 }}>
+                        <TouchableOpacity 
+                          style={[styles.statusToggle, formData.isActive && styles.activeToggle]} 
+                          onPress={() => setFormData({ ...formData, isActive: true })}
+                        >
+                          <Text style={[styles.statusText, formData.isActive && styles.activeStatusText]}>Active</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                          style={[styles.statusToggle, !formData.isActive && styles.inactiveToggle]} 
+                          onPress={() => setFormData({ ...formData, isActive: false })}
+                        >
+                          <Text style={[styles.statusText, !formData.isActive && styles.inactiveStatusText]}>Inactive</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </>
+                )}
+
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.inputLabel}>CREDIT LIMIT</Text>
+                    <TextInput style={styles.sheetInput} keyboardType="numeric" value={formData.creditLimit} onChangeText={v => setFormData({ ...formData, creditLimit: v })} />
+                  </View>
+                  {modalMode !== "EDIT" && (
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.inputLabel}>CONSUMED OUTSTANDING</Text>
+                      <TextInput style={styles.sheetInput} keyboardType="numeric" value={formData.currentBalance} onChangeText={v => setFormData({ ...formData, currentBalance: v })} />
+                    </View>
+                  )}
+                </View>
+
+                <TouchableOpacity style={styles.submitBtn} onPress={handleSaveCustomer} disabled={isSaving}>
+                  {isSaving ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnText}>{modalMode === "EDIT" ? "Update Credit Limit" : "Add Customer"}</Text>}
+                </TouchableOpacity>
+                <View style={{ height: 40 }} />
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Country Picker Modal */}
+        <Modal
+          visible={showCountryPicker}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowCountryPicker(false)}
+        >
+          <TouchableOpacity 
+            style={styles.pickerOverlay} 
+            activeOpacity={1} 
+            onPress={() => setShowCountryPicker(false)}
+          >
+            <View style={[styles.formSheet, { maxHeight: '60%', width: '80%' }]}>
+              <View style={styles.sheetHeader}>
+                <Text style={styles.sheetTitle}>Select Country Code</Text>
+                <TouchableOpacity onPress={() => setShowCountryPicker(false)} style={styles.sheetClose}>
+                  <Ionicons name="close" size={24} color={Theme.textPrimary} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={{ padding: 25 }} showsVerticalScrollIndicator={false}>
+                {COUNTRIES.map((c) => (
+                  <TouchableOpacity
+                    key={c.code}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      paddingVertical: 14,
+                      borderBottomWidth: 0.5,
+                      borderBottomColor: Theme.border
+                    }}
+                    onPress={() => {
+                      setSelectedCountryCode(c.code);
+                      setShowCountryPicker(false);
+                    }}
+                  >
+                    <Text style={{ fontSize: 15, fontFamily: Fonts.bold, color: Theme.textPrimary }}>
+                      {c.label}  {c.name}
+                    </Text>
+                    {selectedCountryCode === c.code && (
+                      <Ionicons name="checkmark" size={20} color={Theme.primary} />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+
+        {/* Delete Modal */}
+        <Modal visible={showDeleteModal} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={styles.alertCard}>
+              <View style={styles.alertIconBg}>
+                <Ionicons name="alert-circle" size={40} color={Theme.danger} />
+              </View>
+              <Text style={styles.alertTitle}>Delete Customer</Text>
+              <Text style={styles.alertMessage}>
+                Do you want to delete this credit customer account?{"\n"}
+                <Text style={{ color: Theme.primary, fontSize: 16, fontFamily: Fonts.black }}>{editingCustomer?.Name}</Text>
+              </Text>
+              
+              <View style={styles.alertActions}>
+                <TouchableOpacity 
+                  style={[styles.alertBtn, styles.cancelBtn]} 
+                  onPress={() => { setEditingCustomer(null); setShowDeleteModal(false); }}
+                >
+                  <Text style={styles.btnLabel}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.alertBtn, styles.confirmDeleteBtn]} 
+                  onPress={handleDeleteCustomer}
+                  disabled={isSaving}
+                >
+                  {isSaving ? <ActivityIndicator color="#fff" /> : <Text style={[styles.btnLabel, { color: '#FFF' }]}>Delete</Text>}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
       </SafeAreaView>
     </View>
   );
@@ -1214,5 +1568,26 @@ const styles = StyleSheet.create({
   submitBtnText: { color: "#fff", fontFamily: Fonts.black, fontSize: 14 },
 
   centerBlock: { flex: 1, justifyContent: "center", alignItems: "center", paddingVertical: 40 },
-  emptyText: { fontFamily: Fonts.medium, fontSize: 14, color: Theme.textMuted, marginTop: 10 }
+  emptyText: { fontFamily: Fonts.medium, fontSize: 14, color: Theme.textMuted, marginTop: 10 },
+
+  // New CRUD modals styling
+  formSheet: { backgroundColor: Theme.bgCard, borderRadius: 24, width: '100%', maxWidth: 500, padding: 24, ...Theme.shadowLg },
+  countrySelector: { width: 70, height: 50, borderRadius: 10, backgroundColor: Theme.bgInput, borderWidth: 1, borderColor: Theme.border, flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 4 },
+  countrySelectorText: { fontSize: 14, fontFamily: Fonts.bold, color: Theme.textPrimary },
+  statusToggle: { flex: 1, height: 50, borderRadius: 12, backgroundColor: Theme.bgInput, borderWidth: 1, borderColor: Theme.border, justifyContent: "center", alignItems: "center" },
+  activeToggle: { backgroundColor: Theme.success + '15', borderColor: Theme.success },
+  inactiveToggle: { backgroundColor: Theme.danger + '15', borderColor: Theme.danger },
+  statusText: { fontSize: 14, fontFamily: Fonts.bold, color: Theme.textSecondary },
+  activeStatusText: { color: Theme.success },
+  inactiveStatusText: { color: Theme.danger },
+  pickerOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center" },
+  alertCard: { width: '100%', maxWidth: 360, backgroundColor: Theme.bgCard, borderRadius: 24, padding: 30, alignItems: 'center', borderWidth: 1, borderColor: Theme.border, ...Theme.shadowLg },
+  alertIconBg: { width: 80, height: 80, borderRadius: 40, backgroundColor: Theme.danger + '15', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  alertTitle: { fontSize: 20, fontFamily: Fonts.black, color: Theme.textPrimary, marginBottom: 10 },
+  alertMessage: { fontSize: 14, fontFamily: Fonts.medium, color: Theme.textSecondary, textAlign: 'center', lineHeight: 22, marginBottom: 25 },
+  alertActions: { flexDirection: 'row', gap: 12, width: '100%' },
+  alertBtn: { flex: 1, height: 50, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  cancelBtn: { backgroundColor: Theme.bgMuted, borderWidth: 1, borderColor: Theme.border },
+  confirmDeleteBtn: { backgroundColor: Theme.danger },
+  btnLabel: { fontSize: 14, fontFamily: Fonts.bold, color: Theme.textPrimary }
 });
