@@ -538,6 +538,10 @@ export default function SalesReport() {
       const paymentBreakdown: any[] = [];
       let memberPaymentsCollected = 0;
       let creditPaymentsCollected = 0;
+      // Track credit *sales* (deferred revenue — not yet collected at point of sale)
+      // so they can be excluded from Total Collections to prevent double-counting
+      // when the same credit bill is also paid within the report period.
+      let creditSalesTotal = 0;
       summaryData.paymodeDetail?.forEach((p: any) => {
         const paymodeName = String(p.Paymode || 'CASH').toUpperCase();
         if (paymodeName.startsWith('MEMBER PAYMENT')) {
@@ -555,6 +559,10 @@ export default function SalesReport() {
             amount: p.Amount || 0
           });
         } else {
+          // Capture credit sales (paymode = 'CREDIT') separately
+          if (paymodeName === 'CREDIT') {
+            creditSalesTotal += p.Amount || 0;
+          }
           paymentBreakdown.push({
             name: p.Paymode,
             qty: p.ReceiptCount || 0,
@@ -584,7 +592,10 @@ export default function SalesReport() {
         totalDiscount: sa.totalDiscount || 0,
         memberPaymentsCollected: Number(memberPaymentsCollected),
         creditPaymentsCollected: Number(creditPaymentsCollected),
-        totalCollections: Number(sa.totalSales || 0) + Number(memberPaymentsCollected) + Number(creditPaymentsCollected),
+        // Total Collections = actual cash/card received.
+        // Credit *sales* are deferred revenue (not collected at point of sale),
+        // so subtract them before adding credit payment collections.
+        totalCollections: (Number(sa.totalSales || 0) - creditSalesTotal) + Number(memberPaymentsCollected) + Number(creditPaymentsCollected),
         
         totalOrders: sa.billCount || 0,
         totalItems: items.reduce((acc, curr) => acc + curr.quantity, 0),
@@ -1807,7 +1818,14 @@ export default function SalesReport() {
         )}
         {renderMetricTile(
           "Total Collections",
-          formatCurrency(filteredMetrics.TotalSales + filteredMetrics.MemberPaymentsCollected + filteredMetrics.CreditPaymentsCollected),
+          // Exclude credit *sales* from TotalSales — they are deferred revenue (not collected at
+          // point of sale). Add credit/member *payment* collections separately so a credit bill
+          // paid within the same period is never counted twice.
+          formatCurrency(
+            (filteredMetrics.TotalSales - filteredMetrics.Credit) +
+            filteredMetrics.MemberPaymentsCollected +
+            filteredMetrics.CreditPaymentsCollected
+          ),
           "wallet-outline",
           "#22c55e",
         )}
@@ -2297,10 +2315,14 @@ export default function SalesReport() {
           <View style={{ backgroundColor: Theme.success + "10", borderRadius: 12, padding: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 4, borderWidth: 1, borderColor: Theme.success + "20" }}>
             <View>
               <Text style={{ fontFamily: Fonts.black, fontSize: 13, color: Theme.success }}>Total Collections Volume</Text>
-              <Text style={{ fontFamily: Fonts.medium, fontSize: 9, color: Theme.textMuted, marginTop: 1 }}>Sales + Payments Collected</Text>
+              <Text style={{ fontFamily: Fonts.medium, fontSize: 9, color: Theme.textMuted, marginTop: 1 }}>Cash Received (excl. Credit Sales) + Payments Collected</Text>
             </View>
             <Text style={{ fontFamily: Fonts.black, fontSize: 18, color: Theme.success }}>
-              {formatCurrency(paymentBreakdownTotal + filteredMetrics.MemberPaymentsCollected + filteredMetrics.CreditPaymentsCollected)}
+              {formatCurrency(
+                (paymentBreakdownTotal - paymentBreakdownMetrics.Credit) +
+                filteredMetrics.MemberPaymentsCollected +
+                filteredMetrics.CreditPaymentsCollected
+              )}
             </Text>
           </View>
         </View>
