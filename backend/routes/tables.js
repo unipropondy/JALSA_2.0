@@ -70,7 +70,7 @@ router.get("/all", async (req, res) => {
       SELECT TableId AS id, CAST(TableNumber AS VARCHAR(50)) AS label,
       CAST(DiningSection AS VARCHAR(10)) AS DiningSection, LockedByName as lockedByName,
       Status, CONVERT(VARCHAR, StartTime, 126) as StartTime, ISNULL(TotalAmount, 0) as totalAmount, CurrentOrderId as currentOrderId,
-      entry_status AS entryStatus,
+      entry_status AS entryStatus, CustomerName as customerName, Pax as pax,
       CASE 
         WHEN Status IN (1, 2, 3) AND StartTime IS NOT NULL AND StartTime > '2000-01-01' AND DATEDIFF(MINUTE, StartTime, GETDATE()) >= 60 THEN 1 
         ELSE 0 
@@ -126,7 +126,7 @@ router.post("/lock-persistent", async (req, res) => {
 
     const result = await request.query(`
       UPDATE TableMaster 
-      SET Status = 5, LockedByName = @lockedByName, TotalAmount = 0, StartTime = NULL, ModifiedBy = @ModifiedBy, ModifiedOn = GETDATE()
+      SET Status = 5, LockedByName = @lockedByName, TotalAmount = 0, StartTime = NULL, ModifiedBy = @ModifiedBy, ModifiedOn = GETDATE(), CustomerName = NULL, Pax = NULL
       OUTPUT INSERTED.TableNumber, INSERTED.DiningSection, CONVERT(VARCHAR, INSERTED.ModifiedOn, 126) AS ModifiedOn
       WHERE TableId = @tableId
     `);
@@ -147,6 +147,8 @@ router.post("/lock-persistent", async (req, res) => {
         totalAmount: 0, 
         startTime: null,
         lockedByName: lockedByName || null,
+        customerName: null,
+        pax: null,
         tableNo: row?.TableNumber,
         section: sectionMap[String(row?.DiningSection)] || row?.DiningSection,
         modifiedOn: row?.ModifiedOn
@@ -172,7 +174,7 @@ router.post("/unlock-persistent", async (req, res) => {
       .input("ModifiedBy", sql.UniqueIdentifier, userId || null)
       .query(`
         UPDATE TableMaster 
-        SET Status = 0, entry_status = NULL, LockedByName = NULL, TotalAmount = 0, StartTime = NULL, ModifiedBy = @ModifiedBy, ModifiedOn = GETDATE()
+        SET Status = 0, entry_status = NULL, LockedByName = NULL, TotalAmount = 0, StartTime = NULL, ModifiedBy = @ModifiedBy, ModifiedOn = GETDATE(), CustomerName = NULL, Pax = NULL
         OUTPUT INSERTED.TableNumber, INSERTED.DiningSection, CONVERT(VARCHAR, INSERTED.ModifiedOn, 126) AS ModifiedOn
         WHERE TableId = @tableId
       `);
@@ -193,6 +195,8 @@ router.post("/unlock-persistent", async (req, res) => {
         totalAmount: 0,
         startTime: null,
         lockedByName: null,
+        customerName: null,
+        pax: null,
         tableNo: row?.TableNumber,
         section: sectionMap[String(row?.DiningSection)] || row?.DiningSection,
         modifiedOn: row?.ModifiedOn
@@ -201,6 +205,85 @@ router.post("/unlock-persistent", async (req, res) => {
 
     res.json({ success: true });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ✅ New route: POST /api/tables/save-guest
+router.post("/save-guest", async (req, res) => {
+  const { tableId, customerName, pax } = req.body;
+  const userId = req.body.userId || req.body.UserId || req.body.USERID;
+
+  try {
+    const pool = await poolPromise;
+    if (!tableId) return res.status(400).json({ error: "tableId is required" });
+
+    const cleanTableId = tableId.replace(/^\{|\}$/g, "").trim();
+    const guestNameVal = customerName && customerName.trim() ? customerName.trim().substring(0, 9) : null;
+    const paxVal = pax ? parseInt(pax) : null;
+
+    const request = pool.request();
+    request.input("tableId", sql.VarChar(50), cleanTableId);
+    request.input("customerName", sql.NVarChar, guestNameVal);
+    request.input("pax", sql.Int, paxVal);
+    request.input("ModifiedBy", sql.UniqueIdentifier, userId || null);
+
+    // Update TableMaster
+    const updateTM = await request.query(`
+      UPDATE TableMaster
+      SET CustomerName = @customerName,
+          Pax = @pax,
+          ModifiedBy = @ModifiedBy,
+          ModifiedOn = GETDATE()
+      OUTPUT 
+        INSERTED.TableNumber, 
+        INSERTED.DiningSection, 
+        INSERTED.Status,
+        INSERTED.TotalAmount,
+        CONVERT(VARCHAR, INSERTED.StartTime, 126) AS StartTime,
+        CONVERT(VARCHAR, INSERTED.ModifiedOn, 126) AS ModifiedOn,
+        INSERTED.entry_status AS entryStatus
+      WHERE TableId = @tableId
+    `);
+
+    if (updateTM.recordset.length === 0) {
+      return res.status(404).json({ error: "Table not found" });
+    }
+
+    const row = updateTM.recordset[0];
+
+    // If there is an active order on RestaurantOrderCur for this table, update it as well
+    await pool.request()
+      .input("tableNo", sql.NVarChar, row.TableNumber)
+      .input("customerName", sql.NVarChar, guestNameVal)
+      .input("pax", sql.Int, paxVal)
+      .query(`
+        UPDATE RestaurantOrderCur
+        SET CustomerName = @customerName, Pax = @pax
+        WHERE Tableno = @tableNo AND isOrderClosed = 0
+      `);
+
+    // 🔥 Emit socket event with customerName and pax
+    const io = req.app.get("io");
+    if (io) {
+      const sectionMap = { "1": "SECTION_1", "2": "SECTION_2", "3": "SECTION_3", "4": "TAKEAWAY" };
+      io.emit("table_status_updated", { 
+        tableId: cleanTableId, 
+        status: row.Status,
+        totalAmount: row.TotalAmount,
+        startTime: row.StartTime,
+        tableNo: row.TableNumber,
+        section: sectionMap[String(row.DiningSection)] || row.DiningSection,
+        modifiedOn: row.ModifiedOn,
+        entryStatus: row.entryStatus || null,
+        customerName: guestNameVal,
+        pax: paxVal
+      });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("SAVE GUEST ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -237,6 +320,14 @@ router.put("/status", async (req, res) => {
             WHEN @status = 0 OR @status = 5 THEN 0 
             ELSE TotalAmount 
           END,
+          CustomerName = CASE 
+            WHEN @status = 0 OR @status = 5 THEN NULL 
+            ELSE CustomerName 
+          END,
+          Pax = CASE 
+            WHEN @status = 0 OR @status = 5 THEN NULL 
+            ELSE Pax 
+          END,
           ModifiedOn = GETDATE()
       OUTPUT 
         INSERTED.TotalAmount, 
@@ -244,6 +335,8 @@ router.put("/status", async (req, res) => {
         INSERTED.TableNumber,
         INSERTED.DiningSection,
         INSERTED.entry_status AS entryStatus,
+        INSERTED.CustomerName AS customerName,
+        INSERTED.Pax AS pax,
         CONVERT(VARCHAR, INSERTED.ModifiedOn, 126) AS ModifiedOn,
         CASE 
           WHEN INSERTED.Status IN (1, 2, 3) AND INSERTED.StartTime IS NOT NULL AND INSERTED.StartTime > '2000-01-01' AND DATEDIFF(MINUTE, INSERTED.StartTime, GETDATE()) >= 60 THEN 1 
@@ -268,7 +361,7 @@ router.put("/status", async (req, res) => {
     const currentStartTime = row?.StartTime || null;
     const currentIsOvertime = row?.isOvertime || 0;
 
-    // 🔥 Emit socket event with TotalAmount, StartTime and isOvertime
+    // 🔥 Emit socket event with TotalAmount, StartTime, customerName, pax and isOvertime
     const io = req.app.get("io");
     if (io) {
       const sectionMap = { "1": "SECTION_1", "2": "SECTION_2", "3": "SECTION_3", "4": "TAKEAWAY" };
@@ -282,7 +375,9 @@ router.put("/status", async (req, res) => {
         modifiedOn: row?.ModifiedOn,
         isOvertime: currentIsOvertime,
         isHoldOvertime: row?.isHoldOvertime || 0,
-        entryStatus: row?.entryStatus || null
+        entryStatus: row?.entryStatus || null,
+        customerName: row?.customerName || null,
+        pax: row?.pax || null
       });
     }
 
@@ -314,7 +409,9 @@ router.get("/:tableId", async (req, res) => {
           ISNULL(TotalAmount, 0) as totalAmount, 
           CurrentOrderId as currentOrderId,
           LockedByName as lockedByName,
-          entry_status AS entryStatus
+          entry_status AS entryStatus,
+          CustomerName as customerName,
+          Pax as pax
         FROM TableMaster
         WHERE TableId = @tableId
       `);
@@ -335,6 +432,7 @@ router.get("/diagnostic", async (req, res) => {
       const pool = await poolPromise;
       const result = await pool.request().query(`
         SELECT TOP 10 TableId, TableNumber, DiningSection, Status,
+        CustomerName, Pax,
         CAST(TableId AS VARCHAR(50)) AS TableId_AsString
         FROM TableMaster
       `);

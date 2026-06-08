@@ -733,6 +733,7 @@ export default function PaymentScreen() {
       }
       return;
     }
+    const tableState = context?.tableId ? useTableStatusStore.getState().tableMap[context.tableId.toLowerCase()] : null;
     const saleData = {
       orderId: displayOrderId || activeOrder?.orderId,
       orderType: context?.orderType === "DINE_IN" ? "DINE-IN" : context?.orderType || "DINE-IN",
@@ -769,7 +770,9 @@ export default function PaymentScreen() {
       discountPercentage: discount?.type === "percentage" ? discount.value : null,
       discountRemarks: discount?.label || null,
       orderDiscountAmount: discountAmount,
-      itemDiscountAmount: payItemDiscount
+      itemDiscountAmount: payItemDiscount,
+      customerName: tableState?.customerName || null,
+      pax: tableState?.pax || null
     };
 
     try {

@@ -251,8 +251,10 @@ async function syncToProfessionalTables(
     .input("tableId", sql.VarChar(50), cleanTableId).query(`
       DECLARE @ActualTableNo VARCHAR(20) = 'TAKEAWAY';
       DECLARE @Section INT = 4;
+      DECLARE @Pax INT = NULL;
+      DECLARE @CustomerName NVARCHAR(9) = NULL;
       IF @tableId IS NOT NULL 
-        SELECT TOP 1 @ActualTableNo = TableNumber, @Section = ISNULL(DiningSection, 4) FROM TableMaster WHERE TableId = @tableId;
+        SELECT TOP 1 @ActualTableNo = TableNumber, @Section = ISNULL(DiningSection, 4), @Pax = Pax, @CustomerName = CustomerName FROM TableMaster WHERE TableId = @tableId;
 
       DECLARE @PriorityCode INT = NULL;
       IF @Section = 1 SET @PriorityCode = 1
@@ -269,12 +271,14 @@ async function syncToProfessionalTables(
         CASE WHEN OrderNumber = @orderNo THEN 0 ELSE 1 END,
         CreatedOn DESC;
       
-      SELECT @ActualTableNo as ActualTableNo, @PriorityCode as PriorityCode;
+      SELECT @ActualTableNo as ActualTableNo, @PriorityCode as PriorityCode, @Pax as Pax, @CustomerName as CustomerName;
     `);
 
   const header = initRes.recordsets[0][0];
   const actualTableNo = initRes.recordsets[1][0]?.ActualTableNo || "TAKEAWAY";
   const priorityCode = initRes.recordsets[1][0]?.PriorityCode || 4;
+  const tablePax = initRes.recordsets[1][0]?.Pax || null;
+  const tableCustomerName = initRes.recordsets[1][0]?.CustomerName || null;
 
   let orderGuid;
   let finalUserId = userId;
@@ -308,8 +312,10 @@ async function syncToProfessionalTables(
       .input("bizId", sql.UniqueIdentifier, bizId)
       .input("priority", sql.Int, priorityCode)
       .input("isTakeaway", sql.Bit, isTakeaway ? 1 : 0)
+      .input("pax", sql.Int, tablePax)
+      .input("customerName", sql.NVarChar, tableCustomerName)
       .query(
-        "INSERT INTO RestaurantOrderCur (OrderId, OrderNumber, OrderDateTime, Tableno, StatusCode, CreatedBy, CreatedOn, isOrderClosed, BusinessUnitId, PriorityCode, IsTakeAway) VALUES (@orderId, @orderNo, GETDATE(), @tableNo, 1, @userId, GETDATE(), 0, @bizId, @priority, @isTakeaway)",
+        "INSERT INTO RestaurantOrderCur (OrderId, OrderNumber, OrderDateTime, Tableno, StatusCode, CreatedBy, CreatedOn, isOrderClosed, BusinessUnitId, PriorityCode, IsTakeAway, Pax, CustomerName) VALUES (@orderId, @orderNo, GETDATE(), @tableNo, 1, @userId, GETDATE(), 0, @bizId, @priority, @isTakeaway, @pax, @customerName)",
       );
   }
 
@@ -675,7 +681,7 @@ router.post("/save-cart", async (req, res) => {
           END
 
           -- Reset table status
-          UPDATE TableMaster SET Status = 0,entry_status=NULL, CurrentOrderId = NULL, StartTime = NULL WHERE TableId = @tid;
+          UPDATE TableMaster SET Status = 0, entry_status = NULL, CurrentOrderId = NULL, StartTime = NULL, CustomerName = NULL, Pax = NULL WHERE TableId = @tid;
         `);
       currentOrderId = null;
     }
@@ -1164,7 +1170,7 @@ router.post("/cancel", async (req, res) => {
         .request()
         .input("tid", sql.VarChar(50), cleanTid)
         .query(
-          "UPDATE TableMaster SET Status = 0, entry_status = NULL, TotalAmount = 0, StartTime = NULL, CurrentOrderId = NULL, ModifiedOn = GETDATE() WHERE TableId = @tid",
+          "UPDATE TableMaster SET Status = 0, entry_status = NULL, TotalAmount = 0, StartTime = NULL, CurrentOrderId = NULL, CustomerName = NULL, Pax = NULL, ModifiedOn = GETDATE() WHERE TableId = @tid",
         );
 
       await transaction.commit();
@@ -1197,7 +1203,7 @@ router.post("/complete", async (req, res) => {
         WHERE Tableno = (SELECT TOP 1 TableNumber FROM TableMaster WHERE TableId = @tid) 
         AND (isOrderClosed = 0 OR isOrderClosed IS NULL);
         
-        UPDATE TableMaster SET Status = 0, entry_status = NULL, CurrentOrderId = NULL, StartTime = NULL, TotalAmount = 0, ModifiedOn = GETDATE() WHERE TableId = @tid;
+        UPDATE TableMaster SET Status = 0, entry_status = NULL, CurrentOrderId = NULL, StartTime = NULL, TotalAmount = 0, CustomerName = NULL, Pax = NULL, ModifiedOn = GETDATE() WHERE TableId = @tid;
       `);
 
     const updated = await syncTableStatus(req, cleanId);

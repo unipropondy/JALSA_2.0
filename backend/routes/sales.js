@@ -214,7 +214,9 @@ router.get("/all", async (req, res) => {
             sh.RoundedBy as RoundedBy,
             ISNULL(ri.DiscountPercentage, 0) as DiscountPercentage,
             ISNULL(cct_sale.OutstandingAmount, CASE WHEN ${normalizeReportPayModeSql("sts.PayMode")} IN ('CREDIT') THEN sh.SysAmount ELSE 0 END) AS OutstandingAmount,
-            COALESCE(mm.Name, ccm.Name, mm_sale.Name, ccm_sale.Name) AS CustomerName
+            COALESCE(mm.Name, ccm.Name, mm_sale.Name, ccm_sale.Name) AS CustomerName,
+            sh.GuestName as GuestName,
+            sh.Pax as Pax
           FROM SettlementHeader sh
           LEFT JOIN SettlementTotalSales sts ON sh.SettlementID = sts.SettlementID
           LEFT JOIN RestaurantInvoice ri ON sh.SettlementID = ri.RestaurantBillId
@@ -258,7 +260,9 @@ router.get("/all", async (req, res) => {
             0 AS RoundedBy,
             0 AS DiscountPercentage,
             0 AS OutstandingAmount,
-            COALESCE(mm.Name, m.Name) AS CustomerName
+            COALESCE(mm.Name, m.Name) AS CustomerName,
+            NULL AS GuestName,
+            NULL AS Pax
           FROM CustomerCreditTransactions cct
           LEFT JOIN CreditCustomerMaster m ON cct.MemberId = m.CustomerId
           LEFT JOIN MemberMaster mm ON cct.MemberId = mm.MemberId
@@ -300,7 +304,9 @@ router.get("/all", async (req, res) => {
             sh.RoundedBy as RoundedBy,
             ISNULL(ri.DiscountPercentage, 0) as DiscountPercentage,
             ISNULL(cct_sale.OutstandingAmount, CASE WHEN ${normalizeReportPayModeSql("sts.PayMode")} IN ('CREDIT') THEN sh.SysAmount ELSE 0 END) AS OutstandingAmount,
-            COALESCE(mm.Name, ccm.Name, mm_sale.Name, ccm_sale.Name) AS CustomerName
+            COALESCE(mm.Name, ccm.Name, mm_sale.Name, ccm_sale.Name) AS CustomerName,
+            sh.GuestName as GuestName,
+            sh.Pax as Pax
           FROM SettlementHeader sh
           LEFT JOIN SettlementTotalSales sts ON sh.SettlementID = sts.SettlementID
           LEFT JOIN RestaurantInvoice ri ON sh.SettlementID = ri.RestaurantBillId
@@ -343,7 +349,9 @@ router.get("/all", async (req, res) => {
             0 AS RoundedBy,
             0 AS DiscountPercentage,
             0 AS OutstandingAmount,
-            COALESCE(mm.Name, m.Name) AS CustomerName
+            COALESCE(mm.Name, m.Name) AS CustomerName,
+            NULL AS GuestName,
+            NULL AS Pax
           FROM CustomerCreditTransactions cct
           LEFT JOIN CreditCustomerMaster m ON cct.MemberId = m.CustomerId
           LEFT JOIN MemberMaster mm ON cct.MemberId = mm.MemberId
@@ -1318,18 +1326,20 @@ router.post("/save", async (req, res) => {
       .input("TotalLineItemDiscountAmount", sql.Decimal(18, 2), itemDiscountAmount || 0)
       .input("MergeCount", sql.Numeric, mergeCount)
       .input("SplitCount", sql.Numeric, splitIndexValue)
+      .input("GuestName", sql.NVarChar(9), req.body.customerName ? req.body.customerName.trim().substring(0, 9) : null)
+      .input("Pax", sql.Int, req.body.pax ? parseInt(req.body.pax) : null)
       .query(`
         -- 1. Insert into SettlementHeader
         INSERT INTO SettlementHeader (
           SettlementID, LastSettlementDate, LastDayEndDate, SubTotal, TotalTax, DiscountAmount, DiscountType, 
           BillNo, OrderType, TableNo, Section, MemberId, CashierID, BusinessUnitId, 
           SysAmount, ManualAmount, CreatedBy, CreatedOn, SER_NAME, MobileNo, 
-          VoidItemQty, VoidItemAmount, RoundedBy, ServiceCharge
+          VoidItemQty, VoidItemAmount, RoundedBy, ServiceCharge, GuestName, Pax
         ) VALUES (
           @SettlementID, GETDATE(), GETDATE(), @SubTotal, @TotalTax, @DiscountAmount, @DiscountType, 
           @BillNo, @OrderType, @TableNo, @Section, @MemberId, @CashierID, @BusinessUnitId, 
           @SysAmount, @ManualAmount, @CreatedBy, GETDATE(), @SER_NAME, @MobileNo, 
-          @VoidItemQty, @VoidItemAmount, @RoundedBy, @ServiceCharge
+          @VoidItemQty, @VoidItemAmount, @RoundedBy, @ServiceCharge, @GuestName, @Pax
         );
 
         -- 2. Insert into RestaurantInvoice (Perfect Sync)
@@ -1338,13 +1348,13 @@ router.post("/save", async (req, res) => {
           TotalLineItemAmount, TotalTax, DiscountAmount, TotalAmount, StatusCode, 
           CreatedBy, CreatedOn, InvoiceDate, ServiceCharge, RoundedBy, TotalAmountLessFreight,
           PaymentTermCode, DiscountId, DiscountPercentage, DiscountRemarks, TotalDiscountAmount,
-          TotalLineItemDiscountAmount, MergeCount, SplitCount
+          TotalLineItemDiscountAmount, MergeCount, SplitCount, Pax
         ) VALUES (
           @BusinessUnitId, @SettlementID, @OrderId, @BillNo, GETDATE(), GETDATE(),
           @SubTotal, @TotalTax, @DiscountAmount, @SysAmount, 5,
           @CreatedBy, GETDATE(), CAST(GETDATE() AS DATE), @ServiceCharge, @RoundedBy, @SubTotal,
           @PayModeCode, @DiscountId, @DiscountPercentage, @DiscountRemarks, @TotalDiscountAmount,
-          @TotalLineItemDiscountAmount, @MergeCount, @SplitCount
+          @TotalLineItemDiscountAmount, @MergeCount, @SplitCount, @Pax
         );
 
         -- 2b. Insert into RestaurantInvoiceCur (Mirror for Backoffice Sync)
@@ -1353,13 +1363,13 @@ router.post("/save", async (req, res) => {
           TotalLineItemAmount, TotalTax, DiscountAmount, TotalAmount, StatusCode, 
           CreatedBy, CreatedOn, InvoiceDate, ServiceCharge, RoundedBy, TotalAmountLessFreight,
           PaymentTermCode, DiscountId, DiscountPercentage, DiscountRemarks, TotalDiscountAmount,
-          TotalLineItemDiscountAmount, MergeCount, SplitCount
+          TotalLineItemDiscountAmount, MergeCount, SplitCount, Pax
         ) VALUES (
           @BusinessUnitId, @SettlementID, @OrderId, @BillNo, GETDATE(), GETDATE(),
           @SubTotal, @TotalTax, @DiscountAmount, @SysAmount, 5,
           @CreatedBy, GETDATE(), CAST(GETDATE() AS DATE), @ServiceCharge, @RoundedBy, @SubTotal,
           @PayModeCode, @DiscountId, @DiscountPercentage, @DiscountRemarks, @TotalDiscountAmount,
-          @TotalLineItemDiscountAmount, @MergeCount, @SplitCount
+          @TotalLineItemDiscountAmount, @MergeCount, @SplitCount, @Pax
         );
       `);
 

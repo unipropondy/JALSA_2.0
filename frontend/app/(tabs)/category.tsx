@@ -10,6 +10,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   useWindowDimensions,
   View,
@@ -166,8 +167,8 @@ const TableItemComponent = React.memo(
           {status !== 0 && (
             <View style={styles.tableInfo}>
               <View style={[styles.statusChip, { backgroundColor: bgColor, borderColor: ui.color }]}>
-                <Text style={[styles.statusChipText, { color: ui.color, fontSize: smallFont }]}>
-                  {ui.text}
+                <Text style={[styles.statusChipText, { color: ui.color, fontSize: smallFont }]} numberOfLines={1}>
+                  {tableData?.customerName ? tableData.customerName : ui.text}
                 </Text>
               </View>
 
@@ -346,6 +347,13 @@ export default function Category() {
   const [isCompleting, setIsCompleting] = useState(false);
   const [isQRModalVisible, setIsQRModalVisible] = useState(false);
   const sectionScrollRef = useRef<ScrollView>(null);
+
+  // Customer guest name + pax modal states
+  const [guestModalVisible, setGuestModalVisible] = useState(false);
+  const [pendingGuestItem, setPendingGuestItem] = useState<TableItem | null>(null);
+  const [guestNameInput, setGuestNameInput] = useState("");
+  const [guestPaxInput, setGuestPaxInput] = useState("");
+  const [isSavingGuest, setIsSavingGuest] = useState(false);
 
   // Removed global 'tables' selector for performance
   const getLockedName = useTableStatusStore((s: any) => s.getLockedName);
@@ -528,7 +536,9 @@ export default function Category() {
             lockedByName: t.lockedByName,
             totalAmount: t.totalAmount,
             isHoldOvertime: t.isHoldOvertime === 1 || !!t.isHoldOvertime,
-            lastModified: (t as any).lastModified
+            lastModified: (t as any).lastModified,
+            customerName: (t as any).customerName,
+            pax: (t as any).pax
           };
         });
 
@@ -840,6 +850,26 @@ export default function Category() {
         return;
       }
 
+      if (status === 0) {
+        // Intercept empty table tap to show Guest Name & Pax popup
+        setGuestNameInput("");
+        setGuestPaxInput("");
+        setPendingGuestItem(item);
+        setGuestModalVisible(true);
+        return;
+      }
+
+      await proceedWithTable(item, tableData);
+    },
+    [activeTab, router, isWaiter],
+  );
+
+  const proceedWithTable = async (item: TableItem, tableData: any) => {
+      const effectiveStatus = (tableData && tableData.status !== 'EMPTY') 
+        ? (tableData.status === 'SENT' ? 1 : tableData.status === 'BILL_REQUESTED' ? 2 : tableData.status === 'HOLD' ? 3 : tableData.status === 'LOCKED' ? 5 : 1)
+        : Number(item.Status);
+      const status = effectiveStatus;
+
       let newContext: any;
       if (activeTab !== "TAKEAWAY") {
         newContext = {
@@ -881,9 +911,61 @@ export default function Category() {
       }
 
       router.push("/menu/thai_kitchen");
-    },
-    [activeTab, router, isWaiter],
-  );
+  };
+
+  const handleGuestSubmit = async () => {
+    if (!pendingGuestItem) return;
+    setIsSavingGuest(true);
+    try {
+      const cleanName = guestNameInput.trim().substring(0, 9);
+      const cleanPax = guestPaxInput.trim() ? parseInt(guestPaxInput.trim()) : null;
+
+      const res = await fetch(`${API_URL}/api/tables/save-guest`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tableId: pendingGuestItem.id,
+          customerName: cleanName || null,
+          pax: cleanPax || null,
+          userId: user?.userId,
+        }),
+      });
+
+      if (res.ok) {
+        // Optimistically update table status store
+        const section = getSectionFromDiningSection(pendingGuestItem.DiningSection);
+        useTableStatusStore.getState().updateTableStatus(
+          pendingGuestItem.id,
+          section,
+          pendingGuestItem.label,
+          "EMPTY",
+          "EMPTY",
+          undefined,
+          undefined,
+          0,
+          false,
+          false,
+          undefined,
+          undefined,
+          cleanName || undefined,
+          cleanPax || undefined
+        );
+        fetchTables();
+      } else {
+        const errData = await res.json();
+        console.warn("Error saving guest:", errData.error);
+      }
+    } catch (err) {
+      console.warn("Network error saving guest:", err);
+    } finally {
+      setIsSavingGuest(false);
+      setGuestModalVisible(false);
+      const itemToOpen = pendingGuestItem;
+      setPendingGuestItem(null);
+      // Proceed to menu selection
+      proceedWithTable(itemToOpen, null);
+    }
+  };
 
 
   // 🚀 Memoized Render Function for Table Grid
@@ -1671,6 +1753,137 @@ export default function Category() {
           </View>
         }
       />
+      {/* 〰〰〰〰〰〰〰〰〰〰〰 CUSTOMER GUEST & PAX MODAL 〰〰〰〰〰〰〰〰〰〰〰 */}
+      <Modal
+        visible={guestModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setGuestModalVisible(false);
+          if (pendingGuestItem) {
+            proceedWithTable(pendingGuestItem, null);
+            setPendingGuestItem(null);
+          }
+        }}
+      >
+        <TouchableOpacity
+          style={styles.menuOverlay}
+          activeOpacity={1}
+          onPress={() => {
+            setGuestModalVisible(false);
+            if (pendingGuestItem) {
+              proceedWithTable(pendingGuestItem, null);
+              setPendingGuestItem(null);
+            }
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: Theme.bgCard,
+              padding: 24,
+              borderRadius: Theme.radiusLg,
+              width: isTablet ? 400 : "85%",
+              elevation: 10,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.15,
+              shadowRadius: 12,
+            }}
+            onStartShouldSetResponder={() => true}
+            onTouchEnd={(e) => e.stopPropagation()}
+          >
+            <Text style={{ fontSize: 18, fontFamily: Fonts.bold, color: Theme.textPrimary, marginBottom: 16 }}>
+              Table {pendingGuestItem?.label} details
+            </Text>
+
+            <Text style={{ fontSize: 13, fontFamily: Fonts.semiBold, color: Theme.textSecondary, marginBottom: 6 }}>
+              Enter Name (Optional - Max 9 chars)
+            </Text>
+            <TextInput
+              style={{
+                borderWidth: 1.5,
+                borderColor: Theme.border,
+                borderRadius: Theme.radiusMd,
+                padding: 10,
+                fontSize: 14,
+                fontFamily: Fonts.regular,
+                color: Theme.textPrimary,
+                marginBottom: 16,
+                backgroundColor: Theme.bgInput,
+              }}
+              placeholder="Guest Name"
+              placeholderTextColor={Theme.textMuted}
+              value={guestNameInput}
+              onChangeText={setGuestNameInput}
+              maxLength={9}
+            />
+
+            <Text style={{ fontSize: 13, fontFamily: Fonts.semiBold, color: Theme.textSecondary, marginBottom: 6 }}>
+              Pax / Persons (Optional)
+            </Text>
+            <TextInput
+              style={{
+                borderWidth: 1.5,
+                borderColor: Theme.border,
+                borderRadius: Theme.radiusMd,
+                padding: 10,
+                fontSize: 14,
+                fontFamily: Fonts.regular,
+                color: Theme.textPrimary,
+                marginBottom: 24,
+                backgroundColor: Theme.bgInput,
+              }}
+              placeholder="Number of persons"
+              placeholderTextColor={Theme.textMuted}
+              value={guestPaxInput}
+              onChangeText={setGuestPaxInput}
+              keyboardType="number-pad"
+            />
+
+            <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 12 }}>
+              <TouchableOpacity
+                style={{
+                  paddingVertical: 10,
+                  paddingHorizontal: 16,
+                  borderRadius: Theme.radiusMd,
+                  borderWidth: 1.5,
+                  borderColor: Theme.border,
+                }}
+                disabled={isSavingGuest}
+                onPress={() => {
+                  setGuestModalVisible(false);
+                  if (pendingGuestItem) {
+                    proceedWithTable(pendingGuestItem, null);
+                    setPendingGuestItem(null);
+                  }
+                }}
+              >
+                <Text style={{ color: Theme.textSecondary, fontFamily: Fonts.semiBold, fontSize: 14 }}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{
+                  paddingVertical: 10,
+                  paddingHorizontal: 20,
+                  backgroundColor: Theme.primary,
+                  borderRadius: Theme.radiusMd,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+                disabled={isSavingGuest}
+                onPress={handleGuestSubmit}
+              >
+                <Text style={{ color: "#FFF", fontFamily: Fonts.bold, fontSize: 14 }}>
+                  {isSavingGuest ? "Saving..." : "Enter"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       <StoreSettingsModal
         visible={isSettingsVisible}
         onClose={() => setIsSettingsVisible(false)}

@@ -2448,9 +2448,8 @@ export default function SalesReport() {
                             ? "Takeaway"
                             : `Table ${selectedOrder?.TableNo || "N/A"}${selectedOrder?.Section ? ` • ${selectedOrder.Section}` : ""}`}
                         </Text>
-                      </View>
-                      {selectedOrder?.SER_NAME && (
-                        <View
+                        {selectedOrder?.SER_NAME && (
+                          <View
                           style={{
                             flexDirection: "row",
                             alignItems: "center",
@@ -2478,6 +2477,34 @@ export default function SalesReport() {
                         </View>
                       )}
                     </View>
+                    {(selectedOrder?.GuestName || selectedOrder?.Pax) && (
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          flexWrap: "wrap",
+                          marginTop: 6,
+                          gap: 10,
+                        }}
+                      >
+                        {selectedOrder?.GuestName && (
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                            <Ionicons name="person-outline" size={11} color={Theme.textSecondary} />
+                            <Text style={{ fontSize: 10, fontFamily: Fonts.bold, color: Theme.textPrimary }}>
+                              Guest: {selectedOrder.GuestName}
+                            </Text>
+                          </View>
+                        )}
+                        {selectedOrder?.Pax && (
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                            <Ionicons name="people-outline" size={11} color={Theme.textSecondary} />
+                            <Text style={{ fontSize: 10, fontFamily: Fonts.bold, color: Theme.textPrimary }}>
+                              {selectedOrder.Pax} Pax
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
                   </View>
                   <TouchableOpacity
                     onPress={() => setSelectedOrder(null)}
@@ -2490,7 +2517,7 @@ export default function SalesReport() {
                     />
                   </TouchableOpacity>
                 </View>
-
+ 
                 {/* 🚨 CANCELLED BANNER - Compact Version */}
                 {selectedOrder?.IsCancelled ? (
                   <View style={styles.cancelledOrderBadge}>

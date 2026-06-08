@@ -13,6 +13,8 @@ export type TableStatus = {
   isHoldOvertime?: boolean;
   lastModified?: string;
   entryStatus?: string;
+  customerName?: string;
+  pax?: number;
 };
 
 type TableStatusState = {
@@ -33,7 +35,9 @@ type TableStatusState = {
     isExternal?: boolean,
     isHoldOvertime?: boolean,
     modifiedOn?: string,
-    entryStatus?: string
+    entryStatus?: string,
+    customerName?: string,
+    pax?: number
   ) => void;
   clearTable: (section: string, tableNo: string) => void;
   lockTable: (tableId: string, lockedByName?: string) => void;
@@ -53,7 +57,7 @@ export const useTableStatusStore = create<TableStatusState>((set, get) => ({
   lockedTableNames: {},
   lastLocalUpdate: {},
 
-  updateTableStatus: (tableId, section, tableNo, orderId, status, startTime, lockedByName, totalAmount, isExternal, isHoldOvertime, modifiedOn, entryStatus) => {
+  updateTableStatus: (tableId, section, tableNo, orderId, status, startTime, lockedByName, totalAmount, isExternal, isHoldOvertime, modifiedOn, entryStatus, customerName, pax) => {
     const cleanTableId = String(tableId || "").replace(/^\{|\}$/g, "").trim().toLowerCase();
     const key = `${section}_${tableNo}`;
     set((state) => {
@@ -94,6 +98,8 @@ export const useTableStatusStore = create<TableStatusState>((set, get) => ({
         isHoldOvertime: isHoldOvertime !== undefined ? isHoldOvertime : (existingIndex > -1 ? state.tables[existingIndex].isHoldOvertime : false),
         lastModified: modifiedOn || (existingIndex > -1 ? state.tables[existingIndex].lastModified : ""),
         entryStatus: entryStatus !== undefined ? entryStatus : (existingIndex > -1 ? state.tables[existingIndex].entryStatus : undefined),
+        customerName: customerName !== undefined ? customerName : (existingIndex > -1 ? state.tables[existingIndex].customerName : undefined),
+        pax: pax !== undefined ? pax : (existingIndex > -1 ? state.tables[existingIndex].pax : undefined),
       };
 
       const newTables = [...state.tables];
@@ -120,7 +126,7 @@ export const useTableStatusStore = create<TableStatusState>((set, get) => ({
       const { [tableNo]: _, ...rest } = state.lockedTableNames;
       const newTables = state.tables.map((t) => {
         if (t.section === section && t.tableNo === tableNo) {
-          return { ...t, status: 'EMPTY' as TableStatusType, totalAmount: 0, startTime: 0, orderId: '' };
+          return { ...t, status: 'EMPTY' as TableStatusType, totalAmount: 0, startTime: 0, orderId: '', customerName: undefined, pax: undefined };
         }
         return t;
       });
@@ -302,8 +308,10 @@ export const updateTableStatus = (
   isExternal?: boolean,
   isHoldOvertime?: boolean,
   modifiedOn?: string,
-  entryStatus?: string
-) => useTableStatusStore.getState().updateTableStatus(tableId, section, tableNo, orderId, status, startTime, lockedByName, totalAmount, isExternal, isHoldOvertime, modifiedOn, entryStatus);
+  entryStatus?: string,
+  customerName?: string,
+  pax?: number
+) => useTableStatusStore.getState().updateTableStatus(tableId, section, tableNo, orderId, status, startTime, lockedByName, totalAmount, isExternal, isHoldOvertime, modifiedOn, entryStatus, customerName, pax);
 export const clearTable = (section: string, tableNo: string) => 
   useTableStatusStore.getState().clearTable(section, tableNo);
 

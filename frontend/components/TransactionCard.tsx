@@ -90,6 +90,19 @@ const TransactionCard = React.memo(
               {modeUpper === "CREDIT" ? "Credit Customer: " : "Member: "}{item.CustomerName}
             </Text>
           )}
+          {item.OrderType === "DINE-IN" && item.GuestName && (
+            <Text style={styles.txMemberName}>
+              Guest Name: {item.GuestName}
+            </Text>
+          )}
+          {item.OrderType === "DINE-IN" && item.Pax && (
+            <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
+              <Ionicons name="people-outline" size={10} color={Theme.textSecondary} />
+              <Text style={[styles.txSmall, { marginLeft: 4, fontFamily: Fonts.bold }]}>
+                {item.Pax} Pax
+              </Text>
+            </View>
+          )}
           <Text style={styles.txSmall} numberOfLines={1}>
             {item.OrderType === "LEDGER"
               ? `${
