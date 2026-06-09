@@ -404,18 +404,23 @@ export default function PaymentScreen() {
 
   // 🖥️ CUSTOMER DISPLAY REAL-TIME SYNC
   useEffect(() => {
-    if (isFocused) {
-      CustomerDisplaySync.isPaymentActive = true;
-    }
-
-    if (!isFocused) {
-      if (pathname === "/payment_success") {
-        return;
-      }
+    CustomerDisplaySync.isPaymentActive = true;
+    return () => {
       CustomerDisplaySync.isPaymentActive = false;
       CustomerDisplaySync.syncIdle();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isFocused) {
+      if (pathname !== "/payment_success") {
+        CustomerDisplaySync.isPaymentActive = false;
+        CustomerDisplaySync.syncIdle();
+      }
       return;
     }
+
+    CustomerDisplaySync.isPaymentActive = true;
 
     if (context && finalItems.length > 0) {
       CustomerDisplaySync.syncCart({
@@ -431,12 +436,6 @@ export default function PaymentScreen() {
     } else {
       CustomerDisplaySync.syncIdle();
     }
-    return () => {
-      if (!pathnameRef.current.includes("/payment") && pathnameRef.current !== "/payment_success") {
-        CustomerDisplaySync.isPaymentActive = false;
-        CustomerDisplaySync.syncIdle();
-      }
-    };
   }, [isFocused, pathname, context, finalItems, discount, settingsStore.gstPercentage, roundOff, displayOrderId, method]);
 
   const { subtotal, grossTotal: payGrossTotal, totalItemDiscount: payItemDiscount, scEligibleSubtotal } = useMemo(() => {
