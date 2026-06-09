@@ -5,46 +5,42 @@ const { sql, poolPromise } = require("../config/db");
 // ===== TOTAL SALES =====
 router.get("/total-sales/:terminal", async (req, res) => {
   try {
+    console.log("🔥🔥🔥 TOTAL SALES ROUTE HIT NEW FILE");
     const { fromDate, toDate } = req.query;
     const pool = await poolPromise;
     const request = pool.request();
-    request.input("TerminalCode", sql.VarChar, req.params.terminal);
 
     let dateFilter = "CAST(OrderDateTime AS DATE) = CAST(GETDATE() AS DATE)";
+
     if (fromDate && toDate) {
-      request.input("fromDate", sql.DateTime, new Date(fromDate));
-      request.input("toDate", sql.DateTime, new Date(toDate));
-      dateFilter = "OrderDateTime BETWEEN @fromDate AND @toDate";
+      const fDate = fromDate.replace(/[^0-9T:.-]/g, '');
+      const tDate = toDate.replace(/[^0-9T:.-]/g, '');
+      dateFilter = `CAST(OrderDateTime AS DATE) BETWEEN CAST('${fDate}' AS DATE) AND CAST('${tDate}' AS DATE)`;
     }
-
-    const result = await request.query(`SELECT 
-          ISNULL(SUM(TotalLineItemAmount),0) AS SubTotal,
-          ISNULL(SUM(TotalDiscountAmount),0) AS DiscountAmount,
-          ISNULL(SUM(ServiceCharge),0) AS ServiceCharge,
-          ISNULL(SUM(AdditionalServiceCharge),0) AS AdditionalServiceCharge,
-          ISNULL(SUM(TotalTax),0) AS TotalTax,
-          ISNULL(SUM(RoundedBy),0) AS RoundedBy,
-          ISNULL(SUM(Tips),0) AS Tips,
-          COUNT(*) AS InvoiceCount,
-          ISNULL(SUM(TotalAmount),0) AS NetTotal
-        FROM RestaurantInvoiceCur
-      where  ${dateFilter}
-        AND RestaurantBillid IN (
-          SELECT RestaurantBillid 
-          FROM PaymentDetailCur 
-          WHERE isSettlement IS NULL OR isSettlement = 0 
-          AND Amount <> 0
-        )
-      `);
-
-    res.json(result.recordset[0] || {});
-
+    console.log("🔥🔥🔥 TOTAL SALES ROUTE HIT NEW FILE,fromDate", fromDate);
+    console.log("🔥🔥🔥 TOTAL SALES ROUTE HIT NEW FILE,toDate", toDate);
+    const result = await request.query(`
+      SELECT
+        ISNULL(SUM(TotalLineItemAmount),0) AS SubTotal,
+        ISNULL(SUM(TotalDiscountAmount),0) AS DiscountAmount,
+        ISNULL(SUM(ServiceCharge),0) AS ServiceCharge,
+        ISNULL(SUM(AdditionalServiceCharge),0) AS AdditionalServiceCharge,
+        ISNULL(SUM(TotalTax),0) AS TotalTax,
+        ISNULL(SUM(RoundedBy),0) AS RoundedBy,
+        ISNULL(SUM(Tips),0) AS Tips,
+        COUNT(*) AS InvoiceCount,
+        ISNULL(SUM(TotalAmount),0) AS NetTotal
+      FROM RestaurantInvoiceCur
+      WHERE ${dateFilter}
+    `);
+    const data = result.recordset[0] || {};
+    console.log("🔥 TOTAL SALES API =>", data);
+    res.json(data);
   } catch (err) {
     console.error("❌ TOTAL SALES ERROR:", err);
     res.status(500).send(err.message);
   }
 });
-
 
 // ===== PAYMENT DETAILS =====
 router.get("/payment/:terminal/:userId", async (req, res) => {
@@ -52,15 +48,15 @@ router.get("/payment/:terminal/:userId", async (req, res) => {
     const { fromDate, toDate } = req.query;
     const pool = await poolPromise;
     const request = pool.request();
-    
+
     request.input("TerminalCode", sql.VarChar, req.params.terminal);
     request.input("UserId", sql.VarChar, req.params.userId);
 
     let dateFilter = "CAST(PaymentCollectedOn AS DATE) = CAST(GETDATE() AS DATE)";
     if (fromDate && toDate) {
-      request.input("fromDate", sql.DateTime, new Date(fromDate));
-      request.input("toDate", sql.DateTime, new Date(toDate));
-      dateFilter = "PaymentCollectedOn BETWEEN @fromDate AND @toDate";
+      const fDate = fromDate.replace(/[^0-9T:.-]/g, '');
+      const tDate = toDate.replace(/[^0-9T:.-]/g, '');
+      dateFilter = `CAST(PaymentCollectedOn AS DATE) BETWEEN CAST('${fDate}' AS DATE) AND CAST('${tDate}' AS DATE)`;
     }
 
     const result = await request.query(`
@@ -134,9 +130,9 @@ router.get("/sales-summary/:terminal", async (req, res) => {
 
     let dateFilter = "";
     if (fromDate && toDate) {
-      request.input("fromDate", sql.DateTime, new Date(fromDate));
-      request.input("toDate", sql.DateTime, new Date(toDate));
-      dateFilter = "AND PaymentCollectedOn BETWEEN @fromDate AND @toDate";
+      const fDate = fromDate.replace(/[^0-9T:.-]/g, '');
+      const tDate = toDate.replace(/[^0-9T:.-]/g, '');
+      dateFilter = `AND CAST(PaymentCollectedOn AS DATE) BETWEEN CAST('${fDate}' AS DATE) AND CAST('${tDate}' AS DATE)`;
     }
 
     const result = await request.query(`

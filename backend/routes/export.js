@@ -15,392 +15,33 @@ const fonts = {
 const printer = new PdfPrinter(fonts);
 
 // Helper to generate professional A4 PDF document definition
-const generatePdfDocDefinition = (data) => {
-  const symbol = data.currencySymbol || '$';
-  const content = [];
-  
-  // ========== HEADER SECTION ==========
-  content.push({
-    stack: [
-      { text: data.companyName || 'AL-HAZIMA RESTAURANT PTE LTD', style: 'companyName', alignment: 'center' },
-      { text: data.companyAddress || 'No 4, Cheong Chin Nam Road, SINGAPORE 599729', fontSize: 10, alignment: 'center', color: '#555', margin: [0, 2, 0, 0] },
-      { text: `Phone: ${data.companyPhone || '65130000'}`, fontSize: 10, alignment: 'center', color: '#555', margin: [0, 2, 0, 0] }
-    ],
-    margin: [0, 0, 0, 15]
-  });
-  
-  // Horizontal divider
-  content.push({
-    canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1, lineColor: '#34495e' }],
-    margin: [0, 0, 0, 15]
-  });
-  
-  // ========== REPORT TITLE ==========
-  content.push({
-    text: 'CONSOLIDATED SALES REPORT',
-    style: 'reportTitle',
-    margin: [0, 0, 0, 15],
-    alignment: 'center'
-  });
-  
-  // ========== INFO BAR ==========
-  content.push({
-    table: {
-      widths: ['*'],
-      body: [
-        [{
-          stack: [
-            {
-              columns: [
-                { text: `Period: ${data.period || new Date().toLocaleDateString()}`, alignment: 'center' },
-                { text: `|`, width: 'auto', color: '#ccc' },
-                { text: `Cashier: ${data.cashierName || 'SR'}`, alignment: 'center' },
-                { text: `|`, width: 'auto', color: '#ccc' },
-                { text: `RefNo: ${data.refNo || 'SR' + Math.floor(Math.random()*1000000).toString().padStart(6, '0')}`, alignment: 'center' }
-              ],
-              columnGap: 10
-            }
-          ],
-          fillColor: '#f8f9fa',
-          border: [1, 1, 1, 1],
-          borderColor: '#dee2e6',
-          margin: [8, 8, 8, 8],
-          fontSize: 10,
-          bold: true
-        }]
-      ]
-    },
-    margin: [0, 0, 0, 20]
-  });
-  
-  // ========== MAIN REPORT TABLE ==========
-  const tableBody = [];
-  
-  // Table Header
-  tableBody.push([
-    { text: 'PARTICULARS', style: 'tableHeader', fillColor: '#34495e', color: '#fff', border: [1, 1, 1, 1], margin: [8, 8, 8, 8] },
-    { text: 'QTY', style: 'tableHeader', fillColor: '#34495e', color: '#fff', border: [1, 1, 1, 1], margin: [8, 8, 8, 8], alignment: 'center' },
-    { text: `AMOUNT (${symbol})`, style: 'tableHeader', fillColor: '#34495e', color: '#fff', border: [1, 1, 1, 1], margin: [8, 8, 8, 8], alignment: 'right' }
-  ]);
-  
-  // Section: Revenue Summary
-  tableBody.push([
-    { text: 'Revenue Summary', style: 'sectionHeader', fillColor: '#e9ecef', border: [1, 1, 1, 1], margin: [8, 5, 8, 5], colSpan: 3 },
-    {},
-    {}
-  ]);
-  
-  tableBody.push([
-    { text: 'Net Sales', style: 'rowLabel', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-    { text: '-', alignment: 'center', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-    { text: (data.netSales || 0).toFixed(2), style: 'currencyValue', alignment: 'right', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] }
-  ]);
-  tableBody.push([
-    { text: 'Item Service Charge', style: 'rowLabel', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-    { text: '-', alignment: 'center', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-    { text: (data.serviceCharge || 0).toFixed(2), style: 'currencyValue', alignment: 'right', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] }
-  ]);
-  tableBody.push([
-    { text: 'Tax Collected', style: 'rowLabel', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-    { text: '-', alignment: 'center', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-    { text: (data.taxCollected || 0).toFixed(2), style: 'currencyValue', alignment: 'right', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] }
-  ]);
-  tableBody.push([
-    { text: 'Rounding & Excess', style: 'rowLabel', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-    { text: '-', alignment: 'center', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-    { text: (data.roundedBy || 0).toFixed(2), style: 'currencyValue', alignment: 'right', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] }
-  ]);
-  tableBody.push([
-    { text: 'Total Revenue', style: 'rowLabel', bold: true, border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-    { text: String(data.totalOrders || 0), alignment: 'center', bold: true, border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-    { text: (data.totalRevenue || 0).toFixed(2), style: 'currencyValue', bold: true, alignment: 'right', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] }
-  ]);
-
-  if ((data.memberPaymentsCollected && data.memberPaymentsCollected > 0) || (data.creditPaymentsCollected && data.creditPaymentsCollected > 0)) {
-    if (data.memberPaymentsCollected && data.memberPaymentsCollected > 0) {
-      tableBody.push([
-        { text: 'Member Payments Collected', style: 'rowLabel', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-        { text: '-', alignment: 'center', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-        { text: (data.memberPaymentsCollected || 0).toFixed(2), style: 'currencyValue', alignment: 'right', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] }
-      ]);
-    }
-    if (data.creditPaymentsCollected && data.creditPaymentsCollected > 0) {
-      tableBody.push([
-        { text: 'Credit Payments Collected', style: 'rowLabel', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-        { text: '-', alignment: 'center', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-        { text: (data.creditPaymentsCollected || 0).toFixed(2), style: 'currencyValue', alignment: 'right', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] }
-      ]);
-    }
-    tableBody.push([
-      { text: 'Total Collections', style: 'rowLabel', bold: true, fillColor: '#e2f0d9', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-      { text: '-', alignment: 'center', bold: true, fillColor: '#e2f0d9', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-      { text: (data.totalCollections || 0).toFixed(2), style: 'currencyValue', bold: true, alignment: 'right', fillColor: '#e2f0d9', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] }
-    ]);
-  }
-
-  // Section: Payment Breakdown
-  tableBody.push([
-    { text: 'Payment Breakdown', style: 'sectionHeader', fillColor: '#e9ecef', border: [1, 1, 1, 1], margin: [8, 5, 8, 5], colSpan: 3 },
-    {},
-    {}
-  ]);
-  
-  if (Array.isArray(data.paymentBreakdown)) {
-    let totalQty = 0;
-    let totalAmt = 0;
-    data.paymentBreakdown.forEach(m => {
-      totalQty += m.qty || 0;
-      totalAmt += m.amount || 0;
-      tableBody.push([
-        { text: m.name, style: 'rowLabel', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-        { text: String(m.qty || 0), alignment: 'center', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-        { text: (m.amount || 0).toFixed(2), style: 'currencyValue', alignment: 'right', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] }
-      ]);
-    });
-    
-    tableBody.push([
-      { text: 'Total Collected', style: 'rowLabel', bold: true, border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-      { text: String(totalQty), alignment: 'center', bold: true, border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-      { text: totalAmt.toFixed(2), style: 'currencyValue', bold: true, alignment: 'right', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] }
-    ]);
-  } else if (data.paymentBreakdown && typeof data.paymentBreakdown === 'object') {
-    // Legacy support
-    let totalAmt = 0;
-    Object.entries(data.paymentBreakdown).forEach(([k, v]) => {
-      totalAmt += Number(v) || 0;
-      tableBody.push([
-        { text: k.toUpperCase(), style: 'rowLabel', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-        { text: '-', alignment: 'center', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-        { text: (Number(v) || 0).toFixed(2), style: 'currencyValue', alignment: 'right', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] }
-      ]);
-    });
-    tableBody.push([
-      { text: 'Total Collected', style: 'rowLabel', bold: true, border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-      { text: '-', alignment: 'center', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-      { text: totalAmt.toFixed(2), style: 'currencyValue', bold: true, alignment: 'right', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] }
-    ]);
-  }
-
-  // Section: Item Wise Sales
-  if (data.items && data.items.length > 0) {
-    tableBody.push([
-      { text: 'Item Wise Sales Analysis (Grouped by Category)', style: 'sectionHeader', fillColor: '#d0e1f9', border: [1, 1, 1, 1], margin: [8, 6, 8, 6], colSpan: 3 },
-      {},
-      {}
-    ]);
-
-    // Group items by category
-    const groupedItems = {};
-    data.items.forEach(item => {
-      const cat = item.category || 'Unmapped';
-      if (!groupedItems[cat]) {
-        groupedItems[cat] = [];
-      }
-      groupedItems[cat].push(item);
-    });
-
-    // Sort categories alphabetically
-    const sortedCategories = Object.keys(groupedItems).sort((a, b) =>
-      a.localeCompare(b, undefined, { sensitivity: 'base' })
-    );
-
-    sortedCategories.forEach(category => {
-      const groupList = groupedItems[category];
-      const catQty = groupList.reduce((sum, i) => sum + Number(i.qty || 0), 0);
-      const catVoid = groupList.reduce((sum, i) => sum + Number(i.voidQty || 0), 0);
-      const catSales = groupList.reduce((sum, i) => sum + Number(i.amount || 0), 0);
-
-      // Category Header row
-      tableBody.push([
-        { text: `${category.toUpperCase()}`, fontSize: 10, bold: true, fillColor: '#f2f4f8', border: [1, 1, 1, 1], margin: [8, 6, 8, 6], colSpan: 3 },
-        {},
-        {}
-      ]);
-
-      // Category items
-      groupList.forEach(item => {
-        tableBody.push([
-          { 
-            text: item.name,
-            style: 'rowLabel', 
-            border: [1, 1, 1, 1], 
-            margin: [8, 5, 8, 5] 
-          },
-          { text: String(item.qty || 0), alignment: 'center', border: [1, 1, 1, 1], margin: [8, 5, 8, 5], fontSize: 9.5 },
-          { text: (item.amount || 0).toFixed(2), style: 'currencyValue', alignment: 'right', border: [1, 1, 1, 1], margin: [8, 5, 8, 5], fontSize: 9.5 }
-        ]);
-      });
-
-      // Category Sub-total row
-      tableBody.push([
-        { text: `   Total for ${category}`, fontSize: 9, bold: true, italics: true, fillColor: '#fafbfc', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-        { text: String(catQty), alignment: 'center', bold: true, fillColor: '#fafbfc', border: [1, 1, 1, 1], margin: [8, 5, 8, 5], fontSize: 9 },
-        { text: catSales.toFixed(2), style: 'currencyValue', bold: true, alignment: 'right', fillColor: '#fafbfc', border: [1, 1, 1, 1], margin: [8, 5, 8, 5], fontSize: 9 }
-      ]);
-    });
-  }
-
-  // Section: Order Analytics
-  tableBody.push([
-    { text: 'Order Analytics', style: 'sectionHeader', fillColor: '#e9ecef', border: [1, 1, 1, 1], margin: [8, 5, 8, 5], colSpan: 3 },
-    {},
-    {}
-  ]);
-  
-  const billCount = data.totalOrders || 0;
-  const avgBill = billCount > 0 ? (data.totalRevenue || 0) / billCount : 0;
-
-  tableBody.push([
-    { text: 'Total Bills', style: 'rowLabel', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-    { text: String(billCount), alignment: 'center', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-    { text: (data.totalRevenue || 0).toFixed(2), style: 'currencyValue', alignment: 'right', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] }
-  ]);
-  tableBody.push([
-    { text: 'Average Bill Value', style: 'rowLabel', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-    { text: '-', alignment: 'center', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-    { text: avgBill.toFixed(2), style: 'currencyValue', alignment: 'right', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] }
-  ]);
-
-  // Section: Void/Cancellation Summary
-  tableBody.push([
-    { text: 'Void/Cancellation Summary', style: 'sectionHeader', fillColor: '#e9ecef', border: [1, 1, 1, 1], margin: [8, 5, 8, 5], colSpan: 3 },
-    {},
-    {}
-  ]);
-  tableBody.push([
-    { text: 'Total Void Items', style: 'rowLabel', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-    { text: String(data.voidQty || 0), alignment: 'center', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-    { text: (data.voidAmount || 0).toFixed(2), style: 'currencyValue', alignment: 'right', border: [1, 1, 1, 1], margin: [8, 5, 8, 5], color: '#c0392b' }
-  ]);
-  
-  tableBody.push([
-    { text: 'Total Cancelled Bills', style: 'rowLabel', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-    { text: String(data.cancelledCount || 0), alignment: 'center', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-    { text: (data.cancelledAmount || 0).toFixed(2), style: 'currencyValue', alignment: 'right', border: [1, 1, 1, 1], margin: [8, 5, 8, 5], color: '#c0392b' }
-  ]);
-
-  // Section: Cancelled Orders Detail
-  if (Array.isArray(data.cancelledOrders) && data.cancelledOrders.length > 0) {
-    tableBody.push([
-      { text: 'Cancelled Bills Detail', style: 'sectionHeader', fillColor: '#f8d7da', border: [1, 1, 1, 1], margin: [8, 5, 8, 5], colSpan: 3 },
-      {},
-      {}
-    ]);
-    
-    data.cancelledOrders.forEach(order => {
-      tableBody.push([
-        { text: `Bill: ${order.BillNo}\nReason: ${order.CancellationReason || 'N/A'}`, style: 'rowLabel', border: [1, 1, 1, 1], margin: [8, 5, 8, 5], fontSize: 9 },
-        { text: String(order.VoidItemQty || 0), alignment: 'center', border: [1, 1, 1, 1], margin: [8, 5, 8, 5] },
-        { text: (order.OriginalAmount || 0).toFixed(2), style: 'currencyValue', alignment: 'right', border: [1, 1, 1, 1], margin: [8, 5, 8, 5], color: '#c0392b' }
-      ]);
-    });
-  }
-
-  // Add the table to content
-  content.push({
-    table: {
-      widths: ['*', 60, 100],
-      body: tableBody,
-      dontBreakRows: true
-    },
-    margin: [0, 0, 0, 30]
-  });
-  
-  // ========== SIGNATURE SECTION ==========
-  content.push({
-    columns: [
-      {
-        stack: [
-          { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 150, y2: 0, lineWidth: 0.5 }] },
-          { text: 'Cashier Signature', fontSize: 9, color: '#444', margin: [0, 5, 0, 0] }
-        ],
-        alignment: 'center'
-      },
-      {
-        stack: [
-          { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 150, y2: 0, lineWidth: 0.5 }] },
-          { text: 'Authorized Signature', fontSize: 9, color: '#444', margin: [0, 5, 0, 0] }
-        ],
-        alignment: 'center'
-      }
-    ],
-    margin: [0, 50, 0, 20]
-  });
-  
-  // Footer: Printed On & Powered by
-  content.push({
-    columns: [
-      {
-        text: `Printed On: ${new Date().toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}`,
-        fontSize: 8,
-        color: '#888'
-      },
-      {
-        text: 'Powered by UNIPRO',
-        fontSize: 8,
-        color: '#888',
-        alignment: 'right'
-      }
-    ],
-    margin: [0, 20, 0, 0]
-  });
-  
-  return {
-    content,
-    pageSize: 'A4',
-    pageMargins: [40, 40, 40, 40],
-    styles: {
-      companyName: { fontSize: 18, bold: true, color: '#34495e' },
-      reportTitle: { fontSize: 14, bold: true, color: '#34495e', letterSpacing: 1 },
-      tableHeader: { fontSize: 10, bold: true },
-      sectionHeader: { fontSize: 10, bold: true, color: '#34495e' },
-      rowLabel: { fontSize: 10, color: '#212529' },
-      currencyValue: { fontSize: 10, color: '#212529' }
-    },
-    defaultStyle: {
-      font: 'Roboto'
-    }
-  };
-};
-
-const createPdfBinary = (docDefinition) => {
-  return new Promise((resolve, reject) => {
-    try {
-      const pdfDoc = printer.createPdfKitDocument(docDefinition);
-      const chunks = [];
-      pdfDoc.on('data', chunk => chunks.push(chunk));
-      pdfDoc.on('end', () => resolve(Buffer.concat(chunks)));
-      pdfDoc.on('error', err => reject(err));
-      pdfDoc.end();
-    } catch (err) {
-      reject(err);
-    }
-  });
-};
+const { generateSalesReportPdf, createPdfBinary } = require('../utils/pdfReportGenerator');
+const { fetchFullReportData } = require('../utils/reportDataFetcher');
+const { poolPromise } = require('../config/db');
 
 router.post('/download-pdf', async (req, res) => {
   try {
     const { reportData } = req.body;
     if (!reportData) return res.status(400).json({ error: 'Report data is required' });
-    
-    // Fetch and merge actual company settings from DB
-    try {
-      const { getCompanySettings } = require('../utils/settingsCache');
-      const companySettings = await getCompanySettings();
-      if (companySettings) {
-        reportData.companyName = companySettings.CompanyName || reportData.companyName;
-        reportData.companyAddress = companySettings.Address || reportData.companyAddress;
-        reportData.companyPhone = companySettings.Phone || reportData.companyPhone;
+
+    let startDateStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Singapore' });
+    let endDateStr = startDateStr;
+    if (reportData.period) {
+      const dates = reportData.period.match(/\d{4}-\d{2}-\d{2}/g);
+      if (dates && dates.length > 0) {
+        startDateStr = dates[0];
+        endDateStr = dates[1] || dates[0];
       }
-    } catch (e) {
-      console.warn("Could not fetch company settings for PDF download:", e.message);
     }
-    
-    const docDef = generatePdfDocDefinition(reportData);
+
+    const pool = await poolPromise;
+    const enrichedData = await fetchFullReportData(startDateStr, endDateStr, pool);
+
+    const docDef = generateSalesReportPdf(enrichedData);
     const pdfBuffer = await createPdfBinary(docDef);
-    
-    const filename = `Sales_Report_${reportData.filterType || 'Report'}_${new Date().toISOString().split('T')[0]}.pdf`;
-    
+
+    const filename = `Sales_Report_${reportData.filterType || 'Report'}_${startDateStr}.pdf`;
+
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(pdfBuffer);
@@ -539,24 +180,25 @@ function isInvalidRecipientError(mailErr) {
 
 router.post('/email-pdf', async (req, res) => {
   let pdfBuffer;
+  let startDateStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Singapore' });
+  let endDateStr = startDateStr;
   try {
     const { reportData, email } = req.body;
     if (!reportData) {
       return res.status(400).json({ success: false, error: 'Report data is required' });
     }
-    
-    // Fetch and merge actual company settings from DB
-    try {
-      const { getCompanySettings } = require('../utils/settingsCache');
-      const companySettings = await getCompanySettings();
-      if (companySettings) {
-        reportData.companyName = companySettings.CompanyName || reportData.companyName;
-        reportData.companyAddress = companySettings.Address || reportData.companyAddress;
-        reportData.companyPhone = companySettings.Phone || reportData.companyPhone;
+
+    if (reportData.period) {
+      const dates = reportData.period.match(/\d{4}-\d{2}-\d{2}/g);
+      if (dates && dates.length > 0) {
+        startDateStr = dates[0];
+        endDateStr = dates[1] || dates[0];
       }
-    } catch (e) {
-      console.warn("Could not fetch company settings for PDF email:", e.message);
     }
+
+    const pool = await poolPromise;
+    const enrichedData = await fetchFullReportData(startDateStr, endDateStr, pool);
+
     const recipientCheck = normalizeAndValidateRecipient(email);
     if (!recipientCheck.ok) {
       return res.status(400).json({
@@ -569,7 +211,7 @@ router.post('/email-pdf', async (req, res) => {
     console.log("[export/email-pdf] Recipient:", to);
 
     console.log('[export/email-pdf] Generating PDF attachment…');
-    const docDef = generatePdfDocDefinition(reportData);
+    const docDef = generateSalesReportPdf(enrichedData);
     pdfBuffer = await createPdfBinary(docDef);
 
     if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer) || pdfBuffer.length === 0) {
@@ -580,7 +222,7 @@ router.post('/email-pdf', async (req, res) => {
       });
     }
 
-    const filename = `Sales_Report_${reportData.filterType || 'Report'}_${new Date().toISOString().split('T')[0]}.pdf`;
+    const filename = `Sales_Report_${reportData.filterType || 'Report'}_${startDateStr}.pdf`;
     console.log(`[export/email-pdf] PDF ready: ${filename} (${pdfBuffer.length} bytes)`);
 
     let transporter;

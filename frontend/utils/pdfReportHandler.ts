@@ -8,8 +8,9 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
 import * as Sharing from 'expo-sharing';
 import { Alert, Platform } from 'react-native';
+import { API_URL } from '../constants/Config';
 
-const API_BASE_URL = 'https://jalsa20-production.up.railway.app/api';
+const API_BASE_URL = `${API_URL}/api`;
 
 /**
  * Download consolidated sales report PDF

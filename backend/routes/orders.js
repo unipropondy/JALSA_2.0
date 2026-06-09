@@ -586,6 +586,14 @@ async function syncTableStatus(req, tableId) {
                          WHEN @count = 0 AND Status NOT IN (2, 3) THEN NULL 
                          ELSE StartTime 
                     END,
+        CustomerName = CASE 
+                         WHEN @count = 0 AND Status NOT IN (2, 3) THEN NULL 
+                         ELSE CustomerName 
+                    END,
+        Pax = CASE 
+                         WHEN @count = 0 AND Status NOT IN (2, 3) THEN NULL 
+                         ELSE Pax 
+                    END,
         CurrentOrderId = @ActualOrderNo,
         ModifiedOn = GETDATE()
     WHERE TableId = @tid;

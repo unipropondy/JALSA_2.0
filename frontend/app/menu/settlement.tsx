@@ -3,12 +3,11 @@ import { Fonts } from "@/constants/Fonts";
 import { Theme } from "@/constants/theme";
 import { useAuthStore } from "@/stores/authStore";
 import { Ionicons } from "@expo/vector-icons";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import axios from "axios";
 import * as Print from "expo-print";
 import { useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -552,6 +551,7 @@ export default function SettlementScreen() {
   // Cash Out State
   const [cashOutEntries, setCashOutEntries] = useState<any[]>([]);
   const [showCashOutModal, setShowCashOutModal] = useState(false);
+  const [showCashBoxModal, setShowCashBoxModal] = useState(false);
   const [cashOutForm, setCashOutForm] = useState({
     CashOutId: '',
     Amount: '',
@@ -560,10 +560,17 @@ export default function SettlementScreen() {
     PaymentMode: 'Cash',
     ReferenceNo: ''
   });
-
+const [cashBoxForm, setCashBoxForm] = useState({
+  ArtistName: '',
+  Amount: ''
+});
   const [lovMode, setLovMode] = useState<"OPEN" | "CLOSE">("OPEN");
 
   const [openingCash, setOpeningCash] = useState<string>("0");
+
+  const [dishList, setDishList] = useState<any[]>([]);
+const [showDishLov, setShowDishLov] = useState(false);
+const [artistSearch, setArtistSearch] = useState("");
 
   const [fromDate, setFromDate] = useState<Date>(() => {
     const d = new Date();
@@ -625,6 +632,7 @@ export default function SettlementScreen() {
 
   useEffect(() => {
     loadTerminals();
+    loadDishes();
   }, []);
 
   const loadTerminals = async () => {
@@ -645,6 +653,25 @@ export default function SettlementScreen() {
       setLoading(false);
     }
   };
+
+const loadDishes = async () => {
+  try {
+    const res = await axios.get(
+      `${API_URL}/api/settlement/artist-list`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    console.log("ARTIST DATA =", res.data);
+
+    setDishList(res.data.data || []);
+  } catch (err) {
+    console.log(err);
+  }
+};
 
   useEffect(() => {
     if (selectedTerminal) fetchData();
@@ -728,6 +755,9 @@ export default function SettlementScreen() {
   const paymentsTotal = payments.reduce((sum, p) => sum + (parseFloat(p.Amount) || 0), 0);
   const displayOpeningAmount = totalOpening > 0 ? totalOpening : (parseFloat(openingCash) || 0);
   const totalCashOut = cashOutEntries.reduce((sum, entry) => sum + (parseFloat(entry.Amount) || 0), 0);
+  const cashBoxTotal = payments
+    .filter(p => p.PaymodeName?.toUpperCase().includes("CASH BOX") || p.PaymodeName?.toUpperCase().includes("CASHBOX"))
+    .reduce((sum, p) => sum + (parseFloat(p.Amount) || 0), 0);
 
   const baseTransactionsTotal = transactions.reduce((sum, t) => {
     const amt = parseFloat(t.Amount) || 0;
@@ -877,6 +907,37 @@ export default function SettlementScreen() {
     }
   };
 
+  const handleSaveCashBox = async () => {
+  try {
+
+    await axios.post(
+      `${API_URL}/api/settlement/artist-cashbox`,
+      {
+        ArtistName: cashBoxForm.ArtistName,
+        Amount: parseFloat(cashBoxForm.Amount)
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
+
+    Alert.alert("Success", "Cash Box Saved");
+
+    setCashBoxForm({
+      ArtistName: "",
+      Amount: "",
+    });
+
+    setShowCashBoxModal(false);
+
+  } catch (err) {
+    console.log(err);
+    Alert.alert("Error", "Failed to save");
+  }
+};
+
   const executeDeleteCashOut = async (id: string) => {
     try {
       setLoading(true);
@@ -911,112 +972,346 @@ export default function SettlementScreen() {
     }
   };
 
-  const handlePrintReport = async () => {
+   const handlePrintReport = async () => {
     try {
+      // 1. Fetch Cashier Printer IP from settings
+      let cashierIp = "";
+      try {
+        const response = await fetch(`${API_URL}/api/settings/kitchen-printers`);
+        const printers = await response.json();
+        if (Array.isArray(printers)) {
+          const cashierPrinter = printers.find((p: any) => p.PrinterType === 1);
+          cashierIp = cashierPrinter?.PrinterPath || "";
+        }
+      } catch (err) {
+        console.warn("Failed to fetch printer IP from settings:", err);
+      }
+
+      // Helper function for robust reachability check
+      const checkIpReachable = async (ip: string, port = 80, timeoutMs = 600): Promise<boolean> => {
+        if (!ip || ip.trim() === "") return false;
+        const cleanIp = ip.trim();
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+          await fetch(`http://${cleanIp}:${port}`, {
+            method: "GET",
+            signal: controller.signal,
+            mode: "no-cors",
+            headers: { "Cache-Control": "no-cache" }
+          });
+          clearTimeout(timer);
+          return true;
+        } catch (err: any) {
+          clearTimeout(timer);
+          if (err.name === "AbortError") {
+            return false;
+          }
+          return true; // Connection refused/other error means host is online
+        }
+      };
+
+      const fromDateStr = formatDateTime(fromDate);
+      const toDateStr = formatDateTime(toDate);
+
+      // 2. Format HTML aligned to 80mm width
       const html = `
         <html>
           <head>
             <style>
-              body { font-family: 'Inter', -apple-system, sans-serif; padding: 20px; color: #1F2937; }
-              h1 { text-align: center; font-size: 22px; margin-bottom: 5px; color: #1F2937; font-weight: 900; }
-              .header { text-align: center; margin-bottom: 20px; font-size: 13px; color: #6B7280; }
-              .section { margin-bottom: 20px; border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden; }
-              .section-title { font-size: 14px; font-weight: bold; background: #fff; color: #111827; padding: 12px; border-bottom: 1px solid #E5E7EB; text-transform: uppercase; }
-              table { width: 100%; border-collapse: collapse; margin-bottom: 0; }
-              th { background: #F8FAFC; color: #475569; padding: 10px 12px; text-align: left; font-size: 12px; text-transform: uppercase; border-bottom: 1px solid #E5E7EB; }
-              td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #F3F4F6; font-size: 13px; color: #4B5563; font-weight: 500; }
-              th.right, td.right { text-align: right; }
+              @page { margin: 0; size: 80mm auto; }
+              * { box-sizing: border-box; }
+              body { 
+                font-family: 'Courier New', Courier, monospace; 
+                width: 80mm; 
+                padding: 4mm; 
+                margin: 0; 
+                color: #000; 
+                background-color: #fff; 
+                -webkit-print-color-adjust: exact; print-color-adjust: exact;
+                font-size: 13px;
+                line-height: 1.2;
+              }
+              .title { text-align: center; font-size: 16px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; }
+              .divider { border-bottom: 1px dashed #000; margin: 10px 0; }
+              .double-divider { border-bottom: 2px double #000; margin: 10px 0; }
+              .info-line { margin-bottom: 3px; }
+              table { width: 100%; border-collapse: collapse; margin: 8px 0; }
+              td { padding: 4px 0; font-size: 13px; vertical-align: top; }
+              .right { text-align: right; }
+              .center { text-align: center; }
               .bold { font-weight: bold; }
-              .total-row td { background: #FAFAFA; font-weight: bold; font-size: 14px; color: #111827; }
-              .highlight-row td { background: #FAFAFA; color: #C2410C; font-weight: 800; font-size: 14px; border-top: 1px solid #E5E7EB; border-bottom: none; }
-              .success { color: #10B981 !important; }
-              .danger { color: #EF4444 !important; }
-              .label-total { color: #C2410C; font-size: 14px; font-weight: bold; }
+              .header-row td { font-weight: bold; text-transform: uppercase; border-bottom: 1px dashed #000; padding-bottom: 5px; }
+              .section-row td { font-weight: bold; padding-top: 10px; padding-bottom: 5px; text-decoration: underline; }
             </style>
           </head>
           <body>
-            <h1>Settlement Report</h1>
-            <div class="header">
-              ${selectedTerminal !== "ALL" ? `Terminal: ${selectedTerminal} <br>` : ""}
-              Date: ${fromDate.toLocaleString()} to ${toDate.toLocaleString()}
-            </div>
+            <div class="title">Settlement Report</div>
+            <div class="double-divider"></div>
+            <div class="info-line">Period: ${fromDateStr} to ${toDateStr}</div>
+            ${selectedTerminal !== "ALL" ? `<div class="info-line">Terminal: ${selectedTerminal}</div>` : ""}
+            <div class="info-line">Generated: ${new Date().toLocaleTimeString()}</div>
+            <div class="double-divider"></div>
 
-            <div class="section">
-              <div class="section-title">Summary</div>
-              <table>
-                <tr><td>Opening Amount</td><td class="right">${formatCurrency(displayOpeningAmount)}</td></tr>
-                <tr><td>Cash Out</td><td class="right">${formatCurrency(totalCashOut)}</td></tr>
-                <tr><td>Total Expected Cash</td><td class="right">${formatCurrency(sysCash)}</td></tr>
-                <tr><td>Counted Cash</td><td class="right">${formatCurrency(totalClosing)}</td></tr>
-                <tr class="total-row"><td>Variance</td><td class="right">${formatCurrency(totalClosing - sysCash)}</td></tr>
-              </table>
-            </div>
+            <table>
+              <tr class="header-row">
+                <td>Particulars</td>
+                <td class="center" style="width: 15%;">Qty</td>
+                <td class="right" style="width: 35%;">Amount</td>
+              </tr>
+              
+              <tr class="section-row">
+                <td colspan="3">Revenue Summary</td>
+              </tr>
+              <tr>
+                <td>Gross Sales</td>
+                <td class="center">${totalSales.InvoiceCount || '-'}</td>
+                <td class="right">${formatCurrency(totalSales.SubTotal)}</td>
+              </tr>
+              <tr>
+                <td>Total Discount</td>
+                <td class="center">-</td>
+                <td class="right">-${formatCurrency(totalSales.DiscountAmount)}</td>
+              </tr>
+              <tr>
+                <td>Service Charge</td>
+                <td class="center">-</td>
+                <td class="right">${formatCurrency(totalSales.ServiceCharge)}</td>
+              </tr>
+              <tr>
+                <td>Tax Collected (GST)</td>
+                <td class="center">-</td>
+                <td class="right">${formatCurrency(totalSales.TotalTax)}</td>
+              </tr>
+              <tr>
+                <td>Rounding & Excess</td>
+                <td class="center">-</td>
+                <td class="right">${formatCurrency(totalSales.RoundedBy)}</td>
+              </tr>
+              <tr>
+                <td>Tips</td>
+                <td class="center">-</td>
+                <td class="right">${formatCurrency(totalSales.Tips)}</td>
+              </tr>
+              <tr class="bold">
+                <td>Net Sales</td>
+                <td class="center">${totalSales.InvoiceCount || '-'}</td>
+                <td class="right">${formatCurrency(netSales)}</td>
+              </tr>
 
-            <div class="section">
-              <div class="section-title">Sales Summary</div>
-              <table>
-                <tr><td>Sales Total</td><td class="right">${formatCurrency(totalSales.SubTotal)}</td></tr>
-                <tr><td>Total Discount</td><td class="right">${formatCurrency(totalSales.DiscountAmount)}</td></tr>
-                <tr><td>Service Charge</td><td class="right">${formatCurrency(totalSales.ServiceCharge)}</td></tr>
-                <tr><td>GST</td><td class="right">${formatCurrency(totalSales.TotalTax)}</td></tr>
-                <tr><td>Round Off</td><td class="right">${formatCurrency(totalSales.RoundedBy)}</td></tr>
-                <tr><td>Tips</td><td class="right">${formatCurrency(totalSales.Tips)}</td></tr>
-                <tr class="highlight-row"><td>Net Sales</td><td class="right">${formatCurrency(netSales)}</td></tr>
-              </table>
-            </div>
-
-            <div class="section">
-              <div class="section-title">Sales & Transactions</div>
-              <table>
-                <tr><th>Paymode</th><th class="right">Cash In</th><th class="right">Cash Out</th></tr>
-                <tr><td>Opening Balance</td><td class="right success">${formatCurrency(displayOpeningAmount)}</td><td class="right">0.00</td></tr>
-                ${payments.map(p => `
-                  <tr>
-                    <td>${p.PaymodeName}</td>
-                    <td class="right success">${formatCurrency(p.Amount)}</td>
-                    <td class="right"></td>
-                  </tr>
-                `).join('')}
-                ${transactions.map(t => `
-                  <tr>
-                    <td>${t.TransactionMode}</td>
-                    <td class="right ${t.TransactionType === "IN" ? "success" : ""}">${t.TransactionType === "IN" ? formatCurrency(t.Amount) : ""}</td>
-                    <td class="right ${t.TransactionType === "OUT" ? "danger" : ""}">${t.TransactionType === "OUT" ? formatCurrency(t.Amount) : ""}</td>
-                  </tr>
-                `).join('')}
-                ${cashOutEntries.map(co => `
-                  <tr>
-                    <td>${co.Reason || 'Cash Out'}</td>
-                    <td class="right"></td>
-                    <td class="right danger">${formatCurrency(co.Amount)}</td>
-                  </tr>
-                `).join('')}
-                <tr class="total-row">
-                  <td><span class="label-total">TOTAL</span></td>
-                  <td class="right success">${formatCurrency(totalCashIn)}</td>
-                  <td class="right danger">${formatCurrency(totalCashOutSum)}</td>
+              <tr class="section-row">
+                <td colspan="3">Payment Breakdown</td>
+              </tr>
+              <tr>
+                <td>Opening Balance</td>
+                <td class="center">-</td>
+                <td class="right">${formatCurrency(displayOpeningAmount)}</td>
+              </tr>
+              ${payments.map(p => `
+                <tr>
+                   <td>${p.PaymodeName}</td>
+                   <td class="center">-</td>
+                   <td class="right">${formatCurrency(p.Amount)}</td>
                 </tr>
-              </table>
-            </div>
+              `).join('')}
+              ${transactions.map(t => `
+                <tr>
+                   <td>${t.TransactionMode} (${t.TransactionType})</td>
+                   <td class="center">-</td>
+                   <td class="right">${t.TransactionType === "IN" ? formatCurrency(t.Amount) : '-' + formatCurrency(t.Amount)}</td>
+                </tr>
+              `).join('')}
+              ${cashOutEntries.map(co => `
+                <tr>
+                   <td>${co.Reason || 'Cash Out'}</td>
+                   <td class="center">-</td>
+                   <td class="right">-${formatCurrency(co.Amount)}</td>
+                </tr>
+              `).join('')}
+              <tr class="divider"><td colspan="3"></td></tr>
+              <tr class="bold">
+                <td>Total Collected (In)</td>
+                <td class="center">-</td>
+                <td class="right">${formatCurrency(totalCashIn)}</td>
+              </tr>
+              <tr class="bold">
+                <td>Total Withdrawn (Out)</td>
+                <td class="center">-</td>
+                <td class="right">-${formatCurrency(totalCashOutSum)}</td>
+              </tr>
+              <tr class="bold" style="font-size: 14px;">
+                <td>Net Total in Drawer</td>
+                <td class="center">-</td>
+                <td class="right">${formatCurrency(totalCashIn - totalCashOutSum)}</td>
+              </tr>
+            </table>
+            <div class="double-divider"></div>
+            <div class="center" style="font-size: 11px; margin-top: 15px;">SMART-POS BY UNIPROSG</div>
           </body>
         </html>
       `;
 
-      if (Platform.OS === 'web') {
-        const frame = document.createElement("iframe");
-        frame.style.display = "none";
-        document.body.appendChild(frame);
-        frame.contentWindow?.document.open();
-        frame.contentWindow?.document.write(html);
-        frame.contentWindow?.document.close();
-        setTimeout(() => {
-          frame.contentWindow?.print();
-          document.body.removeChild(frame);
-        }, 500);
-      } else {
-        const { uri } = await Print.printToFileAsync({ html });
-        if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(uri);
+      // 3. Attempt silent IP printing first if IP is reachable
+      let printedToHardware = false;
+      const isIp = cashierIp && /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(cashierIp.trim());
+      if (isIp && Platform.OS !== 'web') {
+        try {
+          // Check if IP reachable
+          const ipReachable = await checkIpReachable(cashierIp.trim());
+
+          if (ipReachable) {
+            // Generate ESC/POS payload
+            const formatTwoCols48 = (left: string, right: string) => {
+              const cleanLeft = left.replace(/<[^>]*>/g, "");
+              const cleanRight = right.replace(/<[^>]*>/g, "");
+              const spaceCount = 48 - cleanLeft.length - cleanRight.length;
+              return spaceCount > 0 ? `${left}${" ".repeat(spaceCount)}${right}\n` : `${left}\n${right.padStart(48, " ")}\n`;
+            };
+
+            let text = "[C]================================================\n";
+            text += "[C]<font size='big'><B>SETTLEMENT REPORT</B></font>\n";
+            text += "[C]================================================\n";
+            text += `[C]Period: ${fromDateStr} to ${toDateStr}\n`;
+            if (selectedTerminal !== "ALL") text += `[C]Terminal: ${selectedTerminal}\n`;
+            text += `[C]Generated: ${new Date().toLocaleTimeString()}\n`;
+            text += "[C]------------------------------------------------\n\n";
+
+            text += "[L]<B>REVENUE SUMMARY</B>\n";
+            text += "[L]------------------------------------------------\n";
+            text += formatTwoCols48("Gross Sales (" + (totalSales.InvoiceCount || 0) + "):", formatCurrency(totalSales.SubTotal));
+            text += formatTwoCols48("Total Discount:", "-" + formatCurrency(totalSales.DiscountAmount));
+            text += formatTwoCols48("Service Charge:", formatCurrency(totalSales.ServiceCharge));
+            text += formatTwoCols48("Tax Collected (GST):", formatCurrency(totalSales.TotalTax));
+            text += formatTwoCols48("Rounding & Excess:", formatCurrency(totalSales.RoundedBy));
+            text += formatTwoCols48("Tips:", formatCurrency(totalSales.Tips));
+            text += "[L]------------------------------------------------\n";
+            text += formatTwoCols48("<B>Net Sales:</B>", "<B>" + formatCurrency(netSales) + "</B>");
+            text += "[L]------------------------------------------------\n\n";
+
+            text += "[L]<B>PAYMENT BREAKDOWN</B>\n";
+            text += "[L]------------------------------------------------\n";
+            text += formatTwoCols48("Opening Balance:", formatCurrency(displayOpeningAmount));
+            payments.forEach(p => {
+              text += formatTwoCols48(p.PaymodeName + ":", formatCurrency(p.Amount));
+            });
+            transactions.forEach(t => {
+              const sign = t.TransactionType === "IN" ? "" : "-";
+              text += formatTwoCols48(t.TransactionMode + " (" + t.TransactionType + "):", sign + formatCurrency(t.Amount));
+            });
+            cashOutEntries.forEach(co => {
+              text += formatTwoCols48((co.Reason || "Cash Out") + ":", "-" + formatCurrency(co.Amount));
+            });
+            text += "[L]------------------------------------------------\n";
+            text += formatTwoCols48("<B>Total Collected (In):</B>", "<B>" + formatCurrency(totalCashIn) + "</B>");
+            text += formatTwoCols48("<B>Total Withdrawn (Out):</B>", "<B>-" + formatCurrency(totalCashOutSum) + "</B>");
+            text += "[L]------------------------------------------------\n";
+            text += formatTwoCols48("<font size='big'><B>Net Total in Drawer:</B></font>", "<font size='big'><B>" + formatCurrency(totalCashIn - totalCashOutSum) + "</B></font>");
+            text += "[C]================================================\n";
+            text += "[C]SMART-POS BY UNIPROSG\n\n\n\n";
+
+            const ThermalPrinter = require("react-native-thermal-printer").default;
+            await ThermalPrinter.printTcp({
+              ip: cashierIp.trim(),
+              port: 9100,
+              payload: text,
+              mmFeedPaper: 60,
+            });
+            printedToHardware = true;
+          }
+        } catch (printErr) {
+          console.warn("Direct IP print failed, fallback to system printing:", printErr);
+        }
+      }
+
+      // 4. Try Sunmi direct print if Sunmi is detected
+      if (!printedToHardware && Platform.OS === 'android') {
+        try {
+          const SunmiPrinterService = require("../../components/SunmiPrinterService").default;
+          const sunmiReady = await SunmiPrinterService.init();
+          if (sunmiReady) {
+            const SunmiModule = require("sunmi-printer-expo");
+            await SunmiModule.initPrinter();
+            await SunmiModule.lineWrap(1);
+            await SunmiModule.printText("================================\n");
+            
+            if (SunmiModule.setFontSize) await SunmiModule.setFontSize(32);
+            await SunmiModule.printText("  SETTLEMENT REPORT\n");
+            if (SunmiModule.setFontSize) await SunmiModule.setFontSize(24);
+            await SunmiModule.printText("================================\n");
+            
+            await SunmiModule.printText(`Period: ${fromDateStr} to ${toDateStr}\n`);
+            if (selectedTerminal !== "ALL") await SunmiModule.printText(`Terminal: ${selectedTerminal}\n`);
+            await SunmiModule.printText(`Generated: ${new Date().toLocaleTimeString()}\n`);
+            await SunmiModule.printText("--------------------------------\n");
+
+            const formatTwoCols32 = (left: string, right: string) => {
+              const spaceCount = 32 - left.length - right.length;
+              return spaceCount > 0 ? `${left}${" ".repeat(spaceCount)}${right}\n` : `${left}\n${right.padStart(32, " ")}\n`;
+            };
+
+            await SunmiModule.printText("REVENUE SUMMARY\n");
+            await SunmiModule.printText("--------------------------------\n");
+            await SunmiModule.printText(formatTwoCols32("Gross Sales (" + (totalSales.InvoiceCount || 0) + "):", formatCurrency(totalSales.SubTotal)));
+            await SunmiModule.printText(formatTwoCols32("Total Discount:", "-" + formatCurrency(totalSales.DiscountAmount)));
+            await SunmiModule.printText(formatTwoCols32("Service Charge:", formatCurrency(totalSales.ServiceCharge)));
+            await SunmiModule.printText(formatTwoCols32("Tax Collected (GST):", formatCurrency(totalSales.TotalTax)));
+            await SunmiModule.printText(formatTwoCols32("Rounding & Excess:", formatCurrency(totalSales.RoundedBy)));
+            await SunmiModule.printText(formatTwoCols32("Tips:", formatCurrency(totalSales.Tips)));
+            await SunmiModule.printText("--------------------------------\n");
+            await SunmiModule.printText(formatTwoCols32("Net Sales:", formatCurrency(netSales)));
+            await SunmiModule.printText("--------------------------------\n\n");
+
+            await SunmiModule.printText("PAYMENT BREAKDOWN\n");
+            await SunmiModule.printText("--------------------------------\n");
+            await SunmiModule.printText(formatTwoCols32("Opening Balance:", formatCurrency(displayOpeningAmount)));
+            for (const p of payments) {
+              await SunmiModule.printText(formatTwoCols32(p.PaymodeName + ":", formatCurrency(p.Amount)));
+            }
+            for (const t of transactions) {
+              const sign = t.TransactionType === "IN" ? "" : "-";
+              await SunmiModule.printText(formatTwoCols32(t.TransactionMode + " (" + t.TransactionType + "):", sign + formatCurrency(t.Amount)));
+            }
+            for (const co of cashOutEntries) {
+              await SunmiModule.printText(formatTwoCols32((co.Reason || "Cash Out") + ":", "-" + formatCurrency(co.Amount)));
+            }
+            await SunmiModule.printText("--------------------------------\n");
+            await SunmiModule.printText(formatTwoCols32("Total Collected (In):", formatCurrency(totalCashIn)));
+            await SunmiModule.printText(formatTwoCols32("Total Withdrawn (Out):", "-" + formatCurrency(totalCashOutSum)));
+            await SunmiModule.printText("--------------------------------\n");
+            if (SunmiModule.setFontSize) await SunmiModule.setFontSize(28);
+            await SunmiModule.printText(formatTwoCols32("Net in Drawer:", formatCurrency(totalCashIn - totalCashOutSum)));
+            if (SunmiModule.setFontSize) await SunmiModule.setFontSize(24);
+            await SunmiModule.printText("================================\n");
+            await SunmiModule.printText("     SMART-POS BY UNIPROSG\n");
+            await SunmiModule.lineWrap(3);
+            await SunmiModule.cutPaper();
+            printedToHardware = true;
+          }
+        } catch (sunmiErr) {
+          console.warn("Sunmi direct print failed, fallback to system printing:", sunmiErr);
+        }
+      }
+
+      // 5. Fallback/Standard option: Show PDF Preview or system print aligned to 80mm
+      if (!printedToHardware) {
+        if (Platform.OS === 'web') {
+          const frame = document.createElement("iframe");
+          frame.style.display = "none";
+          document.body.appendChild(frame);
+          frame.contentWindow?.document.open();
+          frame.contentWindow?.document.write(html);
+          frame.contentWindow?.document.close();
+          setTimeout(() => {
+            frame.contentWindow?.focus();
+            frame.contentWindow?.print();
+            document.body.removeChild(frame);
+          }, 500);
+        } else {
+          // mobile PDF fallback / system print with 80mm width config
+          await Print.printAsync({
+            html,
+            width: 226, // 80mm approximate width in points
+          });
         }
       }
     } catch (err) {
@@ -1200,6 +1495,36 @@ export default function SettlementScreen() {
                 <Text style={{ fontFamily: Fonts.black, fontSize: 24, color: Theme.primary, marginTop: 5 }}>{formatCurrency(sysCash)}</Text>
               </View> */}
 
+           <TouchableOpacity
+  style={[
+    styles.card,
+    {
+      flex: 1,
+      padding: 15,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "#F3F4F6",
+      borderColor: "#D1D5DB",
+      borderWidth: 1,
+    },
+  ]}
+  onPress={() => setShowCashBoxModal(true)}
+>
+  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+    <Ionicons name="cube-outline" size={16} color="#374151" />
+    <Text
+      style={{
+        fontFamily: Fonts.bold,
+        color: "#7f97be",
+        fontSize: 12,
+      }}
+    >
+      Cash Box
+    </Text>
+  </View>
+  <Text style={{ fontFamily: Fonts.black, fontSize: 24, color: '#374151', marginTop: 5 }}>{formatCurrency(cashBoxTotal)}</Text>
+</TouchableOpacity>
+
               <View style={[styles.card, { flex: 1, padding: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F0FDF4', borderColor: '#BBF7D0', borderWidth: 1 }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Ionicons name="trending-up-outline" size={16} color="#10B981" />
@@ -1222,6 +1547,7 @@ export default function SettlementScreen() {
                 <Text style={{ fontFamily: Fonts.black, fontSize: 24, color: '#C2410C', marginTop: 5 }}>{formatCurrency(totalClosing)}</Text>
               </TouchableOpacity>
             </View>
+            
 
             <View style={[styles.grid, isTablet && styles.gridTablet]}>
               {/* === SUMMARY === */}
@@ -1409,6 +1735,14 @@ export default function SettlementScreen() {
                   </Text>
                   <Text style={{ flex: 1, textAlign: "right", fontFamily: Fonts.black, fontSize: 14, color: Theme.danger }}>
                     {formatCurrency(totalCashOutSum)}
+                  </Text>
+                </View>
+                <View style={{ flexDirection: "row", paddingVertical: 10, paddingHorizontal: 12, backgroundColor: "#F9FAFB", borderTopWidth: 1, borderTopColor: "#E5E7EB", alignItems: "center" }}>
+                  <View style={{ flex: 2, alignItems: 'flex-end', paddingRight: 15 }}>
+                    <Text style={{ fontFamily: Fonts.black, fontSize: 13, color: Theme.textSecondary }}>NET AMOUNT</Text>
+                  </View>
+                  <Text style={{ flex: 2, textAlign: "right", fontFamily: Fonts.black, fontSize: 14, color: (totalCashIn - totalCashOutSum) >= 0 ? Theme.success : Theme.danger }}>
+                    {formatCurrency(totalCashIn - totalCashOutSum)}
                   </Text>
                 </View>
               </View>
@@ -1636,6 +1970,190 @@ export default function SettlementScreen() {
           </View>
         </View>
       </Modal>
+      <Modal
+  visible={showCashBoxModal}
+  transparent
+  animationType="fade"
+  onRequestClose={() => setShowCashBoxModal(false)}
+>
+  <View style={styles.modalOverlay}>
+    <TouchableOpacity
+      style={StyleSheet.absoluteFill}
+      activeOpacity={1}
+      onPress={() => setShowCashBoxModal(false)}
+    />
+
+    <View style={[styles.modalContent, { maxWidth: 600, width: "90%" }]}>
+      <View style={styles.modalHeader}>
+        <Text style={styles.modalTitle}>Cash Box</Text>
+
+        <TouchableOpacity
+          onPress={() => setShowCashBoxModal(false)}
+          style={styles.modalCloseBtn}
+        >
+          <Ionicons name="close" size={20} color={Theme.textPrimary} />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.modalDivider} />
+
+      <View style={{ marginBottom: 16 }}>
+        <Text
+          style={{
+            fontFamily: Fonts.bold,
+            fontSize: 13,
+            marginBottom: 6,
+            color: Theme.textSecondary,
+          }}
+        >
+          Artist Name *
+        </Text>
+        <TouchableOpacity
+          style={[styles.premiumInput, { justifyContent: 'center' }]}
+          onPress={() => setShowDishLov(true)}
+        >
+          <Text style={{ fontFamily: Fonts.medium, color: cashBoxForm.ArtistName ? Theme.textPrimary : Theme.textMuted }}>
+            {cashBoxForm.ArtistName || "Select Artist"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={{ flexDirection: "row", gap: 15, marginBottom: 16 }}>
+        <View style={{ flex: 1 }}>
+          <Text
+            style={{
+              fontFamily: Fonts.bold,
+              fontSize: 13,
+              marginBottom: 6,
+              color: Theme.textSecondary,
+            }}
+          >
+            Amount *
+          </Text>
+
+          <TextInput
+            style={[styles.premiumInput, { textAlign: "right", fontSize: 18 }]}
+            keyboardType="numeric"
+            value={cashBoxForm.Amount}
+            onChangeText={(v) =>
+              setCashBoxForm({ ...cashBoxForm, Amount: v })
+            }
+            placeholder="0.00"
+          />
+        </View>
+      </View>
+
+      <TouchableOpacity
+        style={styles.confirmBtn}
+        onPress={handleSaveCashBox}
+      >
+        <Text style={styles.confirmBtnText}>Save</Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+</Modal>
+
+<Modal
+  visible={showDishLov}
+  transparent
+  animationType="fade"
+  onRequestClose={() => {
+    setShowDishLov(false);
+    setArtistSearch("");
+  }}
+>
+  <View style={styles.modalOverlay}>
+    <TouchableOpacity
+      style={StyleSheet.absoluteFill}
+      activeOpacity={1}
+      onPress={() => {
+        setShowDishLov(false);
+        setArtistSearch("");
+      }}
+    />
+    <View style={[styles.modalContent, { maxWidth: 450, width: "90%", padding: 0, overflow: 'hidden' }]}>
+      <View style={[styles.modalHeader, { padding: 16, backgroundColor: Theme.bgCard }]}>
+        <Text style={styles.modalTitle}>Select Artist</Text>
+        <TouchableOpacity
+          onPress={() => {
+            setShowDishLov(false);
+            setArtistSearch("");
+          }}
+          style={styles.modalCloseBtn}
+        >
+          <Ionicons name="close" size={20} color={Theme.textPrimary} />
+        </TouchableOpacity>
+      </View>
+      
+      <View style={{ paddingHorizontal: 16, paddingBottom: 12, backgroundColor: Theme.bgCard, borderBottomWidth: 1, borderBottomColor: Theme.border }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Theme.bgInput, borderRadius: 8, paddingHorizontal: 12, height: 40, borderWidth: 1, borderColor: Theme.border }}>
+          <Ionicons name="search-outline" size={18} color={Theme.textMuted} />
+          <TextInput
+            style={{ flex: 1, marginLeft: 8, fontFamily: Fonts.medium, fontSize: 14, color: Theme.textPrimary, outlineStyle: 'none' } as any}
+            placeholder="Search artist..."
+            placeholderTextColor={Theme.textMuted}
+            value={artistSearch}
+            onChangeText={setArtistSearch}
+          />
+          {artistSearch.length > 0 && (
+            <TouchableOpacity onPress={() => setArtistSearch("")}>
+              <Ionicons name="close-circle" size={16} color={Theme.textMuted} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      <ScrollView style={{ maxHeight: 350, backgroundColor: Theme.bgMain }}>
+        {dishList.filter(item => item.Name.toLowerCase().includes(artistSearch.toLowerCase())).length > 0 ? (
+          dishList.filter(item => item.Name.toLowerCase().includes(artistSearch.toLowerCase())).map((item, index) => {
+            const isSelected = cashBoxForm.ArtistName === item.Name;
+            return (
+              <TouchableOpacity
+                key={index}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  paddingVertical: 14,
+                  paddingHorizontal: 20,
+                  backgroundColor: isSelected ? Theme.primaryLight : Theme.bgCard,
+                  borderBottomWidth: 1,
+                  borderBottomColor: Theme.border,
+                }}
+                onPress={() => {
+                  setCashBoxForm({
+                    ...cashBoxForm,
+                    ArtistName: item.Name,
+                  });
+                  setShowDishLov(false);
+                  setArtistSearch("");
+                }}
+              >
+                <Text style={{ 
+                  fontFamily: isSelected ? Fonts.bold : Fonts.medium,
+                  fontSize: 14,
+                  color: isSelected ? Theme.primary : Theme.textPrimary 
+                }}>
+                  {item.Name}
+                </Text>
+                {isSelected && (
+                  <Ionicons name="checkmark-circle" size={20} color={Theme.primary} />
+                )}
+              </TouchableOpacity>
+            );
+          })
+        ) : (
+          <View style={{ padding: 30, alignItems: 'center' }}>
+            <Ionicons name="search-outline" size={32} color={Theme.border} style={{ marginBottom: 10 }} />
+            <Text style={{ fontFamily: Fonts.medium, color: Theme.textMuted, fontSize: 14 }}>
+              No artists found matching "{artistSearch}"
+            </Text>
+          </View>
+        )}
+      </ScrollView>
+    </View>
+  </View>
+</Modal>
 
     </View>
   );

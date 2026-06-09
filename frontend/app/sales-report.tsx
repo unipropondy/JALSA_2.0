@@ -1883,6 +1883,24 @@ export default function SalesReport() {
             Item Sales Report
           </Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => {
+            if (Platform.OS !== "web") {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }
+            router.push("/menu/artist-target");
+          }}
+          style={styles.reportSwitchBtn}
+        >
+          <Ionicons
+            name="ribbon-outline"
+            size={16}
+            color={Theme.primary}
+          />
+          <Text style={styles.reportSwitchText}>
+            Artist Target
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {renderDetailReport()}

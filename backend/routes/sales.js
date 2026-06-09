@@ -1442,7 +1442,7 @@ router.post("/save", async (req, res) => {
             .input("DishId", sql.UniqueIdentifier, dishId)
             .input("DishName", sql.NVarChar(255), item.dish_name || item.name || "")
             .query(`
-              SELECT TOP 1 d.DishId, d.DishGroupId, dg.CategoryId, cm.CategoryName, dg.DishGroupName
+              SELECT TOP 1 d.DishId, d.DishGroupId, dg.CategoryId, cm.CategoryName, dg.DishGroupName, d.Name as Name, ISNULL(d.IsSplitDish, 0) as IsSplitDish
               FROM DishMaster d
               LEFT JOIN DishGroupMaster dg ON d.DishGroupId = dg.DishGroupId
               LEFT JOIN CategoryMaster cm ON dg.CategoryId = cm.CategoryId
@@ -1475,6 +1475,22 @@ router.post("/save", async (req, res) => {
               INSERT INTO SettlementItemDetail (SettlementID, DishId, DishGroupId, SubCategoryId, CategoryId, DishName, SongName, Qty, Price, OrderDateTime, CategoryName, SubCategoryName, DiscountAmount, DiscountType, Status, Spicy, Salt, Oil, Sugar, OrderDetailId)
               VALUES (@SettlementID, @DishId, @DishGroupId, @SubCategoryId, @CategoryId, @DishName, @SongName, @Qty, @Price, @OrderDateTime, @CategoryName, @SubCategoryName, @ItemDiscountAmount, @ItemDiscountType, @Status, @Spicy, @Salt, @Oil, @Sugar, @OrderDetailId)
             `);
+
+          // If this is a split dish (artist), insert a sales record in dishOrderItemShare
+          if (meta.IsSplitDish === 1 || meta.IsSplitDish === true) {
+            const shareId = crypto.randomUUID();
+            const lineTotal = (item.price || 0) * (item.qty || 1);
+            await transaction.request()
+              .input("shareId", sql.UniqueIdentifier, shareId)
+              .input("artistName", sql.NVarChar(255), meta.Name || item.dish_name || item.name || "Unknown")
+              .input("amount", sql.Decimal(18, 2), lineTotal)
+              .input("dishId", sql.UniqueIdentifier, toGuidOrNull(meta.DishId || dishId))
+              .input("orderDetailId", sql.UniqueIdentifier, toGuidOrNull(item.lineItemId))
+              .query(`
+                INSERT INTO dishOrderItemShare (Id, CustomerName, IsSelected, CreatedDate, Amount, FromDate, ToDate, DishId, OrderDishId, TargetAmount)
+                VALUES (@shareId, @artistName, 1, GETDATE(), @amount, NULL, NULL, @dishId, @orderDetailId, NULL)
+              `);
+          }
         }
       }
  
@@ -1914,11 +1930,11 @@ router.post("/save", async (req, res) => {
             
           await transaction.request()
             .input("tid", sql.NVarChar(128), cleanTableId)
-            .query("UPDATE [dbo].[TableMaster] SET Status = 0, entry_status = NULL, TotalAmount = 0, StartTime = NULL, CurrentOrderId = NULL WHERE TableId = @tid");
+            .query("UPDATE [dbo].[TableMaster] SET Status = 0, entry_status = NULL, TotalAmount = 0, StartTime = NULL, CurrentOrderId = NULL, CustomerName = NULL, Pax = NULL WHERE TableId = @tid");
 
           const io = req.app.get("io");
           if (io) {
-            io.emit("table_status_updated", { tableId: cleanTableId.toLowerCase(), status: 0, totalAmount: 0 });
+            io.emit("table_status_updated", { tableId: cleanTableId.toLowerCase(), status: 0, totalAmount: 0, customerName: null, pax: null });
             io.emit("cart_updated", { tableId: cleanTableId.toLowerCase() });
             io.emit("order_closed", { tableId: cleanTableId.toLowerCase(), tableNo: tableNo, orderId: displayOrderId });
           }
@@ -1949,7 +1965,7 @@ router.post("/save", async (req, res) => {
 
                 await transaction.request()
                   .input("tid", sql.NVarChar(128), childTableId)
-                  .query("UPDATE [dbo].[TableMaster] SET Status = 0, entry_status = NULL, TotalAmount = 0, StartTime = NULL, CurrentOrderId = NULL WHERE TableId = @tid");
+                  .query("UPDATE [dbo].[TableMaster] SET Status = 0, entry_status = NULL, TotalAmount = 0, StartTime = NULL, CurrentOrderId = NULL, CustomerName = NULL, Pax = NULL WHERE TableId = @tid");
 
                 if (io) {
                   io.emit("table_status_updated", { 
@@ -2124,119 +2140,33 @@ router.get("/consolidated-report/pdf", async (req, res) => {
     }
 
     const filter = normalizeReportFilter(req.query.filter || 'daily');
-    const date = req.query.date;
-    const dateWhereClause = await getReportDateWhereSql(filter, "sh.LastSettlementDate", date);
-    const ptdWhereClause = await getReportDateWhereSql(filter, "ptd.CreatedDate", date);
+    
+    // Resolve start and end dates relative to target date (or today in SGT)
+    const targetDateStr = req.query.date || new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Singapore' });
+    const targetDate = new Date(targetDateStr);
+    let startDateStr = targetDateStr;
+    let endDateStr = targetDateStr;
 
-    // Fetch total member collections within range
-    const collectionResult = await pool.request().query(`
-      SELECT ISNULL(SUM(ptd.Amount), 0) as TotalCollected
-      FROM PaymentTransactionDetails ptd
-      WHERE ptd.ReferenceType = 'MEMBER'
-        AND ${ptdWhereClause}
-    `);
-    const memberPaymentsCollected = collectionResult.recordset[0]?.TotalCollected || 0;
-
-    // Aggregate all settlement data
-    const aggregateResult = await pool.request().query(`
-      SELECT
-        COUNT(DISTINCT sh.SettlementID) as totalOrders,
-        SUM(CAST(ISNULL(sid.Qty, 0) AS DECIMAL(18,2))) as totalItems,
-        SUM(CAST(ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0) AS DECIMAL(18,2))) as netSales,
-        SUM(CAST(ISNULL(sh.ServiceCharge, 0) AS DECIMAL(18,2))) as serviceCharge,
-        SUM(CAST(ISNULL(sts.GSTAmount, 0) AS DECIMAL(18,2))) as taxCollected,
-        SUM(CAST(ISNULL(sh.RoundedBy, 0) AS DECIMAL(18,2))) as roundedBy,
-        SUM(CAST(ISNULL(sts.SysAmount, 0) AS DECIMAL(18,2))) as totalSales,
-        SUM(CAST(ISNULL(sh.VoidItemQty, 0) AS INT)) as voidQty,
-        SUM(CAST(ISNULL(sh.VoidItemAmount, 0) AS DECIMAL(18,2))) as voidAmount,
-        ISNULL(SUM(CAST(ISNULL(sts.DiscountAmount, 0) AS DECIMAL(18,2))), 0) as totalDiscount
-      FROM SettlementHeader sh
-      LEFT JOIN SettlementItemDetail sid ON sh.SettlementID = sid.SettlementID
-      LEFT JOIN SettlementTotalSales sts ON sh.SettlementID = sts.SettlementID
-      WHERE ${dateWhereClause}
-    `);
-
-    const aggregateData = aggregateResult.recordset[0] || {};
-
-    // Get payment breakdown
-    const paymentResult = await pool.request().query(`
-      SELECT
-        ${normalizeReportPayModeSql("sts.PayMode")} as PayMode,
-        SUM(CAST(ISNULL(sts.SysAmount, 0) AS DECIMAL(18,2))) as Amount
-      FROM SettlementHeader sh
-      LEFT JOIN SettlementTotalSales sts ON sh.SettlementID = sts.SettlementID
-      WHERE ${dateWhereClause}
-      GROUP BY ${normalizeReportPayModeSql("sts.PayMode")}
-    `);
-
-    const paymentBreakdown = {};
-    if (paymentResult.recordset && paymentResult.recordset.length > 0) {
-      paymentResult.recordset.forEach(row => {
-        const payMode = String(row.PayMode || 'CASH').trim().toUpperCase();
-        paymentBreakdown[payMode] = Number(row.Amount || 0);
-      });
-    }
-
-    // Calculate total revenue
-    const totalRevenue = 
-      Number(aggregateData.netSales || 0) + 
-      Number(aggregateData.serviceCharge || 0) + 
-      Number(aggregateData.taxCollected || 0) + 
-      Number(aggregateData.roundedBy || 0);
-
-    // Format period string
-    let periodStr = '';
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayStr = today.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-
-    if (filter === 'daily') {
-      periodStr = todayStr;
-    } else if (filter === 'weekly') {
-      const weekStart = new Date(today);
-      weekStart.setDate(weekStart.getDate() - 6);
-      const weekStartStr = weekStart.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-      periodStr = `${weekStartStr} to ${todayStr}`;
+    if (filter === 'weekly') {
+      const start = new Date(targetDate);
+      start.setDate(start.getDate() - 6);
+      startDateStr = start.toLocaleDateString('sv-SE', { timeZone: 'Asia/Singapore' });
     } else if (filter === 'monthly') {
-      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-      const monthStartStr = monthStart.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-      periodStr = `${monthStartStr} to ${todayStr}`;
+      const start = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
+      startDateStr = start.toLocaleDateString('sv-SE', { timeZone: 'Asia/Singapore' });
     } else if (filter === 'yearly') {
-      const yearStart = new Date(today.getFullYear(), 0, 1);
-      const yearStartStr = yearStart.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-      periodStr = `${yearStartStr} to ${todayStr}`;
+      const start = new Date(targetDate.getFullYear(), 0, 1);
+      startDateStr = start.toLocaleDateString('sv-SE', { timeZone: 'Asia/Singapore' });
     }
 
-    // Prepare report data for PDF generation
-    const companySettings = await getCompanySettings();
-    const reportData = {
-      companyName: companySettings?.CompanyName || 'AL-HAZIMA RESTAURANT PTE LTD',
-      companyAddress: companySettings?.Address || 'No 6 Chiming Glen Rasta Road, SINGAPORE 589729',
-      companyPhone: companySettings?.Phone || '+65 6840000',
-      period: periodStr,
-      netSales: Number(aggregateData.netSales || 0),
-      serviceCharge: Number(aggregateData.serviceCharge || 0),
-      taxCollected: Number(aggregateData.taxCollected || 0),
-      roundedBy: Number(aggregateData.roundedBy || 0),
-      totalRevenue: totalRevenue,
-      totalSales: Number(aggregateData.totalSales || 0),
-      totalOrders: Number(aggregateData.totalOrders || 0),
-      totalItems: Number(aggregateData.totalItems || 0),
-      voidQty: Number(aggregateData.voidQty || 0),
-      voidAmount: Number(aggregateData.voidAmount || 0),
-      totalDiscount: Number(aggregateData.totalDiscount || 0),
-      paymentBreakdown: paymentBreakdown,
-      currencySymbol: '$',
-      memberPaymentsCollected: Number(memberPaymentsCollected),
-      totalCollections: Number(aggregateData.totalSales || 0) + Number(memberPaymentsCollected)
-    };
+    const { fetchFullReportData } = require('../utils/reportDataFetcher');
+    const reportData = await fetchFullReportData(startDateStr, endDateStr, pool);
 
-    // Use the new PDF generator
     const { generateSalesReportPdf, createPdfBinary } = require('../utils/pdfReportGenerator');
     const docDef = generateSalesReportPdf(reportData);
     const pdfBuffer = await createPdfBinary(docDef);
 
-    const filename = `Consolidated_Sales_Report_${filter}_${new Date().toISOString().split('T')[0]}.pdf`;
+    const filename = `Consolidated_Sales_Report_${filter}_${startDateStr}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(pdfBuffer);
