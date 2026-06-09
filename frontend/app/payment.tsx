@@ -128,7 +128,7 @@ export default function PaymentScreen() {
 
   const remarksParam = (params.remarks as string) || "Credit payment collection via POS checkout";
 
-  const isFocused = useIsFocused() && pathname === "/payment";
+  const isFocused = useIsFocused() && pathname.includes("/payment");
   const pathnameRef = React.useRef(pathname);
   pathnameRef.current = pathname;
   const closeActiveOrder = useActiveOrdersStore((s) => s.closeActiveOrder);
@@ -872,7 +872,7 @@ export default function PaymentScreen() {
       if (match && match[1]) {
         const host = match[1];
         if (host.includes('railway') || host.includes('production')) {
-          return 'http://localhost:8081/customer-display';
+          return 'https://jalsa20-production.up.railway.app/customer-display';
         }
         return `http://${host}:8081/customer-display`;
       }
