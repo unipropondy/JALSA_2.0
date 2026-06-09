@@ -340,7 +340,7 @@ async function fetchFullReportData(startDateStr, endDateStr, pool) {
     memberPaymentsCollected,
     totalOrders,
     totalItems,
-    voidQty,
+    voidQty: totalVoids,
     voidAmount: totalVoidAmount,
     cancelledCount,
     cancelledAmount,
