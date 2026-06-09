@@ -499,7 +499,7 @@ export default function AIChatScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/category')}>
           <Ionicons name="arrow-back" size={24} color={Theme.textPrimary} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
@@ -578,30 +578,6 @@ export default function AIChatScreen() {
               ))}
             </ScrollView>
           )}
-        </View>
-
-        {/* Chat Input Bar */}
-        <View style={[styles.inputBar, isMobile && { padding: 8, gap: 6 }]}>
-          <TextInput
-            style={[styles.input, isMobile && { height: 36, paddingHorizontal: 12, fontSize: 12 }]}
-            placeholder="Ask AI Analytics..."
-            placeholderTextColor={Theme.textSecondary}
-            value={inputText}
-            onChangeText={setInputText}
-            onSubmitEditing={() => handleSendMessage(inputText)}
-            returnKeyType="send"
-          />
-          <TouchableOpacity
-            style={[
-              styles.sendBtn,
-              isMobile && { width: 36, height: 36 },
-              !inputText.trim() && styles.sendBtnDisabled,
-            ]}
-            onPress={() => handleSendMessage(inputText)}
-            disabled={!inputText.trim()}
-          >
-            <Ionicons name="send" size={isMobile ? 14 : 18} color="#fff" />
-          </TouchableOpacity>
         </View>
 
       </KeyboardAvoidingView>

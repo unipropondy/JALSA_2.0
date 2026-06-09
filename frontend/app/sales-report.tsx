@@ -3982,8 +3982,8 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   amountCell: {
-    width: 100,
-    textAlign: "center",
+    width: 130,
+    textAlign: "right",
     flexShrink: 0,
   },
   paymodeCell: {
