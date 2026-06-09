@@ -125,7 +125,7 @@ const generateSalesReportPdf = (reportData) => {
           makeCard('Total Sales', formatVal(totalSales), '#3b82f6'),
           makeCard('Total Collections', formatVal(totalCollections), '#10b981'),
           makeCard('Credit Payments', formatVal(creditPaymentsCollected), '#e11d48'),
-          makeCard('Member Payments', formatVal(memberPaymentsCollected), '#ec4899')
+          makeCard('Member Payments', formatVal((paymentBreakdown.Member || 0) + memberPaymentsCollected), '#ec4899')
         ],
         [
           makeCard('Total Orders', formatVal(totalOrders, false), '#64748b'),
