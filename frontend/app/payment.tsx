@@ -432,7 +432,7 @@ export default function PaymentScreen() {
       CustomerDisplaySync.syncIdle();
     }
     return () => {
-      if (pathnameRef.current !== "/payment_success") {
+      if (!pathnameRef.current.includes("/payment") && pathnameRef.current !== "/payment_success") {
         CustomerDisplaySync.isPaymentActive = false;
         CustomerDisplaySync.syncIdle();
       }
