@@ -37,7 +37,7 @@ import { Theme } from "../constants/theme";
 import { getSingaporeDateString } from "../utils/timezoneHelper";
 
 type FilterType = "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY" | "CUSTOM";
-type DetailReportType = "CATEGORY" | "DISH" | "SETTLEMENT";
+type DetailReportType = "CATEGORY" | "DISH" | "SETTLEMENT" | "ARTIST_TARGET";
 type EmailValidationResult = {
   normalized: string;
   isValid: boolean;
@@ -184,6 +184,7 @@ export default function SalesReport() {
   const [categoryReport, setCategoryReport] = useState<any[]>([]);
   const [dishReport, setDishReport] = useState<any[]>([]);
   const [settlementReport, setSettlementReport] = useState<any[]>([]);
+  const [artistTargetReport, setArtistTargetReport] = useState<any[]>([]);
   const [loadingReport, setLoadingReport] = useState(false);
   const [showPrintPrompt, setShowPrintPrompt] = useState(false);
   const [isReprinting, setIsReprinting] = useState(false);
@@ -308,7 +309,9 @@ export default function SalesReport() {
             ? "category"
             : reportType === "DISH"
               ? "dish"
-              : "settlement";
+              : reportType === "ARTIST_TARGET"
+                ? "artist-target"
+                : "settlement";
         console.log("[SalesReport] Fetching report", {
           reportType,
           filterType: reportFilter,
@@ -343,6 +346,7 @@ export default function SalesReport() {
           );
           setDishReport([]);
           setSettlementReport([]);
+          setArtistTargetReport([]);
         } else if (reportType === "DISH") {
           setDishReport(
             Array.isArray(data)
@@ -360,6 +364,22 @@ export default function SalesReport() {
           );
           setCategoryReport([]);
           setSettlementReport([]);
+          setArtistTargetReport([]);
+        } else if (reportType === "ARTIST_TARGET") {
+          setArtistTargetReport(
+            Array.isArray(data)
+              ? data.map((row: any) => ({
+                CustomerName: row.CustomerName || "Unknown Artist",
+                Amount: row.Amount ?? 0,
+                FromDate: row.FromDate,
+                ToDate: row.ToDate,
+                TargetAmount: row.TargetAmount ?? 0,
+              }))
+              : [],
+          );
+          setCategoryReport([]);
+          setDishReport([]);
+          setSettlementReport([]);
         } else {
           setSettlementReport(
             Array.isArray(data)
@@ -374,12 +394,14 @@ export default function SalesReport() {
           );
           setCategoryReport([]);
           setDishReport([]);
+          setArtistTargetReport([]);
         }
       } catch (error) {
         console.error("Detail report fetch error:", error);
         setCategoryReport([]);
         setDishReport([]);
         setSettlementReport([]);
+        setArtistTargetReport([]);
       } finally {
         setLoadingReport(false);
       }
@@ -1295,11 +1317,14 @@ export default function SalesReport() {
     }
 
     const isSettlement = detailReportType === "SETTLEMENT";
+    const isArtistTarget = detailReportType === "ARTIST_TARGET";
     const rows = isSettlement
       ? settlementReport
-      : detailReportType === "CATEGORY"
-        ? categoryReport
-        : dishReport;
+      : isArtistTarget
+        ? artistTargetReport
+        : detailReportType === "CATEGORY"
+          ? categoryReport
+          : dishReport;
     const isDishReport = detailReportType === "DISH";
 
     return (
@@ -1311,9 +1336,11 @@ export default function SalesReport() {
             <Text style={styles.cardTitle}>
               {isSettlement
                 ? "SETTLEMENT DETAILS REPORT"
-                : isDishReport
-                  ? "ITEM SALES REPORT"
-                  : "CATEGORY SALES REPORT"}
+                : isArtistTarget
+                  ? "ARTIST TARGET REPORT"
+                  : isDishReport
+                    ? "ITEM SALES REPORT"
+                    : "CATEGORY SALES REPORT"}
             </Text>
             <Text style={styles.reportSubText}>
               {rows.length} rows for the selected period
@@ -1324,9 +1351,11 @@ export default function SalesReport() {
               name={
                 isSettlement
                   ? "wallet-outline"
-                  : isDishReport
-                    ? "restaurant-outline"
-                    : "albums-outline"
+                  : isArtistTarget
+                    ? "ribbon-outline"
+                    : isDishReport
+                      ? "restaurant-outline"
+                      : "albums-outline"
               }
               size={18}
               color={Theme.primary}
@@ -1340,6 +1369,7 @@ export default function SalesReport() {
                 setCategoryReport([]);
                 setDishReport([]);
                 setSettlementReport([]);
+                setArtistTargetReport([]);
               }}
               style={styles.reportCloseBtn}
             >
@@ -1387,6 +1417,24 @@ export default function SalesReport() {
                     </Text>
                     <Text style={[styles.reportCell, styles.qtyCell]}>Qty</Text>
                   </>
+                ) : isArtistTarget ? (
+                  <>
+                    <Text style={[styles.reportCell, styles.dishNameCell, { textAlign: "left" }]}>
+                      Artist Name
+                    </Text>
+                    <Text style={[styles.reportCell, styles.paymodeCell, { textAlign: "center" }]}>
+                      From Date
+                    </Text>
+                    <Text style={[styles.reportCell, styles.paymodeCell, { textAlign: "center" }]}>
+                      To Date
+                    </Text>
+                    <Text style={[styles.reportCell, styles.sysAmtCell, { textAlign: "right" }]}>
+                      Target Amount
+                    </Text>
+                    <Text style={[styles.reportCell, styles.sysAmtCell, { textAlign: "right" }]}>
+                      Achieved Amount
+                    </Text>
+                  </>
                 ) : (
                   <>
                     <Text
@@ -1425,6 +1473,79 @@ export default function SalesReport() {
                 )}
               </View>
               {(() => {
+                if (isArtistTarget) {
+                  return rows.slice(0, 100).map((row, idx) => (
+                    <View
+                      key={`artist-target-${idx}`}
+                      style={[
+                        styles.reportTableRow,
+                        idx % 2 === 0 && styles.reportTableRowAlt,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.reportCell,
+                          styles.reportCellText,
+                          styles.snoCell,
+                        ]}
+                      >
+                        {idx + 1}
+                      </Text>
+                      <Text
+                        numberOfLines={1}
+                        style={[
+                          styles.reportCell,
+                          styles.reportCellText,
+                          styles.dishNameCell,
+                          { textAlign: "left" }
+                        ]}
+                      >
+                        {row.CustomerName}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.reportCell,
+                          styles.reportCellText,
+                          styles.paymodeCell,
+                          { textAlign: "center" }
+                        ]}
+                      >
+                        {row.FromDate ? new Date(row.FromDate).toLocaleDateString("en-GB") : "N/A"}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.reportCell,
+                          styles.reportCellText,
+                          styles.paymodeCell,
+                          { textAlign: "center" }
+                        ]}
+                      >
+                        {row.ToDate ? new Date(row.ToDate).toLocaleDateString("en-GB") : "N/A"}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.reportCell,
+                          styles.reportCellText,
+                          styles.sysAmtCell,
+                          { color: Theme.primary, fontWeight: "bold", textAlign: "right" }
+                        ]}
+                      >
+                        {formatCurrency(Number(row.TargetAmount || 0))}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.reportCell,
+                          styles.reportCellText,
+                          styles.sysAmtCell,
+                          { color: Theme.success, fontWeight: "bold", textAlign: "right" }
+                        ]}
+                      >
+                        {formatCurrency(Number(row.Amount || 0))}
+                      </Text>
+                    </View>
+                  ));
+                }
+
                 if (isSettlement || !isDishReport) {
                   return rows.slice(0, 100).map((row, idx) => (
                     <View
@@ -1884,20 +2005,23 @@ export default function SalesReport() {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={() => {
-            if (Platform.OS !== "web") {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            }
-            router.push("/menu/artist-target");
-          }}
-          style={styles.reportSwitchBtn}
+          onPress={() => handleReportPress("ARTIST_TARGET")}
+          style={[
+            styles.reportSwitchBtn,
+            detailReportType === "ARTIST_TARGET" && styles.activeReportSwitchBtn,
+          ]}
         >
           <Ionicons
             name="ribbon-outline"
             size={16}
-            color={Theme.primary}
+            color={detailReportType === "ARTIST_TARGET" ? "#fff" : Theme.primary}
           />
-          <Text style={styles.reportSwitchText}>
+          <Text
+            style={[
+              styles.reportSwitchText,
+              detailReportType === "ARTIST_TARGET" && styles.activeReportSwitchText,
+            ]}
+          >
             Artist Target
           </Text>
         </TouchableOpacity>

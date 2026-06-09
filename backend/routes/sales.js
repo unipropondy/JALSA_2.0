@@ -800,6 +800,28 @@ router.get("/dish", async (req, res) => {
   }
 });
 
+router.get("/artist-target", async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const result = await pool.request().query(`
+      SELECT 
+        Id,
+        CustomerName,
+        Amount,
+        FromDate,
+        ToDate,
+        TargetAmount,
+        CreatedDate
+      FROM dishOrderItemShare
+      ORDER BY CreatedDate DESC, CustomerName ASC
+    `);
+    res.json(result.recordset || []);
+  } catch (err) {
+    console.error("[REPORT API] artist-target error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 5. Get Day End Summary
 router.get("/day-end-summary", async (req, res) => {
   try {
