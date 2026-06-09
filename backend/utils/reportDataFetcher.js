@@ -289,30 +289,113 @@ async function fetchFullReportData(startDateStr, endDateStr, pool) {
   const dishResult = await pool.request().query(dishQuery);
   const itemsList = dishResult.recordset || [];
 
-  // 5. Fetch artist targets and actual sales
   const artistQuery = `
+    -- 1. Create a temp table of computed Entertainment sales
+    CREATE TABLE #TempEntSales (
+      DishId UNIQUEIDENTIFIER,
+      ActualSales DECIMAL(18, 2)
+    );
+
+    DECLARE @fromDate DATE = '${startDateStr}';
+    DECLARE @toDate DATE = '${endDateStr}';
+    DECLARE @sgtStart DATETIME = CAST(@fromDate AS DATETIME);
+    DECLARE @sgtEnd DATETIME = DATEADD(DAY, 1, CAST(@toDate AS DATETIME));
+
+    INSERT INTO #TempEntSales (DishId, ActualSales)
+    SELECT
+      DishId,
+      SUM(totalAmount) as ActualSales
+    FROM (
+      -- App settlements
+      SELECT
+        sid.DishId,
+        SUM(CASE WHEN ISNULL(sid.Status, 'NORMAL') <> 'VOIDED' THEN CAST(ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0) AS decimal(18, 2)) ELSE 0 END) AS totalAmount
+      FROM SettlementHeader sh
+      INNER JOIN SettlementItemDetail sid ON sh.SettlementID = sid.SettlementID
+      WHERE sh.LastSettlementDate >= @sgtStart AND sh.LastSettlementDate < @sgtEnd
+        AND ISNULL(NULLIF(LTRIM(RTRIM(sid.CategoryName)), ''), 'Unmapped') = 'Entertainment'
+      GROUP BY sid.DishId
+
+      UNION ALL
+
+      -- Professional orders
+      SELECT
+        rod.DishId,
+        SUM(CASE WHEN rod.StatusCode <> 0 THEN CAST(ISNULL(rod.TotalDetailLineAmount, 0) AS decimal(18, 2)) ELSE 0 END) AS totalAmount
+      FROM RestaurantOrderDetail rod
+      INNER JOIN RestaurantOrder ro ON rod.OrderId = ro.OrderId
+      LEFT JOIN DishMaster d ON rod.DishId = d.DishId
+      LEFT JOIN DishGroupMaster dg ON d.DishGroupId = dg.DishGroupId
+      LEFT JOIN CategoryMaster cm ON dg.CategoryId = cm.CategoryId
+      WHERE ro.OrderDateTime >= @sgtStart AND ro.OrderDateTime < @sgtEnd
+        AND ISNULL(ro.StatusCode, 0) = 3
+        AND ISNULL(cm.CategoryName, 'Unmapped') = 'Entertainment'
+        AND NOT EXISTS (
+          SELECT 1 FROM SettlementHeader sh_dup 
+          WHERE sh_dup.BillNo = ro.OrderNumber
+        )
+      GROUP BY rod.DishId
+    ) t
+    WHERE DishId IS NOT NULL
+    GROUP BY DishId;
+
+    -- 2. Update existing target records with the computed sales
+    UPDATE target
+    SET target.Amount = ISNULL(sales.ActualSales, 0)
+    FROM dishOrderItemShare target
+    INNER JOIN #TempEntSales sales ON target.DishId = sales.DishId
+    WHERE CAST(target.FromDate as DATE) = @fromDate 
+      AND CAST(target.ToDate as DATE) = @toDate;
+
+    -- Also update target records to 0 if they exist but have no sales in #TempEntSales
+    UPDATE target
+    SET target.Amount = 0
+    FROM dishOrderItemShare target
+    WHERE CAST(target.FromDate as DATE) = @fromDate 
+      AND CAST(target.ToDate as DATE) = @toDate
+      AND target.DishId NOT IN (SELECT DishId FROM #TempEntSales);
+
+    -- 3. Insert new records for artists with sales > 0 but no target record yet
+    INSERT INTO dishOrderItemShare (Id, CustomerName, IsSelected, CreatedDate, Amount, FromDate, ToDate, DishId, OrderDishId, TargetAmount)
+    SELECT 
+      NEWID(),
+      d.Name,
+      1,
+      GETDATE(),
+      sales.ActualSales,
+      @fromDate,
+      @toDate,
+      sales.DishId,
+      NULL,
+      0
+    FROM #TempEntSales sales
+    INNER JOIN DishMaster d ON sales.DishId = d.DishId
+    WHERE sales.ActualSales > 0
+      AND NOT EXISTS (
+        SELECT 1 FROM dishOrderItemShare target
+        WHERE target.DishId = sales.DishId
+          AND CAST(target.FromDate as DATE) = @fromDate
+          AND CAST(target.ToDate as DATE) = @toDate
+      );
+
+    DROP TABLE #TempEntSales;
+
+    -- 4. Select the final list
     SELECT 
       d.Name,
-      ISNULL(sales.ActualSales, 0) as ActualSales,
+      ISNULL(targets.Amount, 0) as ActualSales,
       ISNULL(targets.TargetAmount, 0) as TargetAmount
     FROM DishMaster d
     LEFT JOIN (
-      SELECT DishId, ISNULL(SUM(Amount), 0) as ActualSales
+      SELECT DishId, Amount, TargetAmount
       FROM dishOrderItemShare
-      WHERE CAST(CreatedDate as DATE) BETWEEN CAST('${startDateStr}' AS DATE) AND CAST('${endDateStr}' AS DATE)
-      GROUP BY DishId
-    ) sales ON d.DishId = sales.DishId
-    LEFT JOIN (
-      SELECT DishId, ISNULL(MAX(TargetAmount), 0) as TargetAmount
-      FROM dishOrderItemShare
-      WHERE CAST(FromDate as DATE) = CAST('${startDateStr}' AS DATE) AND CAST(ToDate as DATE) = CAST('${endDateStr}' AS DATE)
-      GROUP BY DishId
+      WHERE CAST(FromDate as DATE) = @fromDate AND CAST(ToDate as DATE) = @toDate
     ) targets ON d.DishId = targets.DishId
     WHERE d.IsActive = 1
       AND d.IsSplitDish = 1
       AND d.IsGroupDish = 0
-      AND (sales.ActualSales > 0 OR targets.TargetAmount > 0)
-    ORDER BY d.Name
+      AND (targets.Amount > 0 OR targets.TargetAmount > 0)
+    ORDER BY d.Name;
   `;
 
   const artistResult = await pool.request().query(artistQuery);
