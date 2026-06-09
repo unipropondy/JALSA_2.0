@@ -965,25 +965,91 @@ router.get('/artist-sales', authenticateToken, async (req, res) => {
   }
 });
 
-// GET all dishOrderItemShare records (raw table view for Artist Target screen)
-router.get('/artist-target-records', authenticateToken, async (req, res) => {
+// GET live artist target dashboard — Entertainment sales exactly matching Item Sales Report
+// joined with TargetAmount from dishOrderItemShare
+router.get('/artist-target-live', authenticateToken, async (req, res) => {
   try {
     const pool = getPool();
-    const result = await pool.request().query(`
-      SELECT 
-        Id,
-        CustomerName,
-        Amount,
-        FromDate,
-        ToDate,
-        TargetAmount,
-        CreatedDate
-      FROM dishOrderItemShare
-      ORDER BY CreatedDate DESC, CustomerName ASC
+    const { fromDate, toDate } = req.query;
+
+    const parsedFrom = fromDate ? new Date(fromDate) : new Date();
+    if (!fromDate) parsedFrom.setHours(0, 0, 0, 0);
+    const parsedTo = toDate ? new Date(toDate) : new Date();
+
+    const request = pool.request();
+    request.input('fromDate', sql.Date, parsedFrom);
+    request.input('toDate', sql.Date, parsedTo);
+
+    const result = await request.query(`
+      DECLARE @sgtStart DATETIME = CAST(@fromDate AS DATETIME);
+      DECLARE @sgtEnd   DATETIME = DATEADD(DAY, 1, CAST(@toDate AS DATETIME));
+
+      -- Live Entertainment sales (same query as Item Sales Report)
+      WITH AppSales AS (
+        SELECT
+          ISNULL(NULLIF(LTRIM(RTRIM(sid.DishName)), ''), ISNULL(d.Name, 'Unknown')) AS ArtistName,
+          SUM(CASE WHEN ISNULL(sid.Status, 'NORMAL') <> 'VOIDED'
+                   THEN CAST(ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0) AS decimal(18,2))
+                   ELSE 0 END) AS totalAmount
+        FROM SettlementHeader sh
+        INNER JOIN SettlementItemDetail sid ON sh.SettlementID = sid.SettlementID
+        LEFT JOIN DishMaster d ON sid.DishId = d.DishId
+        WHERE sh.LastSettlementDate >= @sgtStart
+          AND sh.LastSettlementDate <  @sgtEnd
+          AND ISNULL(NULLIF(LTRIM(RTRIM(sid.CategoryName)), ''), 'Unmapped') = 'Entertainment'
+        GROUP BY ISNULL(NULLIF(LTRIM(RTRIM(sid.DishName)), ''), ISNULL(d.Name, 'Unknown'))
+      ),
+      ProfSales AS (
+        SELECT
+          ISNULL(d.Name, 'Unknown') AS ArtistName,
+          SUM(CASE WHEN rod.StatusCode <> 0
+                   THEN CAST(ISNULL(rod.TotalDetailLineAmount, 0) AS decimal(18,2))
+                   ELSE 0 END) AS totalAmount
+        FROM RestaurantOrderDetail rod
+        INNER JOIN RestaurantOrder ro ON rod.OrderId = ro.OrderId
+        LEFT JOIN DishMaster d ON rod.DishId = d.DishId
+        LEFT JOIN DishGroupMaster dg ON d.DishGroupId = dg.DishGroupId
+        LEFT JOIN CategoryMaster cm ON dg.CategoryId = cm.CategoryId
+        WHERE ro.OrderDateTime >= @sgtStart
+          AND ro.OrderDateTime <  @sgtEnd
+          AND ISNULL(ro.StatusCode, 0) = 3
+          AND ISNULL(cm.CategoryName, 'Unmapped') = 'Entertainment'
+          AND NOT EXISTS (
+            SELECT 1 FROM SettlementHeader sh_dup WHERE sh_dup.BillNo = ro.OrderNumber
+          )
+        GROUP BY ISNULL(d.Name, 'Unknown')
+      ),
+      CombinedSales AS (
+        SELECT ArtistName, SUM(totalAmount) AS ActualSales
+        FROM (
+          SELECT ArtistName, totalAmount FROM AppSales
+          UNION ALL
+          SELECT ArtistName, totalAmount FROM ProfSales
+        ) t
+        GROUP BY ArtistName
+      ),
+      -- Latest TargetAmount per artist name from dishOrderItemShare
+      LatestTargets AS (
+        SELECT
+          CustomerName,
+          MAX(TargetAmount) AS TargetAmount
+        FROM dishOrderItemShare
+        WHERE TargetAmount > 0
+        GROUP BY CustomerName
+      )
+      SELECT
+        s.ArtistName,
+        ISNULL(s.ActualSales, 0)       AS ActualSales,
+        ISNULL(lt.TargetAmount, 0)     AS TargetAmount
+      FROM CombinedSales s
+      LEFT JOIN LatestTargets lt ON lt.CustomerName = s.ArtistName
+      WHERE s.ActualSales > 0
+      ORDER BY s.ActualSales DESC;
     `);
+
     res.json({ success: true, data: result.recordset });
   } catch (err) {
-    console.error('Artist Target Records Error:', err);
+    console.error('Artist Target Live Error:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
