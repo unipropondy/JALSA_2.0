@@ -33,6 +33,8 @@ export interface PaymentSuccessParams {
 }
 
 export const CustomerDisplaySync = {
+  isPaymentActive: false,
+
   syncCart: (params: SyncCartParams) => {
     try {
       const { orderContext, cart, discountInfo, gstPercentage, roundOff, active, orderId, paymentMethod } = params;
@@ -141,6 +143,10 @@ export const CustomerDisplaySync = {
 
   syncIdle: () => {
     try {
+      if (CustomerDisplaySync.isPaymentActive) {
+        console.log("🖥️ [CustomerDisplaySync] syncIdle blocked because payment is active");
+        return;
+      }
       console.log("🖥️ [CustomerDisplaySync] Emitting idle attract loop");
       socket.emit("customer_display_sync", {
         active: false,

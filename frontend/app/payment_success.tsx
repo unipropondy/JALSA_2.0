@@ -65,6 +65,7 @@ export default function PaymentSuccess() {
   }, [orderId, total, paid, change, method]);
 
   React.useEffect(() => {
+    CustomerDisplaySync.isPaymentActive = false;
     // Clear cart and context on success screen mount
     const cleanup = async () => {
       try {

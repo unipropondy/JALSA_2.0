@@ -404,10 +404,15 @@ export default function PaymentScreen() {
 
   // 🖥️ CUSTOMER DISPLAY REAL-TIME SYNC
   useEffect(() => {
+    if (isFocused) {
+      CustomerDisplaySync.isPaymentActive = true;
+    }
+
     if (!isFocused) {
       if (pathname === "/payment_success") {
         return;
       }
+      CustomerDisplaySync.isPaymentActive = false;
       CustomerDisplaySync.syncIdle();
       return;
     }
@@ -428,6 +433,7 @@ export default function PaymentScreen() {
     }
     return () => {
       if (pathnameRef.current !== "/payment_success") {
+        CustomerDisplaySync.isPaymentActive = false;
         CustomerDisplaySync.syncIdle();
       }
     };
