@@ -965,6 +965,29 @@ router.get('/artist-sales', authenticateToken, async (req, res) => {
   }
 });
 
+// GET all dishOrderItemShare records (raw table view for Artist Target screen)
+router.get('/artist-target-records', authenticateToken, async (req, res) => {
+  try {
+    const pool = getPool();
+    const result = await pool.request().query(`
+      SELECT 
+        Id,
+        CustomerName,
+        Amount,
+        FromDate,
+        ToDate,
+        TargetAmount,
+        CreatedDate
+      FROM dishOrderItemShare
+      ORDER BY CreatedDate DESC, CustomerName ASC
+    `);
+    res.json({ success: true, data: result.recordset });
+  } catch (err) {
+    console.error('Artist Target Records Error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // POST to save/upsert artist target in dishOrderItemShare
 router.post('/artist-target', authenticateToken, async (req, res) => {
   try {
