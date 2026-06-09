@@ -1429,10 +1429,7 @@ export default function SalesReport() {
                       To Date
                     </Text>
                     <Text style={[styles.reportCell, styles.sysAmtCell, { textAlign: "right" }]}>
-                      Target Amount
-                    </Text>
-                    <Text style={[styles.reportCell, styles.sysAmtCell, { textAlign: "right" }]}>
-                      Achieved Amount
+                      Target
                     </Text>
                   </>
                 ) : (
@@ -1521,16 +1518,6 @@ export default function SalesReport() {
                         ]}
                       >
                         {row.ToDate ? new Date(row.ToDate).toLocaleDateString("en-GB") : "N/A"}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.reportCell,
-                          styles.reportCellText,
-                          styles.sysAmtCell,
-                          { color: Theme.primary, fontWeight: "bold", textAlign: "right" }
-                        ]}
-                      >
-                        {formatCurrency(Number(row.TargetAmount || 0))}
                       </Text>
                       <Text
                         style={[

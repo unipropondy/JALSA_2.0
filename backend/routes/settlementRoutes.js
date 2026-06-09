@@ -628,18 +628,8 @@ router.post('/artist-cashbox', authenticateToken, async (req, res) => {
       const qty = 1;
       console.log('[CASHBOX] STEP 2 OK - dish:', JSON.stringify(dish), '| qty:', qty, '| price:', price);
 
-      // 2b. Insert sales record into dishOrderItemShare for the artist
+      // 2b. Insert sales record into dishOrderItemShare for the artist - REMOVED per user request
       const crypto = require('crypto');
-      const shareId = crypto.randomUUID();
-      await transaction.request()
-        .input('shareId', sql.UniqueIdentifier, shareId)
-        .input('artistName', sql.VarChar(255), ArtistName)
-        .input('amount', sql.Decimal(18, 2), Amount)
-        .input('dishId', sql.UniqueIdentifier, dish.DishId || null)
-        .query(`
-          INSERT INTO dishOrderItemShare (Id, CustomerName, IsSelected, CreatedDate, Amount, FromDate, ToDate, DishId, OrderDishId, TargetAmount)
-          VALUES (@shareId, @artistName, 1, GETDATE(), @amount, NULL, NULL, @dishId, NULL, NULL)
-        `);
 
       const settlementId = crypto.randomUUID();
       const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -817,124 +807,6 @@ router.get('/artist-sales', authenticateToken, async (req, res) => {
     request.input("toDate", sql.Date, parsedTo);
 
     const result = await request.query(`
-      -- 1. First, sync/update the Amount field for ALL target records in the database based on their own FromDate and ToDate range
-      WITH SalesForTarget AS (
-        SELECT 
-          target.Id,
-          SUM(ISNULL(t.totalAmount, 0)) as ComputedSales
-        FROM dishOrderItemShare target
-        CROSS APPLY (
-          -- App settlements
-          SELECT
-            SUM(CASE WHEN ISNULL(sid.Status, 'NORMAL') <> 'VOIDED' THEN CAST(ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0) AS decimal(18, 2)) ELSE 0 END) AS totalAmount
-          FROM SettlementHeader sh
-          INNER JOIN SettlementItemDetail sid ON sh.SettlementID = sid.SettlementID
-          WHERE sid.DishId = target.DishId
-            AND sh.LastSettlementDate >= CAST(target.FromDate AS DATETIME) 
-            AND sh.LastSettlementDate < DATEADD(DAY, 1, CAST(target.ToDate AS DATETIME))
-            AND ISNULL(NULLIF(LTRIM(RTRIM(sid.CategoryName)), ''), 'Unmapped') = 'Entertainment'
-
-          UNION ALL
-
-          -- Professional orders
-          SELECT
-            SUM(CASE WHEN rod.StatusCode <> 0 THEN CAST(ISNULL(rod.TotalDetailLineAmount, 0) AS decimal(18, 2)) ELSE 0 END) AS totalAmount
-          FROM RestaurantOrderDetail rod
-          INNER JOIN RestaurantOrder ro ON rod.OrderId = ro.OrderId
-          LEFT JOIN DishMaster d ON rod.DishId = d.DishId
-          LEFT JOIN DishGroupMaster dg ON d.DishGroupId = dg.DishGroupId
-          LEFT JOIN CategoryMaster cm ON dg.CategoryId = cm.CategoryId
-          WHERE rod.DishId = target.DishId
-            AND ro.OrderDateTime >= CAST(target.FromDate AS DATETIME)
-            AND ro.OrderDateTime < DATEADD(DAY, 1, CAST(target.ToDate AS DATETIME))
-            AND ISNULL(ro.StatusCode, 0) = 3
-            AND ISNULL(cm.CategoryName, 'Unmapped') = 'Entertainment'
-            AND NOT EXISTS (
-              SELECT 1 FROM SettlementHeader sh_dup 
-              WHERE sh_dup.BillNo = ro.OrderNumber
-            )
-        ) t
-        WHERE target.FromDate IS NOT NULL AND target.ToDate IS NOT NULL
-        GROUP BY target.Id
-      )
-      UPDATE target
-      SET target.Amount = ISNULL(sales.ComputedSales, 0)
-      FROM dishOrderItemShare target
-      INNER JOIN SalesForTarget sales ON target.Id = sales.Id;
-
-      -- 2. Create a temp table of computed Entertainment sales for the CURRENTLY QUERIED period
-      CREATE TABLE #TempEntSalesCurrent (
-        DishId UNIQUEIDENTIFIER,
-        ActualSales DECIMAL(18, 2)
-      );
-
-      DECLARE @sgtStart DATETIME = CAST(@fromDate AS DATETIME);
-      DECLARE @sgtEnd DATETIME = DATEADD(DAY, 1, CAST(@toDate AS DATETIME));
-
-      INSERT INTO #TempEntSalesCurrent (DishId, ActualSales)
-      SELECT
-        DishId,
-        SUM(totalAmount) as ActualSales
-      FROM (
-        -- App settlements
-        SELECT
-          sid.DishId,
-          SUM(CASE WHEN ISNULL(sid.Status, 'NORMAL') <> 'VOIDED' THEN CAST(ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0) AS decimal(18, 2)) ELSE 0 END) AS totalAmount
-        FROM SettlementHeader sh
-        INNER JOIN SettlementItemDetail sid ON sh.SettlementID = sid.SettlementID
-        WHERE sh.LastSettlementDate >= @sgtStart AND sh.LastSettlementDate < @sgtEnd
-          AND ISNULL(NULLIF(LTRIM(RTRIM(sid.CategoryName)), ''), 'Unmapped') = 'Entertainment'
-        GROUP BY sid.DishId
-
-        UNION ALL
-
-        -- Professional orders
-        SELECT
-          rod.DishId,
-          SUM(CASE WHEN rod.StatusCode <> 0 THEN CAST(ISNULL(rod.TotalDetailLineAmount, 0) AS decimal(18, 2)) ELSE 0 END) AS totalAmount
-        FROM RestaurantOrderDetail rod
-        INNER JOIN RestaurantOrder ro ON rod.OrderId = ro.OrderId
-        LEFT JOIN DishMaster d ON rod.DishId = d.DishId
-        LEFT JOIN DishGroupMaster dg ON d.DishGroupId = dg.DishGroupId
-        LEFT JOIN CategoryMaster cm ON dg.CategoryId = cm.CategoryId
-        WHERE ro.OrderDateTime >= @sgtStart AND ro.OrderDateTime < @sgtEnd
-          AND ISNULL(ro.StatusCode, 0) = 3
-          AND ISNULL(cm.CategoryName, 'Unmapped') = 'Entertainment'
-          AND NOT EXISTS (
-            SELECT 1 FROM SettlementHeader sh_dup 
-            WHERE sh_dup.BillNo = ro.OrderNumber
-          )
-        GROUP BY rod.DishId
-      ) t
-      WHERE DishId IS NOT NULL
-      GROUP BY DishId;
-
-      -- 3. Insert new records for artists with sales > 0 but no target record yet for the currently queried period
-      INSERT INTO dishOrderItemShare (Id, CustomerName, IsSelected, CreatedDate, Amount, FromDate, ToDate, DishId, OrderDishId, TargetAmount)
-      SELECT 
-        NEWID(),
-        d.Name,
-        1,
-        GETDATE(),
-        sales.ActualSales,
-        @fromDate,
-        @toDate,
-        sales.DishId,
-        NULL,
-        0
-      FROM #TempEntSalesCurrent sales
-      INNER JOIN DishMaster d ON sales.DishId = d.DishId
-      WHERE sales.ActualSales > 0
-        AND NOT EXISTS (
-          SELECT 1 FROM dishOrderItemShare target
-          WHERE target.DishId = sales.DishId
-            AND CAST(target.FromDate as DATE) = @fromDate
-            AND CAST(target.ToDate as DATE) = @toDate
-        );
-
-      DROP TABLE #TempEntSalesCurrent;
-
-      -- 4. Select the final list
       SELECT 
         d.DishId,
         d.Name,

@@ -1497,22 +1497,6 @@ router.post("/save", async (req, res) => {
               INSERT INTO SettlementItemDetail (SettlementID, DishId, DishGroupId, SubCategoryId, CategoryId, DishName, SongName, Qty, Price, OrderDateTime, CategoryName, SubCategoryName, DiscountAmount, DiscountType, Status, Spicy, Salt, Oil, Sugar, OrderDetailId)
               VALUES (@SettlementID, @DishId, @DishGroupId, @SubCategoryId, @CategoryId, @DishName, @SongName, @Qty, @Price, @OrderDateTime, @CategoryName, @SubCategoryName, @ItemDiscountAmount, @ItemDiscountType, @Status, @Spicy, @Salt, @Oil, @Sugar, @OrderDetailId)
             `);
-
-          // If this is a split dish (artist), insert a sales record in dishOrderItemShare
-          if (meta.IsSplitDish === 1 || meta.IsSplitDish === true) {
-            const shareId = crypto.randomUUID();
-            const lineTotal = (item.price || 0) * (item.qty || 1);
-            await transaction.request()
-              .input("shareId", sql.UniqueIdentifier, shareId)
-              .input("artistName", sql.NVarChar(255), meta.Name || item.dish_name || item.name || "Unknown")
-              .input("amount", sql.Decimal(18, 2), lineTotal)
-              .input("dishId", sql.UniqueIdentifier, toGuidOrNull(meta.DishId || dishId))
-              .input("orderDetailId", sql.UniqueIdentifier, toGuidOrNull(item.lineItemId))
-              .query(`
-                INSERT INTO dishOrderItemShare (Id, CustomerName, IsSelected, CreatedDate, Amount, FromDate, ToDate, DishId, OrderDishId, TargetAmount)
-                VALUES (@shareId, @artistName, 1, GETDATE(), @amount, NULL, NULL, @dishId, @orderDetailId, NULL)
-              `);
-          }
         }
       }
  
