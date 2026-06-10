@@ -198,7 +198,7 @@ const makeSalesTrendChart = (categories) => {
       },
       {
         columns: data.map(c => ({
-          text: String(c.Category || 'Other').toUpperCase().substring(0, 10),
+          text: String(c.Category || 'Other').toUpperCase().substring(0, 15),
           fontSize: 7,
           color: '#475569',
           alignment: 'center',
