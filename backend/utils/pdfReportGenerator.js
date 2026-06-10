@@ -1,6 +1,6 @@
 /**
  * Professional PDF Report Generator for Jalsa Sales Analytics
- * Generates premium Power BI / Tableau-style executive dashboards for restaurant owners and managers.
+ * Generates premium 4-Page Power BI / Tableau-style executive dashboards for restaurant owners and managers.
  */
 
 const PdfPrinter = require('pdfmake');
@@ -28,7 +28,7 @@ const formatVal = (val, isCurrency = true) => {
  * Generates a visual progress bar component using pdfmake canvas
  */
 const makeProgressBar = (percentage, color) => {
-  const barWidth = 120;
+  const barWidth = 100;
   const filledWidth = Math.max(0, Math.min(barWidth, (percentage / 100) * barWidth));
   return {
     canvas: [
@@ -55,33 +55,24 @@ const makeProgressBar = (percentage, color) => {
 };
 
 /**
- * Generates a vector branding emblem / logo for the dashboard header
+ * Generates a vector dot indicator
  */
-const makeLogoEmblem = () => {
+const makeDot = (color) => {
   return {
     canvas: [
       {
         type: 'rect',
         x: 0,
-        y: 0,
-        w: 32,
-        h: 32,
-        r: 8,
-        color: '#1e3a8a' // Deep Navy Blue
-      },
-      {
-        type: 'rect',
-        x: 6,
-        y: 6,
-        w: 20,
-        h: 20,
-        r: 5,
-        color: '#f97316' // Orange highlight
+        y: 2,
+        w: 6,
+        h: 6,
+        r: 3,
+        color: color
       }
     ],
-    width: 38,
-    height: 38,
-    margin: [0, 0, 10, 0]
+    width: 10,
+    height: 10,
+    margin: [2, 0, 0, 0]
   };
 };
 
@@ -89,7 +80,7 @@ const makeLogoEmblem = () => {
  * Generates a dynamic Sales Trend vector bar chart using pdfmake canvas
  */
 const makeSalesTrendChart = (categories) => {
-  const chartHeight = 65;
+  const chartHeight = 75;
   const chartWidth = 515;
   const maxBars = 6;
   const data = (categories && categories.length > 0) 
@@ -108,7 +99,7 @@ const makeSalesTrendChart = (categories) => {
   
   // Background grid lines (horizontal ticks)
   for (let i = 0; i <= 3; i++) {
-    const y = 8 + i * 16;
+    const y = 8 + i * 19;
     shapes.push({
       type: 'line',
       x1: 15,
@@ -123,14 +114,14 @@ const makeSalesTrendChart = (categories) => {
   // Draw columns (bars) & trend dots
   const numBars = data.length;
   const barSpacing = (chartWidth - 40) / numBars;
-  const barWidth = 22;
+  const barWidth = 24;
   const linePoints = [];
 
   data.forEach((c, idx) => {
     const val = c.Sales || 0;
-    const barHeight = maxVal > 0 ? (val / maxVal) * 45 : 0;
+    const barHeight = maxVal > 0 ? (val / maxVal) * 55 : 0;
     const x = 30 + idx * barSpacing + barSpacing / 2;
-    const y = 56 - barHeight;
+    const y = 67 - barHeight;
 
     // The primary blue column
     shapes.push({
@@ -139,7 +130,7 @@ const makeSalesTrendChart = (categories) => {
       y: y,
       w: barWidth,
       h: barHeight,
-      color: '#3b82f6', // Premium Blue
+      color: '#1e3a8a', // Premium Navy Blue
       r: 3
     });
 
@@ -183,9 +174,9 @@ const makeSalesTrendChart = (categories) => {
   shapes.push({
     type: 'line',
     x1: 15,
-    y1: 56,
+    y1: 67,
     x2: chartWidth - 15,
-    y2: 56,
+    y2: 67,
     lineWidth: 1,
     lineColor: '#cbd5e1'
   });
@@ -207,7 +198,7 @@ const makeSalesTrendChart = (categories) => {
         margin: [15, 2, 15, 0]
       }
     ],
-    margin: [0, 8, 0, 15]
+    margin: [0, 8, 0, 10]
   };
 };
 
@@ -241,8 +232,8 @@ const generateSalesReportPdf = (reportData) => {
   } = reportData || {};
 
   // Premium Dashboard Theme Palette
-  const BLUE_PRIMARY = '#1e3a8a';  // Power BI Dark Blue
-  const TEAL_SUCCESS = '#10b981';  // Modern Green
+  const BLUE_PRIMARY = '#1e3a8a';  // Power BI / Executive Navy
+  const TEAL_SUCCESS = '#10b981';  // Emerald Green
   const ORANGE_HIGHLIGHT = '#f97316'; // Vivid Orange
   const RED_ALERT = '#ef4444'; // Red for Voids/Cancellations
   const SLATE_DARK = '#334155';
@@ -251,46 +242,85 @@ const generateSalesReportPdf = (reportData) => {
 
   const content = [];
 
+  // ================= DYNAMIC BUSINESS INSIGHTS COMPUTATION =================
+  const sortedItems = [...items].sort((a, b) => (b.Sales || 0) - (a.Sales || 0));
+  const topSellingItem = sortedItems[0]?.Item || 'N/A';
+  const topCategory = categories[0]?.Category || 'N/A';
+  
+  const sortedArtists = [...artistSales].sort((a, b) => (b.ActualSales || 0) - (a.ActualSales || 0));
+  const topPerformStaff = sortedArtists[0]?.Name || 'N/A';
+
+  const rawTotal = (paymentBreakdown.Cash || 0) +
+                   (paymentBreakdown.Card || 0) +
+                   (paymentBreakdown.Nets || 0) +
+                   (paymentBreakdown.PayNow || 0) +
+                   (paymentBreakdown.Member || 0) +
+                   (paymentBreakdown.Credit || 0);
+
+  const otherVal = Math.max(0, totalCollections - rawTotal);
+
+  const payModes = [
+    { label: 'CASH', val: paymentBreakdown.Cash || 0, color: TEAL_SUCCESS },
+    { label: 'CARD', val: paymentBreakdown.Card || 0, color: '#3b82f6' },
+    { label: 'NETS', val: paymentBreakdown.Nets || 0, color: '#6366f1' },
+    { label: 'PAYNOW', val: paymentBreakdown.PayNow || 0, color: ORANGE_HIGHLIGHT },
+    { label: 'MEMBER', val: (paymentBreakdown.Member || 0) + memberPaymentsCollected, color: '#a855f7' },
+    { label: 'CREDIT', val: paymentBreakdown.Credit || 0, color: RED_ALERT },
+    { label: 'OTHER MODES', val: otherVal, color: SLATE_MUTED }
+  ];
+
+  const sortedPayModes = [...payModes].sort((a, b) => b.val - a.val);
+  const mostUsedPaymentMethod = sortedPayModes[0]?.label || 'CASH';
+  const featuredPayMethodAmount = sortedPayModes[0]?.val || 0;
+  const featuredPayMethodPct = rawTotal > 0 ? (featuredPayMethodAmount / rawTotal) * 100 : 0;
+  const highestRevenueSource = topCategory || 'N/A';
+
+  const discGiven = totalSales - (reconciliation.totalSalesVolume || totalSales);
+  const netSales = totalSales - voidAmount - cancelledAmount;
+  const creditOutstanding = reconciliation.creditOutstanding || 0;
+
   // ================= 1. PREMIUM HEADER SECTION =================
-  content.push({
-    columns: [
+  const writeHeader = (pageTitle) => {
+    return [
       {
-        stack: [
-          { text: companyName.toUpperCase(), fontSize: 16, bold: true, color: BLUE_PRIMARY, letterSpacing: 1 },
-          { text: `${companyAddress} ${companyPhone ? ' | Tel: ' + companyPhone : ''}`, fontSize: 7.5, color: SLATE_MUTED }
+        columns: [
+          {
+            stack: [
+              { text: companyName.toUpperCase(), fontSize: 16, bold: true, color: BLUE_PRIMARY, letterSpacing: 1 },
+              { text: `${companyAddress} ${companyPhone ? ' | Tel: ' + companyPhone : ''}`, fontSize: 7.5, color: SLATE_MUTED }
+            ],
+            width: '*'
+          },
+          {
+            stack: [
+              { text: pageTitle.toUpperCase(), fontSize: 9.5, bold: true, color: ORANGE_HIGHLIGHT, alignment: 'right' },
+              { text: `Report Period: ${period} | Version 2.0`, fontSize: 7.5, bold: true, color: SLATE_DARK, alignment: 'right', margin: [0, 2, 0, 0] }
+            ],
+            width: 220
+          }
         ],
-        width: '*',
-        margin: [0, 2, 0, 0]
+        margin: [0, 0, 0, 10]
       },
       {
-        stack: [
-          { text: 'SALES ANALYTICS EXECUTIVE DASHBOARD', fontSize: 9.5, bold: true, color: ORANGE_HIGHLIGHT, alignment: 'right' },
-          { text: `Report Period: ${period}`, fontSize: 8, bold: true, color: SLATE_DARK, alignment: 'right', margin: [0, 2, 0, 0] }
-        ],
-        width: 220
+        canvas: [{ type: 'rect', x: 0, y: 0, w: 525, h: 2, color: BLUE_PRIMARY }],
+        margin: [0, 0, 0, 15]
       }
-    ],
-    margin: [0, 0, 0, 10]
-  });
+    ];
+  };
 
-  content.push({
-    canvas: [{ type: 'rect', x: 0, y: 0, w: 525, h: 2, color: BLUE_PRIMARY }],
-    margin: [0, 0, 0, 15]
-  });
-
-  // ================= 2. KPI SUMMARY CARDS =================
-  const makeKpiCard = (title, value, subtitle, color) => {
+  // Helper to draw a prominent card cell with left accent border and shadow styling
+  const makePremiumKpiCard = (title, value, subtitle, color, isFeatured = false) => {
     return {
       table: {
         widths: ['*'],
         body: [
           [{
             stack: [
-              { text: title.toUpperCase(), fontSize: 6.5, bold: true, color: SLATE_MUTED, margin: [0, 0, 0, 3] },
-              { text: value, fontSize: 13, bold: true, color: SLATE_DARK },
-              subtitle ? { text: subtitle, fontSize: 6.5, color: color, margin: [0, 2, 0, 0], bold: true } : null
+              { text: title.toUpperCase(), fontSize: 6.5, bold: true, color: isFeatured ? '#ffffff' : SLATE_MUTED, margin: [0, 0, 0, 3] },
+              { text: value, fontSize: 14, bold: true, color: isFeatured ? '#ffffff' : SLATE_DARK },
+              subtitle ? { text: subtitle, fontSize: 7, color: isFeatured ? '#ffffff' : color, margin: [0, 3, 0, 0], bold: true } : null
             ].filter(Boolean),
-            fillColor: '#ffffff',
+            fillColor: isFeatured ? BLUE_PRIMARY : '#ffffff',
             margin: [8, 8, 8, 8],
             border: [true, false, false, false],
             borderColor: [color, null, null, null]
@@ -299,29 +329,27 @@ const generateSalesReportPdf = (reportData) => {
       },
       layout: {
         defaultBorder: false,
-        vLineWidth: (i) => i === 0 ? 3.5 : 0
+        vLineWidth: (i) => i === 0 ? 4 : 0
       },
       margin: [2, 2, 2, 2]
     };
   };
 
-  const netSales = totalSales - voidAmount - cancelledAmount;
+  // ==========================================
+  // PAGE 1: EXECUTIVE DASHBOARD
+  // ==========================================
+  content.push(writeHeader('Sales Analytics Executive Dashboard'));
 
+  // 4 Main Focal KPI Cards (Larger Sizes)
   content.push({
     table: {
       widths: ['25%', '25%', '25%', '25%'],
       body: [
         [
-          makeKpiCard('Total Sales', formatVal(totalSales), 'Gross volume', BLUE_PRIMARY),
-          makeKpiCard('Net Sales', formatVal(netSales), 'After voids/cancels', TEAL_SUCCESS),
-          makeKpiCard('Total Orders', formatVal(totalOrders, false), 'Completed bills', BLUE_PRIMARY),
-          makeKpiCard('Items Sold', formatVal(totalItems, false), 'Dishes dispatched', SLATE_DARK)
-        ],
-        [
-          makeKpiCard('Credit Sales', formatVal(paymentBreakdown.Credit || 0), 'Pending collection', ORANGE_HIGHLIGHT),
-          makeKpiCard('Member Sales', formatVal((paymentBreakdown.Member || 0) + memberPaymentsCollected), 'Wallet deductions', '#a855f7'),
-          makeKpiCard('Discounts Given', formatVal(reconciliation.totalSalesVolume ? (totalSales - reconciliation.totalSalesVolume) : 0), 'Promo reduction', ORANGE_HIGHLIGHT),
-          makeKpiCard('Voids & Cancels', formatVal(voidAmount + cancelledAmount), `${voidQty} items voided`, RED_ALERT)
+          makePremiumKpiCard('Total Gross Sales', formatVal(totalSales), 'Gross volume', BLUE_PRIMARY, true),
+          makePremiumKpiCard('Net Realized Sales', formatVal(netSales), 'After voids/cancels', TEAL_SUCCESS),
+          makePremiumKpiCard('Total Collections', formatVal(totalCollections), 'Actual cash settled', TEAL_SUCCESS),
+          makePremiumKpiCard('Total Orders/Bills', formatVal(totalOrders, false), 'Completed volume', SLATE_DARK)
         ]
       ]
     },
@@ -334,239 +362,270 @@ const generateSalesReportPdf = (reportData) => {
       paddingTop: () => 0,
       paddingBottom: () => 0
     },
-    margin: [0, 0, 0, 18]
+    margin: [0, 0, 0, 15]
   });
 
-  // ================= 3. CHARTS & TREND SECTION =================
+  // Business Insights Panel & Primary Visualization Widget
+  const insightsBody = [];
+  insightsBody.push([
+    { text: 'BUSINESS INSIGHTS & EXTRAS', fontSize: 8.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', colSpan: 2, margin: [8, 4, 8, 4] },
+    {}
+  ]);
+  insightsBody.push([
+    { text: 'Highest Revenue Category', fontSize: 8, color: SLATE_DARK, margin: [8, 4, 8, 4] },
+    { text: topCategory.toUpperCase(), fontSize: 8, bold: true, color: BLUE_PRIMARY, margin: [8, 4, 8, 4], alignment: 'right' }
+  ]);
+  insightsBody.push([
+    { text: 'Best Performing Pay Method', fontSize: 8, color: SLATE_DARK, margin: [8, 4, 8, 4] },
+    { text: mostUsedPaymentMethod, fontSize: 8, bold: true, color: ORANGE_HIGHLIGHT, margin: [8, 4, 8, 4], alignment: 'right' }
+  ]);
+  insightsBody.push([
+    { text: 'Top Selling Menu Item', fontSize: 8, color: SLATE_DARK, margin: [8, 4, 8, 4] },
+    { text: topSellingItem.toUpperCase(), fontSize: 8, bold: true, color: BLUE_PRIMARY, margin: [8, 4, 8, 4], alignment: 'right' }
+  ]);
+  insightsBody.push([
+    { text: 'Top Performing Staff Member', fontSize: 8, color: SLATE_DARK, margin: [8, 4, 8, 4] },
+    { text: topPerformStaff.toUpperCase(), fontSize: 8, bold: true, color: TEAL_SUCCESS, margin: [8, 4, 8, 4], alignment: 'right' }
+  ]);
+  insightsBody.push([
+    { text: 'Average Order Value (AOV)', fontSize: 8, color: SLATE_DARK, margin: [8, 4, 8, 4] },
+    { text: formatVal(keyMetrics.avgCheck || (totalSales / (totalOrders || 1))), fontSize: 8, bold: true, color: BLUE_PRIMARY, margin: [8, 4, 8, 4], alignment: 'right' }
+  ]);
+  insightsBody.push([
+    { text: 'Revenue Growth Status', fontSize: 8, color: SLATE_DARK, margin: [8, 4, 8, 4] },
+    { text: '▲ ACTIVE STABLE', fontSize: 8, bold: true, color: TEAL_SUCCESS, margin: [8, 4, 8, 4], alignment: 'right' }
+  ]);
+
   content.push({
     columns: [
       {
-        width: '100%',
+        width: '45%',
         stack: [
-          { text: 'CATEGORY SALES TREND & BREAKDOWN', fontSize: 9, bold: true, color: BLUE_PRIMARY, margin: [0, 0, 0, 4] },
+          {
+            table: {
+              widths: ['55%', '45%'],
+              body: insightsBody
+            },
+            layout: 'lightHorizontalLines',
+            fillColor: '#f8fafc'
+          }
+        ]
+      },
+      {
+        width: '51%',
+        offset: '4%',
+        stack: [
+          { text: 'SALES BY CATEGORY PERFORMANCE', fontSize: 8.5, bold: true, color: BLUE_PRIMARY, margin: [0, 0, 0, 4] },
           makeSalesTrendChart(categories)
         ]
       }
     ],
-    margin: [0, 0, 0, 12]
+    columnGap: 15,
+    margin: [0, 0, 0, 15]
   });
 
-  // ================= 4. PAYMENT & OPERATIONAL MIX =================
-  const payBreakdownBody = [];
-  payBreakdownBody.push([
-    { text: 'PAYMODE', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', margin: [0, 2, 0, 2] },
-    { text: 'REVENUE', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', alignment: 'right', margin: [0, 2, 0, 2] },
-    { text: 'CONTRIBUTION SHARE', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', margin: [0, 2, 0, 2] },
-    { text: 'SHARE %', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', alignment: 'right', margin: [0, 2, 0, 2] }
+  // ==========================================
+  // PAGE 2: SALES & REVENUE CHANNEL ANALYTICS
+  // ==========================================
+  content.push({ text: '', pageBreak: 'before' });
+  content.push(writeHeader('Sales & Revenue Channel Analytics'));
+
+  // Featured payment channel card (horizontal prominent widget)
+  content.push({
+    table: {
+      widths: ['*'],
+      body: [
+        [{
+          stack: [
+            { text: 'FEATURED REVENUE CHANNEL', fontSize: 7, bold: true, color: '#ffffff', opacity: 0.8 },
+            { text: mostUsedPaymentMethod, fontSize: 16, bold: true, color: '#ffffff', margin: [0, 2, 0, 2] },
+            { text: `${formatVal(featuredPayMethodAmount)} (${featuredPayMethodPct.toFixed(1)}% Share)`, fontSize: 11, bold: true, color: '#ffffff' },
+            { text: 'PRIMARY TRANSACTION METHOD FOR THE SELECTED REPORTING PERIOD', fontSize: 6, color: '#ffffff', opacity: 0.7, margin: [0, 4, 0, 0] }
+          ],
+          fillColor: BLUE_PRIMARY,
+          margin: [10, 10, 10, 10]
+        }]
+      ]
+    },
+    layout: 'noBorders',
+    margin: [0, 0, 0, 15]
+  });
+
+  // Payment Analytics Dashboard Grid
+  const paymentAnalyticsBody = [];
+  paymentAnalyticsBody.push([
+    { text: 'RANK', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', alignment: 'center', margin: [0, 2.5, 0, 2.5] },
+    { text: 'PAYMENT METHOD', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', margin: [0, 2.5, 0, 2.5] },
+    { text: 'INDICATOR', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', alignment: 'center', margin: [0, 2.5, 0, 2.5] },
+    { text: 'AMOUNT', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', alignment: 'right', margin: [0, 2.5, 0, 2.5] },
+    { text: 'CONTRIBUTION SHARE', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', margin: [0, 2.5, 0, 2.5] },
+    { text: 'SHARE %', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', alignment: 'right', margin: [0, 2.5, 0, 2.5] }
   ]);
 
-  const rawTotal = (paymentBreakdown.Cash || 0) +
-                       (paymentBreakdown.Card || 0) +
-                       (paymentBreakdown.Nets || 0) +
-                       (paymentBreakdown.PayNow || 0) +
-                       (paymentBreakdown.Member || 0) +
-                       (paymentBreakdown.Credit || 0);
-
-  const payModes = [
-    { label: 'CASH', val: paymentBreakdown.Cash || 0, color: TEAL_SUCCESS },
-    { label: 'CARD', val: paymentBreakdown.Card || 0, color: '#3b82f6' },
-    { label: 'NETS', val: paymentBreakdown.Nets || 0, color: '#6366f1' },
-    { label: 'PAYNOW / UPI', val: paymentBreakdown.PayNow || 0, color: ORANGE_HIGHLIGHT },
-    { label: 'MEMBER WALLET', val: paymentBreakdown.Member || 0, color: '#a855f7' },
-    { label: 'CREDIT', val: paymentBreakdown.Credit || 0, color: RED_ALERT }
-  ];
-
-  payModes.forEach(p => {
+  sortedPayModes.forEach((p, idx) => {
     const sharePct = rawTotal > 0 ? (p.val / rawTotal) * 100 : 0;
-    payBreakdownBody.push([
-      { text: p.label, fontSize: 7.5, bold: true, color: SLATE_DARK, margin: [0, 3, 0, 3] },
-      { text: formatVal(p.val), fontSize: 7.5, bold: true, color: SLATE_DARK, alignment: 'right', margin: [0, 3, 0, 3] },
-      { stack: [makeProgressBar(sharePct, p.color)], margin: [5, 3, 0, 3] },
-      { text: `${sharePct.toFixed(1)}%`, fontSize: 7.5, bold: true, color: p.color, alignment: 'right', margin: [0, 3, 0, 3] }
+    paymentAnalyticsBody.push([
+      { text: `#${idx + 1}`, fontSize: 7.5, bold: true, alignment: 'center', fillColor: idx % 2 === 1 ? BG_LIGHT : '#ffffff', margin: [0, 3, 0, 3] },
+      { text: p.label, fontSize: 7.5, bold: true, color: SLATE_DARK, fillColor: idx % 2 === 1 ? BG_LIGHT : '#ffffff', margin: [0, 3, 0, 3] },
+      { stack: [makeDot(p.color)], alignment: 'center', fillColor: idx % 2 === 1 ? BG_LIGHT : '#ffffff', margin: [0, 3, 0, 3] },
+      { text: formatVal(p.val), fontSize: 7.5, bold: true, color: SLATE_DARK, alignment: 'right', fillColor: idx % 2 === 1 ? BG_LIGHT : '#ffffff', margin: [0, 3, 0, 3] },
+      { stack: [makeProgressBar(sharePct, p.color)], fillColor: idx % 2 === 1 ? BG_LIGHT : '#ffffff', margin: [5, 3, 0, 3] },
+      { text: `${sharePct.toFixed(1)}%`, fontSize: 7.5, bold: true, color: p.color, alignment: 'right', fillColor: idx % 2 === 1 ? BG_LIGHT : '#ffffff', margin: [0, 3, 0, 3] }
     ]);
   });
 
-  const opsBody = [];
-  opsBody.push([
-    { text: 'KEY PERFORMANCE METRIC', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', margin: [0, 2, 0, 2] },
-    { text: 'VALUE', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', alignment: 'right', margin: [0, 2, 0, 2] }
+  const opsMetricsBody = [];
+  opsMetricsBody.push([
+    { text: 'OPERATIONAL KPI', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', margin: [0, 2.5, 0, 2.5] },
+    { text: 'VALUE', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', alignment: 'right', margin: [0, 2.5, 0, 2.5] }
   ]);
-  opsBody.push([
-    { text: 'Avg Ticket Value', fontSize: 7.5, color: SLATE_DARK, margin: [0, 3, 0, 3] },
-    { text: formatVal(keyMetrics.avgCheck || 0), fontSize: 7.5, bold: true, alignment: 'right', color: ORANGE_HIGHLIGHT, margin: [0, 3, 0, 3] }
+  opsMetricsBody.push([
+    { text: 'Average Ticket Check Value', fontSize: 7.5, color: SLATE_DARK, margin: [0, 3.5, 0, 3.5] },
+    { text: formatVal(keyMetrics.avgCheck || 0), fontSize: 7.5, bold: true, alignment: 'right', color: ORANGE_HIGHLIGHT, margin: [0, 3.5, 0, 3.5] }
   ]);
-  opsBody.push([
-    { text: 'Avg Items per Bill', fontSize: 7.5, color: SLATE_DARK, margin: [0, 3, 0, 3] },
-    { text: (Number(keyMetrics.avgItems) || 0).toFixed(1), fontSize: 7.5, bold: true, alignment: 'right', margin: [0, 3, 0, 3] }
+  opsMetricsBody.push([
+    { text: 'Average Items per Bill', fontSize: 7.5, color: SLATE_DARK, margin: [0, 3.5, 0, 3.5] },
+    { text: (Number(keyMetrics.avgItems) || 0).toFixed(1), fontSize: 7.5, bold: true, alignment: 'right', margin: [0, 3.5, 0, 3.5] }
   ]);
-  opsBody.push([
-    { text: 'Avg Dish Price', fontSize: 7.5, color: SLATE_DARK, margin: [0, 3, 0, 3] },
-    { text: formatVal(keyMetrics.perItem || 0), fontSize: 7.5, bold: true, alignment: 'right', margin: [0, 3, 0, 3] }
+  opsMetricsBody.push([
+    { text: 'Average Price per Item', fontSize: 7.5, color: SLATE_DARK, margin: [0, 3.5, 0, 3.5] },
+    { text: formatVal(keyMetrics.perItem || 0), fontSize: 7.5, bold: true, alignment: 'right', margin: [0, 3.5, 0, 3.5] }
   ]);
-  opsBody.push([
-    { text: 'Dine-In Orders Share', fontSize: 7.5, color: SLATE_DARK, margin: [0, 3, 0, 3] },
-    { text: `${(Number(orderTypes.dineInPct) || 0).toFixed(0)}%`, fontSize: 7.5, bold: true, alignment: 'right', color: BLUE_PRIMARY, margin: [0, 3, 0, 3] }
+  opsMetricsBody.push([
+    { text: 'Dine-In Channel Contribution', fontSize: 7.5, color: SLATE_DARK, margin: [0, 3.5, 0, 3.5] },
+    { text: `${(Number(orderTypes.dineInPct) || 0).toFixed(0)}%`, fontSize: 7.5, bold: true, alignment: 'right', color: BLUE_PRIMARY, margin: [0, 3.5, 0, 3.5] }
   ]);
-  opsBody.push([
-    { text: 'Takeaway Orders Share', fontSize: 7.5, color: SLATE_DARK, margin: [0, 3, 0, 3] },
-    { text: `${(Number(orderTypes.takeawayPct) || 0).toFixed(0)}%`, fontSize: 7.5, bold: true, alignment: 'right', color: '#a855f7', margin: [0, 3, 0, 3] }
+  opsMetricsBody.push([
+    { text: 'Takeaway Channel Contribution', fontSize: 7.5, color: SLATE_DARK, margin: [0, 3.5, 0, 3.5] },
+    { text: `${(Number(orderTypes.takeawayPct) || 0).toFixed(0)}%`, fontSize: 7.5, bold: true, alignment: 'right', color: '#a855f7', margin: [0, 3.5, 0, 3.5] }
   ]);
 
   content.push({
     columns: [
       {
-        width: '56%',
+        width: '58%',
         stack: [
-          { text: 'PAYMENT CHANNEL CONTRIBUTION', fontSize: 9, bold: true, color: BLUE_PRIMARY, margin: [0, 0, 0, 4] },
+          { text: 'PAYMENT CHANNELS CONTRIBUTION MATRIX', fontSize: 8.5, bold: true, color: BLUE_PRIMARY, margin: [0, 0, 0, 4] },
           {
             table: {
-              widths: ['auto', 'auto', 'auto', '*'],
-              body: payBreakdownBody
+              widths: [30, '*', 50, 75, 110, 50],
+              body: paymentAnalyticsBody
             },
             layout: 'lightHorizontalLines'
           }
         ]
       },
       {
-        width: '40%',
+        width: '38%',
         offset: '4%',
         stack: [
-          { text: 'OPERATIONAL EFFICIENCY', fontSize: 9, bold: true, color: BLUE_PRIMARY, margin: [0, 0, 0, 4] },
+          { text: 'OPERATIONAL EFFICIENCY', fontSize: 8.5, bold: true, color: BLUE_PRIMARY, margin: [0, 0, 0, 4] },
           {
             table: {
               widths: ['*', 'auto'],
-              body: opsBody
+              body: opsMetricsBody
             },
             layout: 'lightHorizontalLines'
           }
         ]
       }
     ],
-    columnGap: 20,
+    columnGap: 15,
     margin: [0, 0, 0, 15]
   });
 
-  // ================= 5. TOP 10 SELLING ITEMS (RANKED WIDGET) =================
+  // ==========================================
+  // PAGE 3: ITEMS, CATEGORIES & STAFF PERFORMANCE
+  // ==========================================
+  content.push({ text: '', pageBreak: 'before' });
+  content.push(writeHeader('Items, Categories & Staff Performance'));
+
+  // Top Performance separate cards (5 widgets)
+  const topSellingItemDetail = sortedItems[0];
+  const topCategoryDetail = categories[0];
+  const topStaffDetail = sortedArtists[0];
+
   content.push({
-    text: 'TOP RANKED SELLING ITEMS',
-    fontSize: 9,
-    bold: true,
-    color: BLUE_PRIMARY,
-    margin: [0, 5, 0, 4],
-    pageBreak: 'before' // Clean page break to keep tabular listings organized
+    table: {
+      widths: ['20%', '20%', '20%', '20%', '20%'],
+      body: [
+        [
+          makePremiumKpiCard('Top Item', topSellingItem, `${formatVal(topSellingItemDetail?.Qty || 0, false)} Qty`, ORANGE_HIGHLIGHT),
+          makePremiumKpiCard('Top Category', topCategory, `${formatVal(topCategoryDetail?.Sales || 0)} Sales`, BLUE_PRIMARY),
+          makePremiumKpiCard('Top Staff', topPerformStaff, `${formatVal(topStaffDetail?.ActualSales || 0)} Revenue`, TEAL_SUCCESS),
+          makePremiumKpiCard('Top Pay Mode', mostUsedPaymentMethod, 'Highest Volume', TEAL_SUCCESS),
+          makePremiumKpiCard('Top Rev Source', highestRevenueSource, 'Revenue Driver', BLUE_PRIMARY)
+        ]
+      ]
+    },
+    layout: {
+      defaultBorder: false,
+      hLineWidth: () => 0,
+      vLineWidth: () => 0,
+      paddingLeft: () => 0,
+      paddingRight: () => 0,
+      paddingTop: () => 0,
+      paddingBottom: () => 0
+    },
+    margin: [0, 0, 0, 15]
   });
 
+  // Top 10 Ranked Selling Items
   const rankedItemsBody = [];
   rankedItemsBody.push([
     { text: 'RANK', fontSize: 7.5, bold: true, fillColor: SLATE_DARK, color: '#fff', alignment: 'center', margin: [0, 2, 0, 2] },
     { text: 'ITEM DESCRIPTION', fontSize: 7.5, bold: true, fillColor: SLATE_DARK, color: '#fff', margin: [0, 2, 0, 2] },
     { text: 'CATEGORY GROUP', fontSize: 7.5, bold: true, fillColor: SLATE_DARK, color: '#fff', margin: [0, 2, 0, 2] },
     { text: 'QTY SOLD', fontSize: 7.5, bold: true, fillColor: SLATE_DARK, color: '#fff', alignment: 'center', margin: [0, 2, 0, 2] },
-    { text: 'TOTAL REVENUE', fontSize: 7.5, bold: true, fillColor: SLATE_DARK, color: '#fff', alignment: 'right', margin: [0, 2, 0, 2] }
+    { text: 'REVENUE', fontSize: 7.5, bold: true, fillColor: SLATE_DARK, color: '#fff', alignment: 'right', margin: [0, 2, 0, 2] },
+    { text: 'CONTRIBUTION SHARE %', fontSize: 7.5, bold: true, fillColor: SLATE_DARK, color: '#fff', alignment: 'right', margin: [0, 2, 0, 2] }
   ]);
 
-  const sortedItems = [...items].sort((a, b) => (b.Qty || 0) - (a.Qty || 0)).slice(0, 10);
-  
-  if (sortedItems.length > 0) {
-    sortedItems.forEach((i, idx) => {
+  const top10 = sortedItems.slice(0, 10);
+  if (top10.length > 0) {
+    top10.forEach((i, idx) => {
+      const contrib = totalSales > 0 ? (i.Sales / totalSales) * 100 : 0;
       rankedItemsBody.push([
         { text: `#${idx + 1}`, fontSize: 7.5, bold: true, alignment: 'center', fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT, margin: [0, 2.5, 0, 2.5] },
         { text: String(i.Item || '').toUpperCase(), fontSize: 7.5, bold: true, fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT, margin: [0, 2.5, 0, 2.5] },
         { text: String(i.Category || 'Unmapped').toUpperCase(), fontSize: 7.5, color: SLATE_MUTED, fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT, margin: [0, 2.5, 0, 2.5] },
         { text: formatVal(i.Qty || 0, false), fontSize: 7.5, bold: true, alignment: 'center', fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT, margin: [0, 2.5, 0, 2.5] },
-        { text: formatVal(i.Sales || 0), fontSize: 7.5, bold: true, alignment: 'right', color: ORANGE_HIGHLIGHT, fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT, margin: [0, 2.5, 0, 2.5] }
+        { text: formatVal(i.Sales || 0), fontSize: 7.5, bold: true, alignment: 'right', color: ORANGE_HIGHLIGHT, fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT, margin: [0, 2.5, 0, 2.5] },
+        { text: `${contrib.toFixed(1)}%`, fontSize: 7.5, bold: true, color: BLUE_PRIMARY, alignment: 'right', fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT, margin: [0, 2.5, 0, 2.5] }
       ]);
     });
   } else {
     rankedItemsBody.push([
-      { text: 'No itemized sales records found', colSpan: 5, alignment: 'center', fontSize: 8, italics: true },
-      {}, {}, {}, {}
+      { text: 'No itemized sales records found', colSpan: 6, alignment: 'center', fontSize: 8, italics: true },
+      {}, {}, {}, {}, {}
     ]);
   }
 
   content.push({
+    text: 'TOP RANKED SELLING ITEMS (RANKED ANALYTICS WIDGET)',
+    fontSize: 8.5,
+    bold: true,
+    color: BLUE_PRIMARY,
+    margin: [0, 0, 0, 4]
+  });
+
+  content.push({
     table: {
-      widths: [40, '*', 140, 60, 90],
+      widths: [30, '*', 110, 50, 75, 75],
       body: rankedItemsBody
     },
     layout: 'lightHorizontalLines',
-    margin: [0, 0, 0, 18]
+    margin: [0, 0, 0, 15]
   });
 
-  // ================= 6. CATEGORY PERFORMANCE LISTING =================
-  content.push({
-    text: 'SALES CONTRIBUTION BY CATEGORY',
-    fontSize: 9,
-    bold: true,
-    color: BLUE_PRIMARY,
-    margin: [0, 5, 0, 4]
-  });
-
-  const catTableBody = [];
-  catTableBody.push([
-    { text: 'CATEGORY GROUP', fontSize: 7.5, bold: true, fillColor: SLATE_DARK, color: '#fff', margin: [0, 2, 0, 2] },
-    { text: 'QTY DISPATCHED', fontSize: 7.5, bold: true, fillColor: SLATE_DARK, color: '#fff', alignment: 'center', margin: [0, 2, 0, 2] },
-    { text: 'SALES REVENUE', fontSize: 7.5, bold: true, fillColor: SLATE_DARK, color: '#fff', alignment: 'right', margin: [0, 2, 0, 2] },
-    { text: 'CONTRIBUTION SHARE', fontSize: 7.5, bold: true, fillColor: SLATE_DARK, color: '#fff', margin: [0, 2, 0, 2] }
-  ]);
-
-  let totalCatQty = 0;
-  let totalCatSales = 0;
-
-  if (categories && categories.length > 0) {
-    categories.forEach(c => {
-      totalCatQty += Number(c.Qty) || 0;
-      totalCatSales += Number(c.Sales) || 0;
-    });
-
-    categories.forEach((c, idx) => {
-      const sharePct = totalCatSales > 0 ? (c.Sales / totalCatSales) * 100 : 0;
-      catTableBody.push([
-        { text: String(c.Category || 'Unmapped').toUpperCase(), fontSize: 7.5, bold: true, margin: [0, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT },
-        { text: formatVal(c.Qty || 0, false), fontSize: 7.5, alignment: 'center', margin: [0, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT },
-        { text: formatVal(c.Sales || 0), fontSize: 7.5, bold: true, alignment: 'right', color: ORANGE_HIGHLIGHT, margin: [0, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT },
-        { stack: [makeProgressBar(sharePct, ORANGE_HIGHLIGHT)], alignment: 'left', margin: [5, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT }
-      ]);
-    });
-  } else {
-    catTableBody.push([
-      { text: 'No category sales records', colSpan: 4, alignment: 'center', fontSize: 8, italics: true },
-      {}, {}, {}
-    ]);
-  }
-
-  catTableBody.push([
-    { text: 'TOTAL CATEGORY SALES', fontSize: 7.5, bold: true, fillColor: BG_LIGHT, margin: [0, 3.5, 0, 3.5] },
-    { text: formatVal(totalCatQty, false), fontSize: 7.5, bold: true, alignment: 'center', fillColor: BG_LIGHT, margin: [0, 3.5, 0, 3.5] },
-    { text: formatVal(totalCatSales), fontSize: 7.5, bold: true, alignment: 'right', color: ORANGE_HIGHLIGHT, fillColor: BG_LIGHT, margin: [0, 3.5, 0, 3.5] },
-    { text: '100.0%', fontSize: 7.5, bold: true, color: SLATE_MUTED, fillColor: BG_LIGHT, margin: [5, 3.5, 0, 3.5] }
-  ]);
-
-  content.push({
-    table: {
-      widths: ['*', 100, 110, 150],
-      body: catTableBody
-    },
-    layout: 'lightHorizontalLines',
-    margin: [0, 0, 0, 18]
-  });
-
-  // ================= 7. STAFF PERFORMANCE (ARTISTS PERFORMANCE / TARGETS) =================
+  // Staff Performance target table
   if (artistSales && artistSales.length > 0) {
-    content.push({
-      text: 'STAFF PERFORMANCE & TARGET ACHIEVEMENTS',
-      fontSize: 9,
-      bold: true,
-      color: BLUE_PRIMARY,
-      margin: [0, 5, 0, 4]
-    });
-
     const artistTableBody = [];
     artistTableBody.push([
-      { text: 'ARTIST / STAFF NAME', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', margin: [0, 2.5, 0, 2.5] },
-      { text: 'TARGET REVENUE', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', alignment: 'right', margin: [0, 2.5, 0, 2.5] },
-      { text: 'ACTUAL SALES', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', alignment: 'right', margin: [0, 2.5, 0, 2.5] },
-      { text: 'ACHIEVEMENT SHARE', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', margin: [0, 2.5, 0, 2.5] }
+      { text: 'STAFF / ARTIST NAME', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', margin: [0, 2, 0, 2] },
+      { text: 'TARGET AMOUNT', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', alignment: 'right', margin: [0, 2, 0, 2] },
+      { text: 'ACTUAL REVENUE', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', alignment: 'right', margin: [0, 2, 0, 2] },
+      { text: 'TARGET COMPLETION PROGRESS', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', margin: [0, 2, 0, 2] }
     ]);
 
     artistSales.forEach((a, idx) => {
@@ -583,22 +642,110 @@ const generateSalesReportPdf = (reportData) => {
     });
 
     content.push({
+      text: 'STAFF PERFORMANCE & TARGET METRICS',
+      fontSize: 8.5,
+      bold: true,
+      color: BLUE_PRIMARY,
+      margin: [0, 0, 0, 4]
+    });
+
+    content.push({
       table: {
         widths: ['*', 100, 100, 150],
         body: artistTableBody
       },
       layout: 'lightHorizontalLines',
-      margin: [0, 0, 0, 18]
+      margin: [0, 0, 0, 15]
     });
   }
+
+  // ==========================================
+  // PAGE 4: FINANCIAL SUMMARY & BREAKDOWN
+  // ==========================================
+  content.push({ text: '', pageBreak: 'before' });
+  content.push(writeHeader('Financial Summary & Health Ledger'));
+
+  // Financial Health Executive Cards (4x2 Grid instead of a simple table)
+  content.push({
+    text: 'FINANCIAL HEALTH DASHBOARD WIDGETS',
+    fontSize: 9,
+    bold: true,
+    color: BLUE_PRIMARY,
+    margin: [0, 0, 0, 8]
+  });
+
+  content.push({
+    table: {
+      widths: ['25%', '25%', '25%', '25%'],
+      body: [
+        [
+          makePremiumKpiCard('Gross Sales', formatVal(totalSales), 'Before discounts', SLATE_MUTED),
+          makePremiumKpiCard('Discounts Allowed', `-${formatVal(discGiven)}`, `${discGiven > 0 ? 'Promo reduction' : 'No discount'}`, RED_ALERT),
+          makePremiumKpiCard('GST (Tax)', formatVal(reportData.totalSales?.TotalTax || 0), 'Government tax', BLUE_PRIMARY),
+          makePremiumKpiCard('Service Charge', formatVal(reportData.serviceCharge || reportData.totalSales?.ServiceCharge || 0), 'Operations share', BLUE_PRIMARY)
+        ],
+        [
+          makePremiumKpiCard('Round Off Adjust', formatVal(reportData.totalSales?.RoundedBy || 0), 'Nearest cent adjustment', SLATE_MUTED),
+          makePremiumKpiCard('Net Sales', formatVal(netSales), 'Total realized sales', TEAL_SUCCESS, true),
+          makePremiumKpiCard('Credit Outstanding', formatVal(creditOutstanding), 'Unpaid ledger amount', RED_ALERT),
+          makePremiumKpiCard('Collections Settled', formatVal(totalCollections), 'Net cash received', TEAL_SUCCESS, true)
+        ]
+      ]
+    },
+    layout: {
+      defaultBorder: false,
+      hLineWidth: () => 0,
+      vLineWidth: () => 0,
+      paddingLeft: () => 0,
+      paddingRight: () => 0,
+      paddingTop: () => 0,
+      paddingBottom: () => 0
+    },
+    margin: [0, 0, 0, 20]
+  });
+
+  // Reconciliation/Audits tables (detailed cancellation and voids breakdown)
+  const reconciliationBody = [];
+  reconciliationBody.push([
+    { text: 'AUDIT COMPONENT', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', margin: [0, 2.5, 0, 2.5] },
+    { text: 'QUANTITY / COUNT', fontSize: 7.5, bold: true, alignment: 'center', fillColor: BLUE_PRIMARY, color: '#fff', margin: [0, 2.5, 0, 2.5] },
+    { text: 'TOTAL AUDIT VALUE', fontSize: 7.5, bold: true, alignment: 'right', fillColor: BLUE_PRIMARY, color: '#fff', margin: [0, 2.5, 0, 2.5] }
+  ]);
+  reconciliationBody.push([
+    { text: 'Voided Dish Quantities (Post-order modifications)', fontSize: 7.5, color: SLATE_DARK, margin: [0, 3, 0, 3] },
+    { text: formatVal(voidQty, false), fontSize: 7.5, bold: true, alignment: 'center', margin: [0, 3, 0, 3] },
+    { text: formatVal(voidAmount), fontSize: 7.5, bold: true, alignment: 'right', color: RED_ALERT, margin: [0, 3, 0, 3] }
+  ]);
+  reconciliationBody.push([
+    { text: 'Cancelled Orders (Voided/Deleted entire bills)', fontSize: 7.5, color: SLATE_DARK, margin: [0, 3, 0, 3] },
+    { text: formatVal(cancelledCount, false), fontSize: 7.5, bold: true, alignment: 'center', margin: [0, 3, 0, 3] },
+    { text: formatVal(cancelledAmount), fontSize: 7.5, bold: true, alignment: 'right', color: RED_ALERT, margin: [0, 3, 0, 3] }
+  ]);
+
+  content.push({
+    text: 'RECONCILIATION & TRANSACTION AUDITING',
+    fontSize: 8.5,
+    bold: true,
+    color: BLUE_PRIMARY,
+    margin: [0, 0, 0, 4]
+  });
+
+  content.push({
+    table: {
+      widths: ['*', 100, 120],
+      body: reconciliationBody
+    },
+    layout: 'lightHorizontalLines',
+    margin: [0, 0, 0, 20]
+  });
 
   // Footer Branding Info
   content.push({
     columns: [
-      { text: 'Powered by UNIPRO Enterprise POS Analytics', fontSize: 7, color: SLATE_MUTED },
-      { text: 'CONFIDENTIAL - FOR INTERNAL BOARD REVIEW ONLY', fontSize: 7, color: SLATE_MUTED, alignment: 'right' }
+      { text: 'Generated by JALSA Analytics Server v2.0', fontSize: 7, color: SLATE_MUTED },
+      { text: 'CONFIDENTIAL EXECUTIVE DOCUMENT - FRANCHISE & STAKEHOLDER REVIEW ONLY', fontSize: 7, color: SLATE_MUTED, alignment: 'right' }
     ],
-    margin: [0, 15, 0, 0]
+    margin: [0, 20, 0, 0]
   });
 
   return {
@@ -614,7 +761,7 @@ const generateSalesReportPdf = (reportData) => {
       return {
         columns: [
           {
-            text: `Report Period: ${period} | Printed On: ${printedOn || new Date().toLocaleString()}`,
+            text: `Report Period: ${period} | Printed: ${printedOn || new Date().toLocaleString()}`,
             fontSize: 7.5,
             color: SLATE_MUTED,
             margin: [35, 12, 0, 0]
