@@ -415,12 +415,12 @@ const generateSalesReportPdf = (reportData) => {
   content.push({
     columns: [
       {
-        width: '56%',
+        width: 300,
         stack: [
           { text: 'PAYMENT CHANNEL CONTRIBUTION', fontSize: 9, bold: true, color: BLUE_PRIMARY, margin: [0, 0, 0, 4] },
           {
             table: {
-              widths: ['*', 70, 110, 50],
+              widths: ['*', 50, 105, 35],
               body: payBreakdownBody
             },
             layout: 'lightHorizontalLines'
@@ -428,13 +428,12 @@ const generateSalesReportPdf = (reportData) => {
         ]
       },
       {
-        width: '40%',
-        offset: '4%',
+        width: 200,
         stack: [
           { text: 'OPERATIONAL EFFICIENCY', fontSize: 9, bold: true, color: BLUE_PRIMARY, margin: [0, 0, 0, 4] },
           {
             table: {
-              widths: ['*', 60],
+              widths: ['*', 45],
               body: opsBody
             },
             layout: 'lightHorizontalLines'
@@ -442,7 +441,7 @@ const generateSalesReportPdf = (reportData) => {
         ]
       }
     ],
-    columnGap: 20,
+    columnGap: 25,
     margin: [0, 0, 0, 15]
   });
 
