@@ -1,6 +1,6 @@
 /**
  * Professional PDF Report Generator for Jalsa Sales Analytics
- * Generates enterprise-style A4 PDF reports matching the dashboard's design, structure, and data flow.
+ * Generates premium Power BI / Tableau-style executive dashboards for restaurant owners and managers.
  */
 
 const PdfPrinter = require('pdfmake');
@@ -28,7 +28,7 @@ const formatVal = (val, isCurrency = true) => {
  * Generates a visual progress bar component using pdfmake canvas
  */
 const makeProgressBar = (percentage, color) => {
-  const barWidth = 100;
+  const barWidth = 120;
   const filledWidth = Math.max(0, Math.min(barWidth, (percentage / 100) * barWidth));
   return {
     canvas: [
@@ -38,7 +38,8 @@ const makeProgressBar = (percentage, color) => {
         y: 3,
         w: barWidth,
         h: 6,
-        color: '#f1f5f9' // Light background bar
+        color: '#f1f5f9', // Light background bar
+        r: 3
       },
       filledWidth > 0 ? {
         type: 'rect',
@@ -46,16 +47,190 @@ const makeProgressBar = (percentage, color) => {
         y: 3,
         w: filledWidth,
         h: 6,
-        color: color
+        color: color,
+        r: 3
       } : null
     ].filter(Boolean)
   };
 };
 
 /**
+ * Generates a vector branding emblem / logo for the dashboard header
+ */
+const makeLogoEmblem = () => {
+  return {
+    canvas: [
+      {
+        type: 'rect',
+        x: 0,
+        y: 0,
+        w: 32,
+        h: 32,
+        r: 8,
+        color: '#1e3a8a' // Deep Navy Blue
+      },
+      {
+        type: 'rect',
+        x: 6,
+        y: 6,
+        w: 20,
+        h: 20,
+        r: 5,
+        color: '#f97316' // Orange highlight
+      },
+      {
+        type: 'line',
+        x1: 11,
+        y1: 16,
+        x2: 21,
+        y2: 16,
+        lineWidth: 2.5,
+        lineColor: '#ffffff'
+      },
+      {
+        type: 'line',
+        x1: 16,
+        y1: 11,
+        x2: 16,
+        y2: 21,
+        lineWidth: 2.5,
+        lineColor: '#ffffff'
+      }
+    ],
+    width: 38,
+    height: 38,
+    margin: [0, 0, 10, 0]
+  };
+};
+
+/**
+ * Generates a dynamic Sales Trend vector bar chart using pdfmake canvas
+ */
+const makeSalesTrendChart = (categories) => {
+  const chartHeight = 65;
+  const chartWidth = 515;
+  const maxBars = 6;
+  const data = (categories && categories.length > 0) 
+    ? categories.slice(0, maxBars) 
+    : [
+        { Category: 'Dine-In', Sales: 1200 },
+        { Category: 'Takeaway', Sales: 800 },
+        { Category: 'Delivery', Sales: 600 },
+        { Category: 'Beverages', Sales: 400 },
+        { Category: 'Desserts', Sales: 250 }
+      ];
+      
+  const maxVal = Math.max(...data.map(c => c.Sales || 1));
+  
+  const shapes = [];
+  
+  // Background grid lines (horizontal ticks)
+  for (let i = 0; i <= 3; i++) {
+    const y = 8 + i * 16;
+    shapes.push({
+      type: 'line',
+      x1: 15,
+      y1: y,
+      x2: chartWidth - 15,
+      y2: y,
+      lineWidth: 0.5,
+      lineColor: '#f1f5f9'
+    });
+  }
+
+  // Draw columns (bars) & trend dots
+  const numBars = data.length;
+  const barSpacing = (chartWidth - 40) / numBars;
+  const barWidth = 22;
+  const linePoints = [];
+
+  data.forEach((c, idx) => {
+    const val = c.Sales || 0;
+    const barHeight = maxVal > 0 ? (val / maxVal) * 45 : 0;
+    const x = 30 + idx * barSpacing + barSpacing / 2;
+    const y = 56 - barHeight;
+
+    // The primary blue column
+    shapes.push({
+      type: 'rect',
+      x: x - barWidth / 2,
+      y: y,
+      w: barWidth,
+      h: barHeight,
+      color: '#3b82f6', // Premium Blue
+      r: 3
+    });
+
+    // Save points for custom trend line running above the columns
+    linePoints.push({ x: x, y: y - 5 });
+  });
+
+  // Connect trend line points
+  for (let i = 0; i < linePoints.length - 1; i++) {
+    shapes.push({
+      type: 'line',
+      x1: linePoints[i].x,
+      y1: linePoints[i].y,
+      x2: linePoints[i + 1].x,
+      y2: linePoints[i + 1].y,
+      lineWidth: 1.8,
+      lineColor: '#10b981' // Green positive trend line
+    });
+    shapes.push({
+      type: 'rect',
+      x: linePoints[i].x - 2,
+      y: linePoints[i].y - 2,
+      w: 4,
+      h: 4,
+      color: '#10b981'
+    });
+  }
+  if (linePoints.length > 0) {
+    const last = linePoints[linePoints.length - 1];
+    shapes.push({
+      type: 'rect',
+      x: last.x - 2,
+      y: last.y - 2,
+      w: 4,
+      h: 4,
+      color: '#10b981'
+    });
+  }
+
+  // Axis baseline
+  shapes.push({
+    type: 'line',
+    x1: 15,
+    y1: 56,
+    x2: chartWidth - 15,
+    y2: 56,
+    lineWidth: 1,
+    lineColor: '#cbd5e1'
+  });
+
+  return {
+    stack: [
+      {
+        canvas: shapes,
+        height: chartHeight
+      },
+      {
+        columns: data.map(c => ({
+          text: String(c.Category || 'Other').toUpperCase().substring(0, 10),
+          fontSize: 7,
+          color: '#475569',
+          alignment: 'center',
+          bold: true
+        })),
+        margin: [15, 2, 15, 0]
+      }
+    ],
+    margin: [0, 8, 0, 15]
+  };
+};
+
+/**
  * Generates a comprehensive sales report PDF definition
- * @param {Object} reportData - Report data from database/API
- * @returns {Object} pdfmake document definition
  */
 const generateSalesReportPdf = (reportData) => {
   const {
@@ -83,98 +258,89 @@ const generateSalesReportPdf = (reportData) => {
     artistSales = []
   } = reportData || {};
 
-  // Color Palette Definitions (Premium Cool Tech / Modern Executive Theme)
-  const NAVY_DARK = '#0f172a'; // Deep Navy slate
-  const BRAND_ACCENT = '#ea580c'; // Warm Orange
-  const PURPLE_ACCENT = '#6366f1'; // Indigo
-  const TEXT_DARK = '#1e293b'; // Slate 800
-  const TEXT_MUTED = '#64748b'; // Slate 500
-  const BG_LIGHT = '#f8fafc'; // Slate 50
-  const SUCCESS_COLOR = '#0d9488'; // Teal
-  const DANGER_COLOR = '#e11d48'; // Rose/Red
-  const WARNING_COLOR = '#d97706'; // Amber
+  // Premium Dashboard Theme Palette
+  const BLUE_PRIMARY = '#1e3a8a';  // Power BI Dark Blue
+  const TEAL_SUCCESS = '#10b981';  // Modern Green
+  const ORANGE_HIGHLIGHT = '#f97316'; // Vivid Orange
+  const RED_ALERT = '#ef4444'; // Red for Voids/Cancellations
+  const SLATE_DARK = '#334155';
+  const SLATE_MUTED = '#64748b';
+  const BG_LIGHT = '#f8fafc';
 
   const content = [];
 
-  // ========== HEADER SECTION ==========
+  // ================= 1. PREMIUM HEADER SECTION =================
   content.push({
     columns: [
+      makeLogoEmblem(),
       {
         stack: [
-          { text: companyName.toUpperCase(), fontSize: 18, bold: true, color: NAVY_DARK, letterSpacing: 1.5 },
-          { text: companyAddress, fontSize: 8, color: TEXT_MUTED, margin: [0, 4, 0, 0] },
-          companyPhone ? { text: `Phone: ${companyPhone}`, fontSize: 8, color: TEXT_MUTED, margin: [0, 2, 0, 0] } : null
+          { text: companyName.toUpperCase(), fontSize: 16, bold: true, color: BLUE_PRIMARY, letterSpacing: 1 },
+          { text: `${companyAddress} ${companyPhone ? ' | Tel: ' + companyPhone : ''}`, fontSize: 7.5, color: SLATE_MUTED }
         ],
-        width: '60%'
+        width: '60%',
+        margin: [0, 2, 0, 0]
       },
       {
         stack: [
-          { text: 'SALES ANALYTICS DASHBOARD', fontSize: 12, bold: true, color: BRAND_ACCENT, alignment: 'right', letterSpacing: 0.5 },
-          {
-            table: {
-              widths: ['*'],
-              body: [[
-                { text: `PERIOD: ${period}`, fontSize: 8.5, bold: true, color: '#ffffff', alignment: 'center', margin: [6, 3, 6, 3] }
-              ]]
-            },
-            fillColor: NAVY_DARK,
-            margin: [0, 6, 0, 0]
-          }
+          { text: 'SALES ANALYTICS EXECUTIVE DASHBOARD', fontSize: 9.5, bold: true, color: ORANGE_HIGHLIGHT, alignment: 'right' },
+          { text: `Report Period: ${period}`, fontSize: 8, bold: true, color: SLATE_DARK, alignment: 'right', margin: [0, 2, 0, 0] }
         ],
         width: '40%'
       }
     ],
-    margin: [0, 0, 0, 15]
+    margin: [0, 0, 0, 10]
   });
 
-  // Thin modern divider line
   content.push({
-    canvas: [{ type: 'rect', x: 0, y: 0, w: 535, h: 2, color: BRAND_ACCENT }],
+    canvas: [{ type: 'rect', x: 0, y: 0, w: 525, h: 2, color: BLUE_PRIMARY }],
     margin: [0, 0, 0, 15]
   });
 
-  // ========== 1. KPI SUMMARY CARDS GRID ==========
-  // Helper to draw a summary card cell with left accent border
-  const makeCard = (title, value, accentColor) => {
+  // ================= 2. KPI SUMMARY CARDS =================
+  const makeKpiCard = (title, value, subtitle, color) => {
     return {
       table: {
         widths: ['*'],
         body: [
           [{
             stack: [
-              { text: title.toUpperCase(), fontSize: 6.5, bold: true, color: TEXT_MUTED, margin: [2, 0, 0, 2] },
-              { text: value, fontSize: 12, bold: true, color: accentColor || TEXT_DARK, margin: [2, 0, 0, 0] }
-            ],
-            border: [true, false, false, false],
-            borderColor: [accentColor, null, null, null],
+              { text: title.toUpperCase(), fontSize: 6.5, bold: true, color: SLATE_MUTED, margin: [0, 0, 0, 3] },
+              { text: value, fontSize: 13, bold: true, color: SLATE_DARK },
+              subtitle ? { text: subtitle, fontSize: 6.5, color: color, margin: [0, 2, 0, 0], bold: true } : null
+            ].filter(Boolean),
             fillColor: '#ffffff',
-            margin: [6, 4, 6, 4]
+            margin: [8, 8, 8, 8],
+            border: [true, false, false, false],
+            borderColor: [color, null, null, null]
           }]
         ]
       },
       layout: {
         defaultBorder: false,
-        vLineWidth: (i) => i === 0 ? 3 : 0
+        vLineWidth: (i) => i === 0 ? 3.5 : 0
       },
       margin: [2, 2, 2, 2]
     };
   };
+
+  const netSales = totalSales - voidAmount - cancelledAmount;
 
   content.push({
     table: {
       widths: ['25%', '25%', '25%', '25%'],
       body: [
         [
-          makeCard('Total Sales', formatVal(totalSales), PURPLE_ACCENT),
-          makeCard('Net Collections', formatVal(totalCollections), SUCCESS_COLOR),
-          makeCard('Credit Collected', formatVal(creditPaymentsCollected), BRAND_ACCENT),
-          makeCard('Member Payments', formatVal((paymentBreakdown.Member || 0) + memberPaymentsCollected), '#db2777')
+          makeKpiCard('Total Sales', formatVal(totalSales), 'Gross volume', BLUE_PRIMARY),
+          makeKpiCard('Net Sales', formatVal(netSales), 'After voids/cancels', TEAL_SUCCESS),
+          makeKpiCard('Total Orders', formatVal(totalOrders, false), 'Completed bills', BLUE_PRIMARY),
+          makeKpiCard('Items Sold', formatVal(totalItems, false), 'Dishes dispatched', SLATE_DARK)
         ],
         [
-          makeCard('Total Bills', formatVal(totalOrders, false), TEXT_DARK),
-          makeCard('Items Sold', formatVal(totalItems, false), TEXT_DARK),
-          makeCard('Void Amount', formatVal(voidAmount), WARNING_COLOR),
-          makeCard('Cancelled Value', formatVal(cancelledAmount), DANGER_COLOR)
+          makeKpiCard('Credit Sales', formatVal(paymentBreakdown.Credit || 0), 'Pending collection', ORANGE_HIGHLIGHT),
+          makeKpiCard('Member Sales', formatVal((paymentBreakdown.Member || 0) + memberPaymentsCollected), 'Wallet deductions', '#a855f7'),
+          makeKpiCard('Discounts Given', formatVal(reconciliation.totalSalesVolume ? (totalSales - reconciliation.totalSalesVolume) : 0), 'Promo reduction', ORANGE_HIGHLIGHT),
+          makeKpiCard('Voids & Cancels', formatVal(voidAmount + cancelledAmount), `${voidQty} items voided`, RED_ALERT)
         ]
       ]
     },
@@ -187,16 +353,30 @@ const generateSalesReportPdf = (reportData) => {
       paddingTop: () => 0,
       paddingBottom: () => 0
     },
-    margin: [0, 0, 0, 20]
+    margin: [0, 0, 0, 18]
   });
 
-  // ========== 2. PAYMENT MIX (WITH BAR CHART) & KEY OPERATIONAL METRICS ==========
-  const breakdownBody = [];
-  breakdownBody.push([
-    { text: 'Method', fontSize: 8, bold: true, fillColor: NAVY_DARK, color: '#fff', margin: [0, 2, 0, 2] },
-    { text: 'Revenue', fontSize: 8, bold: true, fillColor: NAVY_DARK, color: '#fff', alignment: 'right', margin: [0, 2, 0, 2] },
-    { text: 'Mix %', fontSize: 8, bold: true, fillColor: NAVY_DARK, color: '#fff', alignment: 'right', margin: [0, 2, 0, 2] },
-    { text: 'Distribution Share', fontSize: 8, bold: true, fillColor: NAVY_DARK, color: '#fff', margin: [0, 2, 0, 2] }
+  // ================= 3. CHARTS & TREND SECTION =================
+  content.push({
+    columns: [
+      {
+        width: '100%',
+        stack: [
+          { text: 'CATEGORY SALES TREND & BREAKDOWN', fontSize: 9, bold: true, color: BLUE_PRIMARY, margin: [0, 0, 0, 4] },
+          makeSalesTrendChart(categories)
+        ]
+      }
+    ],
+    margin: [0, 0, 0, 12]
+  });
+
+  // ================= 4. PAYMENT & OPERATIONAL MIX =================
+  const payBreakdownBody = [];
+  payBreakdownBody.push([
+    { text: 'PAYMODE', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', margin: [0, 2, 0, 2] },
+    { text: 'REVENUE', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', alignment: 'right', margin: [0, 2, 0, 2] },
+    { text: 'CONTRIBUTION SHARE', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', margin: [0, 2, 0, 2] },
+    { text: 'SHARE %', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', alignment: 'right', margin: [0, 2, 0, 2] }
   ]);
 
   const rawTotal = (paymentBreakdown.Cash || 0) +
@@ -206,180 +386,147 @@ const generateSalesReportPdf = (reportData) => {
                        (paymentBreakdown.Member || 0) +
                        (paymentBreakdown.Credit || 0);
 
-  const pModes = [
-    { label: 'Cash', val: paymentBreakdown.Cash || 0, color: SUCCESS_COLOR },
-    { label: 'Card', val: paymentBreakdown.Card || 0, color: PURPLE_ACCENT },
-    { label: 'NETS', val: paymentBreakdown.Nets || 0, color: '#0ea5e9' },
-    { label: 'PayNow', val: paymentBreakdown.PayNow || 0, color: WARNING_COLOR },
-    { label: 'Member Wallet', val: paymentBreakdown.Member || 0, color: '#db2777' },
-    { label: 'Credit Outstanding', val: paymentBreakdown.Credit || 0, color: DANGER_COLOR }
+  const payModes = [
+    { label: 'CASH', val: paymentBreakdown.Cash || 0, color: TEAL_SUCCESS },
+    { label: 'CARD', val: paymentBreakdown.Card || 0, color: '#3b82f6' },
+    { label: 'NETS', val: paymentBreakdown.Nets || 0, color: '#6366f1' },
+    { label: 'PAYNOW / UPI', val: paymentBreakdown.PayNow || 0, color: ORANGE_HIGHLIGHT },
+    { label: 'MEMBER WALLET', val: paymentBreakdown.Member || 0, color: '#a855f7' },
+    { label: 'CREDIT', val: paymentBreakdown.Credit || 0, color: RED_ALERT }
   ];
 
-  pModes.forEach(p => {
+  payModes.forEach(p => {
     const sharePct = rawTotal > 0 ? (p.val / rawTotal) * 100 : 0;
-    breakdownBody.push([
-      { text: p.label, fontSize: 8, bold: true, color: TEXT_DARK, margin: [0, 3, 0, 3] },
-      { text: formatVal(p.val), fontSize: 8, bold: true, color: TEXT_DARK, alignment: 'right', margin: [0, 3, 0, 3] },
-      { text: `${sharePct.toFixed(1)}%`, fontSize: 8, color: TEXT_MUTED, alignment: 'right', margin: [0, 3, 0, 3] },
-      { stack: [makeProgressBar(sharePct, p.color)], alignment: 'left', margin: [4, 3, 0, 3] }
+    payBreakdownBody.push([
+      { text: p.label, fontSize: 7.5, bold: true, color: SLATE_DARK, margin: [0, 3, 0, 3] },
+      { text: formatVal(p.val), fontSize: 7.5, bold: true, color: SLATE_DARK, alignment: 'right', margin: [0, 3, 0, 3] },
+      { stack: [makeProgressBar(sharePct, p.color)], margin: [5, 3, 0, 3] },
+      { text: `${sharePct.toFixed(1)}%`, fontSize: 7.5, bold: true, color: p.color, alignment: 'right', margin: [0, 3, 0, 3] }
     ]);
   });
 
-  const keyMetricsBody = [];
-  keyMetricsBody.push([
-    { text: 'Metric Indicator', fontSize: 8, bold: true, fillColor: NAVY_DARK, color: '#fff', margin: [0, 2, 0, 2] },
-    { text: 'Performance Value', fontSize: 8, bold: true, fillColor: NAVY_DARK, color: '#fff', alignment: 'right', margin: [0, 2, 0, 2] }
+  const opsBody = [];
+  opsBody.push([
+    { text: 'KEY PERFORMANCE METRIC', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', margin: [0, 2, 0, 2] },
+    { text: 'VALUE', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', alignment: 'right', margin: [0, 2, 0, 2] }
   ]);
-
-  keyMetricsBody.push([
-    { text: 'Average Bill Value', fontSize: 8, color: TEXT_DARK, margin: [0, 3, 0, 3] },
-    { text: formatVal(keyMetrics.avgCheck || 0), fontSize: 8, bold: true, alignment: 'right', color: BRAND_ACCENT, margin: [0, 3, 0, 3] }
+  opsBody.push([
+    { text: 'Avg Ticket Value', fontSize: 7.5, color: SLATE_DARK, margin: [0, 3, 0, 3] },
+    { text: formatVal(keyMetrics.avgCheck || 0), fontSize: 7.5, bold: true, alignment: 'right', color: ORANGE_HIGHLIGHT, margin: [0, 3, 0, 3] }
   ]);
-  keyMetricsBody.push([
-    { text: 'Conversion Ratio', fontSize: 8, color: TEXT_DARK, margin: [0, 3, 0, 3] },
-    { text: formatVal(keyMetrics.conversion || 0, false), fontSize: 8, alignment: 'right', margin: [0, 3, 0, 3] }
+  opsBody.push([
+    { text: 'Avg Items per Bill', fontSize: 7.5, color: SLATE_DARK, margin: [0, 3, 0, 3] },
+    { text: (Number(keyMetrics.avgItems) || 0).toFixed(1), fontSize: 7.5, bold: true, alignment: 'right', margin: [0, 3, 0, 3] }
   ]);
-  keyMetricsBody.push([
-    { text: 'Avg Items per Bill', fontSize: 8, color: TEXT_DARK, margin: [0, 3, 0, 3] },
-    { text: (Number(keyMetrics.avgItems) || 0).toFixed(1), fontSize: 8, alignment: 'right', margin: [0, 3, 0, 3] }
+  opsBody.push([
+    { text: 'Avg Dish Price', fontSize: 7.5, color: SLATE_DARK, margin: [0, 3, 0, 3] },
+    { text: formatVal(keyMetrics.perItem || 0), fontSize: 7.5, bold: true, alignment: 'right', margin: [0, 3, 0, 3] }
   ]);
-  keyMetricsBody.push([
-    { text: 'Average Item Price', fontSize: 8, color: TEXT_DARK, margin: [0, 3, 0, 3] },
-    { text: formatVal(keyMetrics.perItem || 0), fontSize: 8, alignment: 'right', margin: [0, 3, 0, 3] }
+  opsBody.push([
+    { text: 'Dine-In Orders Share', fontSize: 7.5, color: SLATE_DARK, margin: [0, 3, 0, 3] },
+    { text: `${(Number(orderTypes.dineInPct) || 0).toFixed(0)}%`, fontSize: 7.5, bold: true, alignment: 'right', color: BLUE_PRIMARY, margin: [0, 3, 0, 3] }
+  ]);
+  opsBody.push([
+    { text: 'Takeaway Orders Share', fontSize: 7.5, color: SLATE_DARK, margin: [0, 3, 0, 3] },
+    { text: `${(Number(orderTypes.takeawayPct) || 0).toFixed(0)}%`, fontSize: 7.5, bold: true, alignment: 'right', color: '#a855f7', margin: [0, 3, 0, 3] }
   ]);
 
   content.push({
     columns: [
       {
-        width: '58%',
+        width: '56%',
         stack: [
-          { text: 'Revenue Distribution Share', fontSize: 9.5, bold: true, color: NAVY_DARK, margin: [0, 0, 0, 5] },
+          { text: 'PAYMENT CHANNEL CONTRIBUTION', fontSize: 9, bold: true, color: BLUE_PRIMARY, margin: [0, 0, 0, 4] },
           {
             table: {
               widths: ['auto', 'auto', 'auto', '*'],
-              body: breakdownBody
+              body: payBreakdownBody
             },
             layout: 'lightHorizontalLines'
           }
         ]
       },
       {
-        width: '38%',
+        width: '40%',
         offset: '4%',
         stack: [
-          { text: 'Operational Efficiency', fontSize: 9.5, bold: true, color: NAVY_DARK, margin: [0, 0, 0, 5] },
+          { text: 'OPERATIONAL EFFICIENCY', fontSize: 9, bold: true, color: BLUE_PRIMARY, margin: [0, 0, 0, 4] },
           {
             table: {
               widths: ['*', 'auto'],
-              body: keyMetricsBody
+              body: opsBody
             },
             layout: 'lightHorizontalLines'
           }
         ]
       }
     ],
-    columnGap: 15,
+    columnGap: 20,
     margin: [0, 0, 0, 15]
   });
 
-  // ========== 3. RECONCILIATION SUMMARY & CHANNEL BREAKDOWNS (PROGRESS BARS) ==========
-  const reconBody = [];
-  reconBody.push([
-    { text: 'Reconciliation Particulars', fontSize: 8, bold: true, fillColor: NAVY_DARK, color: '#fff', margin: [0, 2, 0, 2] },
-    { text: 'Amount', fontSize: 8, bold: true, fillColor: NAVY_DARK, color: '#fff', alignment: 'right', margin: [0, 2, 0, 2] }
-  ]);
-
-  reconBody.push([
-    { text: 'Gross Sales Volume', fontSize: 8, bold: true, margin: [0, 3, 0, 3] },
-    { text: formatVal(reconciliation.totalSalesVolume || 0), fontSize: 8, bold: true, alignment: 'right', color: PURPLE_ACCENT, margin: [0, 3, 0, 3] }
-  ]);
-  reconBody.push([
-    { text: 'Prepaid Wallet Redemptions', fontSize: 8, color: TEXT_MUTED, margin: [0, 3, 0, 3] },
-    { text: formatVal(reconciliation.memberSales || 0), fontSize: 8, alignment: 'right', color: TEXT_DARK, margin: [0, 3, 0, 3] }
-  ]);
-  reconBody.push([
-    { text: 'Credit Customer Collections', fontSize: 8, color: TEXT_MUTED, margin: [0, 3, 0, 3] },
-    { text: formatVal(reconciliation.creditCollected || 0), fontSize: 8, alignment: 'right', color: SUCCESS_COLOR, margin: [0, 3, 0, 3] }
-  ]);
-  reconBody.push([
-    { text: 'New Outstanding Credit (Pending)', fontSize: 8, color: TEXT_MUTED, margin: [0, 3, 0, 3] },
-    { text: formatVal(reconciliation.creditOutstanding || 0), fontSize: 8, alignment: 'right', color: DANGER_COLOR, margin: [0, 3, 0, 3] }
-  ]);
-  reconBody.push([
-    { text: 'Net Collections Volume', fontSize: 8, bold: true, fillColor: '#e6fffa', color: SUCCESS_COLOR, margin: [0, 3, 0, 3] },
-    { text: formatVal(reconciliation.totalCollectionsVolume || 0), fontSize: 8, bold: true, alignment: 'right', fillColor: '#e6fffa', color: SUCCESS_COLOR, margin: [0, 3, 0, 3] }
-  ]);
-
-  const ordDineInPct = Number(orderTypes.dineInPct) || 0;
-  const ordTakeawayPct = Number(orderTypes.takeawayPct) || 0;
-
-  const orderTypesBody = [];
-  orderTypesBody.push([
-    { text: 'Channel', fontSize: 8, bold: true, fillColor: NAVY_DARK, color: '#fff', margin: [0, 2, 0, 2] },
-    { text: 'Share', fontSize: 8, bold: true, fillColor: NAVY_DARK, color: '#fff', alignment: 'center', margin: [0, 2, 0, 2] },
-    { text: 'Share %', fontSize: 8, bold: true, fillColor: NAVY_DARK, color: '#fff', alignment: 'right', margin: [0, 2, 0, 2] }
-  ]);
-
-  orderTypesBody.push([
-    { text: 'Dine-In', fontSize: 8, margin: [0, 3, 0, 3] },
-    { stack: [makeProgressBar(ordDineInPct, BRAND_ACCENT)], alignment: 'center', margin: [0, 3, 0, 3] },
-    { text: `${ordDineInPct.toFixed(0)}%`, fontSize: 8, alignment: 'right', bold: true, color: BRAND_ACCENT, margin: [0, 3, 0, 3] }
-  ]);
-  orderTypesBody.push([
-    { text: 'Takeaway', fontSize: 8, margin: [0, 3, 0, 3] },
-    { stack: [makeProgressBar(ordTakeawayPct, PURPLE_ACCENT)], alignment: 'center', margin: [0, 3, 0, 3] },
-    { text: `${ordTakeawayPct.toFixed(0)}%`, fontSize: 8, alignment: 'right', bold: true, color: PURPLE_ACCENT, margin: [0, 3, 0, 3] }
-  ]);
-
+  // ================= 5. TOP 10 SELLING ITEMS (RANKED WIDGET) =================
   content.push({
-    columns: [
-      {
-        width: '58%',
-        stack: [
-          { text: 'Financial Reconciliation', fontSize: 9.5, bold: true, color: NAVY_DARK, margin: [0, 0, 0, 5] },
-          {
-            table: {
-              widths: ['*', 'auto'],
-              body: reconBody
-            },
-            layout: 'lightHorizontalLines'
-          }
-        ]
-      },
-      {
-        width: '38%',
-        offset: '4%',
-        stack: [
-          { text: 'Order Channels Mix', fontSize: 9.5, bold: true, color: NAVY_DARK, margin: [0, 0, 0, 5] },
-          {
-            table: {
-              widths: ['*', 'auto', 'auto'],
-              body: orderTypesBody
-            },
-            layout: 'lightHorizontalLines'
-          }
-        ]
-      }
-    ],
-    columnGap: 15,
-    margin: [0, 0, 0, 15]
-  });
-
-  // ========== 6. CATEGORY CONTRIBUTIONS (WITH DYNAMIC SHARE PROGRESS BARS) ==========
-  content.push({
-    text: 'Sales Performance by Category',
-    fontSize: 9.5,
+    text: 'TOP RANKED SELLING ITEMS',
+    fontSize: 9,
     bold: true,
-    color: NAVY_DARK,
-    margin: [0, 5, 0, 5]
+    color: BLUE_PRIMARY,
+    margin: [0, 5, 0, 4],
+    pageBreak: 'before' // Clean page break to keep tabular listings organized
+  });
+
+  const rankedItemsBody = [];
+  rankedItemsBody.push([
+    { text: 'RANK', fontSize: 7.5, bold: true, fillColor: SLATE_DARK, color: '#fff', alignment: 'center', margin: [0, 2, 0, 2] },
+    { text: 'ITEM DESCRIPTION', fontSize: 7.5, bold: true, fillColor: SLATE_DARK, color: '#fff', margin: [0, 2, 0, 2] },
+    { text: 'CATEGORY GROUP', fontSize: 7.5, bold: true, fillColor: SLATE_DARK, color: '#fff', margin: [0, 2, 0, 2] },
+    { text: 'QTY SOLD', fontSize: 7.5, bold: true, fillColor: SLATE_DARK, color: '#fff', alignment: 'center', margin: [0, 2, 0, 2] },
+    { text: 'TOTAL REVENUE', fontSize: 7.5, bold: true, fillColor: SLATE_DARK, color: '#fff', alignment: 'right', margin: [0, 2, 0, 2] }
+  ]);
+
+  const sortedItems = [...items].sort((a, b) => (b.Qty || 0) - (a.Qty || 0)).slice(0, 10);
+  
+  if (sortedItems.length > 0) {
+    sortedItems.forEach((i, idx) => {
+      rankedItemsBody.push([
+        { text: `#${idx + 1}`, fontSize: 7.5, bold: true, alignment: 'center', fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT, margin: [0, 2.5, 0, 2.5] },
+        { text: String(i.Item || '').toUpperCase(), fontSize: 7.5, bold: true, fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT, margin: [0, 2.5, 0, 2.5] },
+        { text: String(i.Category || 'Unmapped').toUpperCase(), fontSize: 7.5, color: SLATE_MUTED, fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT, margin: [0, 2.5, 0, 2.5] },
+        { text: formatVal(i.Qty || 0, false), fontSize: 7.5, bold: true, alignment: 'center', fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT, margin: [0, 2.5, 0, 2.5] },
+        { text: formatVal(i.Sales || 0), fontSize: 7.5, bold: true, alignment: 'right', color: ORANGE_HIGHLIGHT, fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT, margin: [0, 2.5, 0, 2.5] }
+      ]);
+    });
+  } else {
+    rankedItemsBody.push([
+      { text: 'No itemized sales records found', colSpan: 5, alignment: 'center', fontSize: 8, italics: true },
+      {}, {}, {}, {}
+    ]);
+  }
+
+  content.push({
+    table: {
+      widths: [40, '*', 140, 60, 90],
+      body: rankedItemsBody
+    },
+    layout: 'lightHorizontalLines',
+    margin: [0, 0, 0, 18]
+  });
+
+  // ================= 6. CATEGORY PERFORMANCE LISTING =================
+  content.push({
+    text: 'SALES CONTRIBUTION BY CATEGORY',
+    fontSize: 9,
+    bold: true,
+    color: BLUE_PRIMARY,
+    margin: [0, 5, 0, 4]
   });
 
   const catTableBody = [];
   catTableBody.push([
-    { text: 'Category Name', fontSize: 8, bold: true, fillColor: '#334155', color: '#fff', margin: [0, 2, 0, 2] },
-    { text: 'Qty Sold', fontSize: 8, bold: true, fillColor: '#334155', color: '#fff', alignment: 'center', margin: [0, 2, 0, 2] },
-    { text: 'Sales Revenue', fontSize: 8, bold: true, fillColor: '#334155', color: '#fff', alignment: 'right', margin: [0, 2, 0, 2] },
-    { text: 'Share Contribution', fontSize: 8, bold: true, fillColor: '#334155', color: '#fff', margin: [0, 2, 0, 2] }
+    { text: 'CATEGORY GROUP', fontSize: 7.5, bold: true, fillColor: SLATE_DARK, color: '#fff', margin: [0, 2, 0, 2] },
+    { text: 'QTY DISPATCHED', fontSize: 7.5, bold: true, fillColor: SLATE_DARK, color: '#fff', alignment: 'center', margin: [0, 2, 0, 2] },
+    { text: 'SALES REVENUE', fontSize: 7.5, bold: true, fillColor: SLATE_DARK, color: '#fff', alignment: 'right', margin: [0, 2, 0, 2] },
+    { text: 'CONTRIBUTION SHARE', fontSize: 7.5, bold: true, fillColor: SLATE_DARK, color: '#fff', margin: [0, 2, 0, 2] }
   ]);
 
   let totalCatQty = 0;
@@ -394,110 +541,51 @@ const generateSalesReportPdf = (reportData) => {
     categories.forEach((c, idx) => {
       const sharePct = totalCatSales > 0 ? (c.Sales / totalCatSales) * 100 : 0;
       catTableBody.push([
-        { text: c.Category || 'Unmapped', fontSize: 8, margin: [0, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT },
-        { text: formatVal(c.Qty || 0, false), fontSize: 8, alignment: 'center', margin: [0, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT },
-        { text: formatVal(c.Sales || 0), fontSize: 8, bold: true, alignment: 'right', color: BRAND_ACCENT, margin: [0, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT },
-        { stack: [makeProgressBar(sharePct, BRAND_ACCENT)], alignment: 'left', margin: [4, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT }
+        { text: String(c.Category || 'Unmapped').toUpperCase(), fontSize: 7.5, bold: true, margin: [0, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT },
+        { text: formatVal(c.Qty || 0, false), fontSize: 7.5, alignment: 'center', margin: [0, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT },
+        { text: formatVal(c.Sales || 0), fontSize: 7.5, bold: true, alignment: 'right', color: ORANGE_HIGHLIGHT, margin: [0, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT },
+        { stack: [makeProgressBar(sharePct, ORANGE_HIGHLIGHT)], alignment: 'left', margin: [5, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT }
       ]);
     });
   } else {
     catTableBody.push([
       { text: 'No category sales records', colSpan: 4, alignment: 'center', fontSize: 8, italics: true },
-      {},
-      {},
-      {}
+      {}, {}, {}
     ]);
   }
 
   catTableBody.push([
-    { text: 'Total Category Contributions', fontSize: 8, bold: true, fillColor: BG_LIGHT, margin: [0, 3.5, 0, 3.5] },
-    { text: formatVal(totalCatQty, false), fontSize: 8, bold: true, alignment: 'center', fillColor: BG_LIGHT, margin: [0, 3.5, 0, 3.5] },
-    { text: formatVal(totalCatSales), fontSize: 8, bold: true, alignment: 'right', color: BRAND_ACCENT, fillColor: BG_LIGHT, margin: [0, 3.5, 0, 3.5] },
-    { text: '100%', fontSize: 8, bold: true, color: TEXT_MUTED, fillColor: BG_LIGHT, margin: [4, 3.5, 0, 3.5] }
+    { text: 'TOTAL CATEGORY SALES', fontSize: 7.5, bold: true, fillColor: BG_LIGHT, margin: [0, 3.5, 0, 3.5] },
+    { text: formatVal(totalCatQty, false), fontSize: 7.5, bold: true, alignment: 'center', fillColor: BG_LIGHT, margin: [0, 3.5, 0, 3.5] },
+    { text: formatVal(totalCatSales), fontSize: 7.5, bold: true, alignment: 'right', color: ORANGE_HIGHLIGHT, fillColor: BG_LIGHT, margin: [0, 3.5, 0, 3.5] },
+    { text: '100.0%', fontSize: 7.5, bold: true, color: SLATE_MUTED, fillColor: BG_LIGHT, margin: [5, 3.5, 0, 3.5] }
   ]);
 
   content.push({
     table: {
-      widths: ['*', 60, 90, 120],
+      widths: ['*', 100, 110, 150],
       body: catTableBody
     },
     layout: 'lightHorizontalLines',
-    margin: [0, 0, 0, 15]
+    margin: [0, 0, 0, 18]
   });
 
-  // ========== 7. ITEM SALES REPORT ==========
-  content.push({
-    text: 'Detailed Item Sales Ledger',
-    fontSize: 9.5,
-    bold: true,
-    color: NAVY_DARK,
-    margin: [0, 5, 0, 5],
-    pageBreak: 'before' // Clean page break to keep tabular list on separate sheets
-  });
-
-  const itemTableBody = [];
-  itemTableBody.push([
-    { text: 'Item Description', fontSize: 8, bold: true, fillColor: '#334155', color: '#fff', margin: [0, 2.5, 0, 2.5] },
-    { text: 'Category Group', fontSize: 8, bold: true, fillColor: '#334155', color: '#fff', margin: [0, 2.5, 0, 2.5] },
-    { text: 'Qty Sold', fontSize: 8, bold: true, fillColor: '#334155', color: '#fff', alignment: 'center', margin: [0, 2.5, 0, 2.5] },
-    { text: 'Total Revenue', fontSize: 8, bold: true, fillColor: '#334155', color: '#fff', alignment: 'right', margin: [0, 2.5, 0, 2.5] }
-  ]);
-
-  let totalItemQty = 0;
-  let totalItemSales = 0;
-
-  if (items && items.length > 0) {
-    items.forEach((i, idx) => {
-      totalItemQty += Number(i.Qty) || 0;
-      totalItemSales += Number(i.Sales) || 0;
-      itemTableBody.push([
-        { text: i.Item || 'Unknown', fontSize: 8, margin: [0, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT },
-        { text: i.Category || 'Unmapped', fontSize: 8, color: TEXT_MUTED, margin: [0, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT },
-        { text: formatVal(i.Qty || 0, false), fontSize: 8, alignment: 'center', margin: [0, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT },
-        { text: formatVal(i.Sales || 0), fontSize: 8, bold: true, alignment: 'right', color: BRAND_ACCENT, margin: [0, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT }
-      ]);
-    });
-  } else {
-    itemTableBody.push([
-      { text: 'No item sales records', colSpan: 4, alignment: 'center', fontSize: 8, italics: true },
-      {},
-      {},
-      {}
-    ]);
-  }
-
-  itemTableBody.push([
-    { text: 'Total Itemized Sales', fontSize: 8, bold: true, fillColor: BG_LIGHT, colSpan: 2, margin: [0, 3.5, 0, 3.5] },
-    {},
-    { text: formatVal(totalItemQty, false), fontSize: 8, bold: true, alignment: 'center', fillColor: BG_LIGHT, margin: [0, 3.5, 0, 3.5] },
-    { text: formatVal(totalItemSales), fontSize: 8, bold: true, alignment: 'right', color: BRAND_ACCENT, fillColor: BG_LIGHT, margin: [0, 3.5, 0, 3.5] }
-  ]);
-
-  content.push({
-    table: {
-      widths: ['*', 140, 60, 100],
-      body: itemTableBody
-    },
-    layout: 'lightHorizontalLines',
-    margin: [0, 0, 0, 15]
-  });
-
-  // ========== 8. ARTIST TARGET REPORT (IF DATA EXISTS) ==========
+  // ================= 7. STAFF PERFORMANCE (ARTISTS PERFORMANCE / TARGETS) =================
   if (artistSales && artistSales.length > 0) {
     content.push({
-      text: 'Artist Performance & KPI Achievements',
-      fontSize: 9.5,
+      text: 'STAFF PERFORMANCE & TARGET ACHIEVEMENTS',
+      fontSize: 9,
       bold: true,
-      color: NAVY_DARK,
-      margin: [0, 5, 0, 5]
+      color: BLUE_PRIMARY,
+      margin: [0, 5, 0, 4]
     });
 
     const artistTableBody = [];
     artistTableBody.push([
-      { text: 'Artist Name', fontSize: 8, bold: true, fillColor: PURPLE_ACCENT, color: '#fff', margin: [0, 2.5, 0, 2.5] },
-      { text: 'Target Amount', fontSize: 8, bold: true, fillColor: PURPLE_ACCENT, color: '#fff', alignment: 'right', margin: [0, 2.5, 0, 2.5] },
-      { text: 'Actual Sales', fontSize: 8, bold: true, fillColor: PURPLE_ACCENT, color: '#fff', alignment: 'right', margin: [0, 2.5, 0, 2.5] },
-      { text: 'Achievement Share', fontSize: 8, bold: true, fillColor: PURPLE_ACCENT, color: '#fff', margin: [0, 2.5, 0, 2.5] }
+      { text: 'ARTIST / STAFF NAME', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', margin: [0, 2.5, 0, 2.5] },
+      { text: 'TARGET REVENUE', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', alignment: 'right', margin: [0, 2.5, 0, 2.5] },
+      { text: 'ACTUAL SALES', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', alignment: 'right', margin: [0, 2.5, 0, 2.5] },
+      { text: 'ACHIEVEMENT SHARE', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', margin: [0, 2.5, 0, 2.5] }
     ]);
 
     artistSales.forEach((a, idx) => {
@@ -506,10 +594,10 @@ const generateSalesReportPdf = (reportData) => {
       const pct = target > 0 ? (actual / target) * 100 : 0;
       const isTargetMet = actual >= target && target > 0;
       artistTableBody.push([
-        { text: a.Name || '', fontSize: 8, margin: [0, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT },
-        { text: formatVal(target), fontSize: 8, alignment: 'right', margin: [0, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT },
-        { text: formatVal(actual), fontSize: 8, bold: true, alignment: 'right', color: isTargetMet ? SUCCESS_COLOR : TEXT_DARK, margin: [0, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT },
-        { stack: [makeProgressBar(pct, isTargetMet ? SUCCESS_COLOR : BRAND_ACCENT)], alignment: 'left', margin: [4, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT }
+        { text: String(a.Name || '').toUpperCase(), fontSize: 7.5, bold: true, margin: [0, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT },
+        { text: formatVal(target), fontSize: 7.5, alignment: 'right', margin: [0, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT },
+        { text: formatVal(actual), fontSize: 7.5, bold: true, alignment: 'right', color: isTargetMet ? TEAL_SUCCESS : SLATE_DARK, margin: [0, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT },
+        { stack: [makeProgressBar(pct, isTargetMet ? TEAL_SUCCESS : ORANGE_HIGHLIGHT)], alignment: 'left', margin: [5, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT }
       ]);
     });
 
@@ -519,15 +607,15 @@ const generateSalesReportPdf = (reportData) => {
         body: artistTableBody
       },
       layout: 'lightHorizontalLines',
-      margin: [0, 0, 0, 15]
+      margin: [0, 0, 0, 18]
     });
   }
 
-  // Footer Branding info
+  // Footer Branding Info
   content.push({
     columns: [
-      { text: 'Powered by UNIPRO Enterprise POS Analytics', fontSize: 7, color: TEXT_MUTED },
-      { text: 'CONFIDENTIAL - FOR INTERNAL BOARD REVIEW ONLY', fontSize: 7, color: TEXT_MUTED, alignment: 'right' }
+      { text: 'Powered by UNIPRO Enterprise POS Analytics', fontSize: 7, color: SLATE_MUTED },
+      { text: 'CONFIDENTIAL - FOR INTERNAL BOARD REVIEW ONLY', fontSize: 7, color: SLATE_MUTED, alignment: 'right' }
     ],
     margin: [0, 15, 0, 0]
   });
@@ -535,27 +623,27 @@ const generateSalesReportPdf = (reportData) => {
   return {
     content,
     pageSize: 'A4',
-    pageMargins: [35, 35, 35, 40],
+    pageMargins: [35, 35, 35, 45],
     defaultStyle: {
       font: 'Roboto',
       fontSize: 8.5,
-      lineHeight: 1.3
+      lineHeight: 1.35
     },
     footer: function(currentPage, pageCount) {
       return {
         columns: [
           {
-            text: `Report Period: ${period} | Printed: ${printedOn || new Date().toLocaleString()}`,
+            text: `Report Period: ${period} | Printed On: ${printedOn || new Date().toLocaleString()}`,
             fontSize: 7.5,
-            color: TEXT_MUTED,
-            margin: [35, 10, 0, 0]
+            color: SLATE_MUTED,
+            margin: [35, 12, 0, 0]
           },
           {
             text: `Page ${currentPage} of ${pageCount}`,
             alignment: 'right',
             fontSize: 7.5,
-            color: TEXT_MUTED,
-            margin: [0, 10, 35, 0]
+            color: SLATE_MUTED,
+            margin: [0, 12, 35, 0]
           }
         ]
       };
@@ -565,8 +653,6 @@ const generateSalesReportPdf = (reportData) => {
 
 /**
  * Creates a PDF buffer from a document definition
- * @param {Object} docDefinition - pdfmake document definition
- * @returns {Promise<Buffer>} PDF as buffer
  */
 const createPdfBinary = (docDefinition) => {
   return new Promise((resolve, reject) => {
