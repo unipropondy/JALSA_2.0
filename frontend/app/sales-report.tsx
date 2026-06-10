@@ -2297,7 +2297,7 @@ export default function SalesReport() {
       </ScrollView>
 
       {/* Breakdown */}
-      <View style={styles.breakdownCard}>
+      <View style={[styles.breakdownCard, SCREEN_W < 480 && { padding: 12, borderRadius: 16 }]}>
         <View style={styles.chartCardHeader}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
             <Text style={styles.cardTitle}>PAYMENT BREAKDOWN</Text>
@@ -2332,7 +2332,7 @@ export default function SalesReport() {
             flexWrap: "wrap",
             justifyContent: SCREEN_W > 768 ? "space-between" : "flex-start",
             width: "100%",
-            gap: 10
+            gap: SCREEN_W < 480 ? 8 : 10
           }
         ]}>
           {[
@@ -2375,9 +2375,15 @@ export default function SalesReport() {
               color: "#e11d48",
             },
           ].map((item, idx) => {
+            const cardPadding = SCREEN_W > 480 ? 40 : 24;
+            const gaps = SCREEN_W < 480 ? 16 : 20;
+            const itemWidth = SCREEN_W > 768
+              ? 'auto'
+              : (SCREEN_W - cardPadding - gaps) / 3 - 2;
+
             const layoutStyle = SCREEN_W > 768
               ? { flex: 1, minWidth: 0 }
-              : { width: (SCREEN_W - 88) / 3 - 8 }; // Perfectly calculated column width for 3x2 mobile grid
+              : { width: itemWidth, minWidth: 0, paddingHorizontal: 4, paddingVertical: 12 };
 
             const modeKey = item.label === "PAY NOW" ? "PAYNOW" : item.label;
             const isSomeFilterApplied = activePaymentModes.length < 8;
@@ -2403,10 +2409,10 @@ export default function SalesReport() {
                   }
                 ]}
               >
-                <Text style={styles.breakdownIcon}>{item.icon}</Text>
-                <Text style={styles.breakdownLabel}>{item.label}</Text>
+                <Text style={[styles.breakdownIcon, SCREEN_W < 480 && { fontSize: 20 }]}>{item.icon}</Text>
+                <Text style={[styles.breakdownLabel, SCREEN_W < 480 && { fontSize: 8 }]}>{item.label}</Text>
                 <Text
-                  style={[styles.breakdownValue, { color: item.color }]}
+                  style={[styles.breakdownValue, { color: item.color }, SCREEN_W < 480 && { fontSize: 10.5 }]}
                   numberOfLines={1}
                   adjustsFontSizeToFit
                 >
@@ -2414,7 +2420,7 @@ export default function SalesReport() {
                 </Text>
                 {item.outstanding !== undefined && (
                   <Text
-                    style={{ fontSize: 9, fontFamily: Fonts.bold, color: Theme.textMuted, marginTop: 1 }}
+                    style={{ fontSize: SCREEN_W < 480 ? 8 : 9, fontFamily: Fonts.bold, color: Theme.textMuted, marginTop: 1 }}
                     numberOfLines={1}
                     adjustsFontSizeToFit
                   >
@@ -2427,46 +2433,82 @@ export default function SalesReport() {
         </View>
         <View style={{ height: 1, backgroundColor: Theme.border, marginVertical: 16, opacity: 0.5 }} />
 
-        <View style={{ backgroundColor: Theme.bgCard, borderRadius: 16, borderWidth: 1, borderColor: Theme.border, padding: 16, gap: 12, ...Theme.shadowSm }}>
-          <Text style={{ fontFamily: Fonts.black, fontSize: 11, color: Theme.textSecondary, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 2 }}>
+        <View style={{
+          backgroundColor: Theme.bgCard,
+          borderRadius: 16,
+          borderWidth: 1,
+          borderColor: Theme.border,
+          padding: SCREEN_W < 480 ? 12 : 16,
+          gap: SCREEN_W < 480 ? 10 : 12,
+          ...Theme.shadowSm
+        }}>
+          <Text style={{ fontFamily: Fonts.black, fontSize: SCREEN_W < 480 ? 10 : 11, color: Theme.textSecondary, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 2 }}>
             Reconciliation Summary
           </Text>
 
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-            <Text style={{ fontFamily: Fonts.extraBold, fontSize: 13, color: Theme.textPrimary }}>Total Sales Volume</Text>
-            <Text style={{ fontFamily: Fonts.black, fontSize: 14, color: Theme.textPrimary }}>{formatCurrency(paymentBreakdownTotal)}</Text>
+            <Text style={{ fontFamily: Fonts.extraBold, fontSize: SCREEN_W < 480 ? 12 : 13, color: Theme.textPrimary }}>Total Sales Volume</Text>
+            <Text 
+              style={{ fontFamily: Fonts.black, fontSize: SCREEN_W < 480 ? 13 : 14, color: Theme.textPrimary, textAlign: "right" }}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+            >
+              {formatCurrency(paymentBreakdownTotal)}
+            </Text>
           </View>
 
           <View style={{ height: 1, backgroundColor: Theme.border, opacity: 0.3 }} />
 
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
-            <View>
-              <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: "#ec4899" }}>Member Accounts</Text>
-            </View>
-            <View style={{ alignItems: "flex-end" }}>
-              <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: Theme.success }}>Sales: {formatCurrency(paymentBreakdownMetrics.Member)}</Text>
-            </View>
-          </View>
-
-          <View style={{ height: 1, backgroundColor: Theme.border, opacity: 0.3 }} />
-
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
-            <View>
-              <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: "#e11d48" }}>Credit Customers</Text>
-              <Text style={{ fontFamily: Fonts.medium, fontSize: 9, color: Theme.textMuted, marginTop: 1 }}>Collections vs New Outstanding</Text>
-            </View>
-            <View style={{ alignItems: "flex-end" }}>
-              <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: Theme.success }}>Collected: {formatCurrency(filteredMetrics.CreditPaymentsCollected)}</Text>
-              <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: "#e11d48", marginTop: 1 }}>Pending: {formatCurrency(filteredMetrics.CreditOutstanding)}</Text>
-            </View>
-          </View>
-
-          <View style={{ backgroundColor: Theme.success + "10", borderRadius: 12, padding: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 4, borderWidth: 1, borderColor: Theme.success + "20" }}>
             <View style={{ flex: 1, marginRight: 8 }}>
-              <Text style={{ fontFamily: Fonts.black, fontSize: 13, color: Theme.success }}>Total Collections Volume</Text>
-              <Text style={{ fontFamily: Fonts.medium, fontSize: 9, color: Theme.textMuted, marginTop: 1 }}>Cash Received (excl. Credit Sales) + Payments Collected</Text>
+              <Text style={{ fontFamily: Fonts.bold, fontSize: SCREEN_W < 480 ? 12 : 13, color: "#ec4899" }}>Member Accounts</Text>
             </View>
-            <Text style={{ fontFamily: Fonts.black, fontSize: 18, color: Theme.success }}>
+            <View style={{ alignItems: "flex-end" }}>
+              <Text 
+                style={{ fontFamily: Fonts.bold, fontSize: SCREEN_W < 480 ? 11 : 12, color: Theme.success, textAlign: "right" }}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                Sales: {formatCurrency(paymentBreakdownMetrics.Member)}
+              </Text>
+            </View>
+          </View>
+
+          <View style={{ height: 1, backgroundColor: Theme.border, opacity: 0.3 }} />
+
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <View style={{ flex: 1, marginRight: 8 }}>
+              <Text style={{ fontFamily: Fonts.bold, fontSize: SCREEN_W < 480 ? 12 : 13, color: "#e11d48" }}>Credit Customers</Text>
+              <Text style={{ fontFamily: Fonts.medium, fontSize: SCREEN_W < 480 ? 8 : 9, color: Theme.textMuted, marginTop: 1 }}>Collections vs New Outstanding</Text>
+            </View>
+            <View style={{ alignItems: "flex-end" }}>
+              <Text 
+                style={{ fontFamily: Fonts.bold, fontSize: SCREEN_W < 480 ? 11 : 12, color: Theme.success, textAlign: "right" }}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                Collected: {formatCurrency(filteredMetrics.CreditPaymentsCollected)}
+              </Text>
+              <Text 
+                style={{ fontFamily: Fonts.bold, fontSize: SCREEN_W < 480 ? 11 : 12, color: "#e11d48", marginTop: 1, textAlign: "right" }}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                Pending: {formatCurrency(filteredMetrics.CreditOutstanding)}
+              </Text>
+            </View>
+          </View>
+
+          <View style={{ backgroundColor: Theme.success + "10", borderRadius: 12, padding: SCREEN_W < 480 ? 10 : 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 4, borderWidth: 1, borderColor: Theme.success + "20" }}>
+            <View style={{ flex: 1, marginRight: 8 }}>
+              <Text style={{ fontFamily: Fonts.black, fontSize: SCREEN_W < 480 ? 11.5 : 13, color: Theme.success }}>Total Collections Volume</Text>
+              <Text style={{ fontFamily: Fonts.medium, fontSize: SCREEN_W < 480 ? 8 : 9, color: Theme.textMuted, marginTop: 1 }}>Cash Received (excl. Credit Sales) + Payments Collected</Text>
+            </View>
+            <Text 
+              style={{ fontFamily: Fonts.black, fontSize: SCREEN_W < 480 ? 15 : 18, color: Theme.success, textAlign: "right" }}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+            >
               {formatCurrency(
                 (paymentBreakdownTotal - paymentBreakdownMetrics.Credit) +
                 filteredMetrics.MemberPaymentsCollected +
