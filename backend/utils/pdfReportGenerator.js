@@ -25,6 +25,34 @@ const formatVal = (val, isCurrency = true) => {
 };
 
 /**
+ * Generates a visual progress bar component using pdfmake canvas
+ */
+const makeProgressBar = (percentage, color) => {
+  const barWidth = 100;
+  const filledWidth = Math.max(0, Math.min(barWidth, (percentage / 100) * barWidth));
+  return {
+    canvas: [
+      {
+        type: 'rect',
+        x: 0,
+        y: 3,
+        w: barWidth,
+        h: 6,
+        color: '#f1f5f9' // Light background bar
+      },
+      filledWidth > 0 ? {
+        type: 'rect',
+        x: 0,
+        y: 3,
+        w: filledWidth,
+        h: 6,
+        color: color
+      } : null
+    ].filter(Boolean)
+  };
+};
+
+/**
  * Generates a comprehensive sales report PDF definition
  * @param {Object} reportData - Report data from database/API
  * @returns {Object} pdfmake document definition
@@ -55,64 +83,79 @@ const generateSalesReportPdf = (reportData) => {
     artistSales = []
   } = reportData || {};
 
+  // Color Palette Definitions (Premium Cool Tech / Modern Executive Theme)
+  const NAVY_DARK = '#0f172a'; // Deep Navy slate
+  const BRAND_ACCENT = '#ea580c'; // Warm Orange
+  const PURPLE_ACCENT = '#6366f1'; // Indigo
+  const TEXT_DARK = '#1e293b'; // Slate 800
+  const TEXT_MUTED = '#64748b'; // Slate 500
+  const BG_LIGHT = '#f8fafc'; // Slate 50
+  const SUCCESS_COLOR = '#0d9488'; // Teal
+  const DANGER_COLOR = '#e11d48'; // Rose/Red
+  const WARNING_COLOR = '#d97706'; // Amber
+
   const content = [];
 
   // ========== HEADER SECTION ==========
   content.push({
-    stack: [
-      { text: companyName, fontSize: 20, bold: true, alignment: 'center', color: '#1e293b' },
-      { text: companyAddress, fontSize: 9, alignment: 'center', color: '#64748b', margin: [0, 4, 0, 0] },
-      companyPhone ? { text: `Phone: ${companyPhone}`, fontSize: 9, alignment: 'center', color: '#64748b', margin: [0, 2, 0, 0] } : null
-    ].filter(Boolean),
-    margin: [0, 0, 0, 10]
-  });
-
-  // Title Banner
-  content.push({
-    text: 'SALES ANALYTICS REPORT',
-    fontSize: 14,
-    bold: true,
-    alignment: 'center',
-    color: '#0f172a',
-    margin: [0, 5, 0, 5]
-  });
-
-  content.push({
-    table: {
-      widths: ['*'],
-      body: [
-        [{
-          text: `Period: ${period}`,
-          fontSize: 10,
-          bold: true,
-          alignment: 'center',
-          fillColor: '#f1f5f9',
-          border: [0, 0, 0, 0],
-          margin: [6, 6, 6, 6],
-          color: '#1e293b'
-        }]
-      ]
-    },
+    columns: [
+      {
+        stack: [
+          { text: companyName.toUpperCase(), fontSize: 18, bold: true, color: NAVY_DARK, letterSpacing: 1.5 },
+          { text: companyAddress, fontSize: 8, color: TEXT_MUTED, margin: [0, 4, 0, 0] },
+          companyPhone ? { text: `Phone: ${companyPhone}`, fontSize: 8, color: TEXT_MUTED, margin: [0, 2, 0, 0] } : null
+        ],
+        width: '60%'
+      },
+      {
+        stack: [
+          { text: 'SALES ANALYTICS DASHBOARD', fontSize: 12, bold: true, color: BRAND_ACCENT, alignment: 'right', letterSpacing: 0.5 },
+          {
+            table: {
+              widths: ['*'],
+              body: [[
+                { text: `PERIOD: ${period}`, fontSize: 8.5, bold: true, color: '#ffffff', alignment: 'center', margin: [6, 3, 6, 3] }
+              ]]
+            },
+            fillColor: NAVY_DARK,
+            margin: [0, 6, 0, 0]
+          }
+        ],
+        width: '40%'
+      }
+    ],
     margin: [0, 0, 0, 15]
   });
 
-  // ========== 1. SUMMARY CARDS SECTION ==========
+  // Thin modern divider line
   content.push({
-    text: '1. Summary Metrics',
-    fontSize: 11,
-    bold: true,
-    color: '#0f172a',
-    margin: [0, 5, 0, 8]
+    canvas: [{ type: 'rect', x: 0, y: 0, w: 535, h: 2, color: BRAND_ACCENT }],
+    margin: [0, 0, 0, 15]
   });
 
-  // Helper to draw a summary card cell
+  // ========== 1. KPI SUMMARY CARDS GRID ==========
+  // Helper to draw a summary card cell with left accent border
   const makeCard = (title, value, accentColor) => {
     return {
-      stack: [
-        { text: title.toUpperCase(), fontSize: 8, bold: true, color: '#64748b', margin: [2, 2, 2, 2] },
-        { text: value, fontSize: 13, bold: true, color: accentColor || '#1e293b', margin: [2, 2, 2, 2] }
-      ],
-      fillColor: '#f8fafc',
+      table: {
+        widths: ['*'],
+        body: [
+          [{
+            stack: [
+              { text: title.toUpperCase(), fontSize: 6.5, bold: true, color: TEXT_MUTED, margin: [2, 0, 0, 2] },
+              { text: value, fontSize: 12, bold: true, color: accentColor || TEXT_DARK, margin: [2, 0, 0, 0] }
+            ],
+            border: [true, false, false, false],
+            borderColor: [accentColor, null, null, null],
+            fillColor: '#ffffff',
+            margin: [6, 4, 6, 4]
+          }]
+        ]
+      },
+      layout: {
+        defaultBorder: false,
+        vLineWidth: (i) => i === 0 ? 3 : 0
+      },
       margin: [2, 2, 2, 2]
     };
   };
@@ -122,16 +165,16 @@ const generateSalesReportPdf = (reportData) => {
       widths: ['25%', '25%', '25%', '25%'],
       body: [
         [
-          makeCard('Total Sales', formatVal(totalSales), '#3b82f6'),
-          makeCard('Total Collections', formatVal(totalCollections), '#10b981'),
-          makeCard('Credit Payments', formatVal(creditPaymentsCollected), '#e11d48'),
-          makeCard('Member Payments', formatVal((paymentBreakdown.Member || 0) + memberPaymentsCollected), '#ec4899')
+          makeCard('Total Sales', formatVal(totalSales), PURPLE_ACCENT),
+          makeCard('Net Collections', formatVal(totalCollections), SUCCESS_COLOR),
+          makeCard('Credit Collected', formatVal(creditPaymentsCollected), BRAND_ACCENT),
+          makeCard('Member Payments', formatVal((paymentBreakdown.Member || 0) + memberPaymentsCollected), '#db2777')
         ],
         [
-          makeCard('Total Orders', formatVal(totalOrders, false), '#64748b'),
-          makeCard('Items Sold', formatVal(totalItems, false), '#64748b'),
-          makeCard('Total Voids', formatVal(voidQty, false), '#f59e0b'),
-          makeCard('Cancelled Orders', formatVal(cancelledCount, false), '#ef4444')
+          makeCard('Total Bills', formatVal(totalOrders, false), TEXT_DARK),
+          makeCard('Items Sold', formatVal(totalItems, false), TEXT_DARK),
+          makeCard('Void Amount', formatVal(voidAmount), WARNING_COLOR),
+          makeCard('Cancelled Value', formatVal(cancelledAmount), DANGER_COLOR)
         ]
       ]
     },
@@ -139,69 +182,81 @@ const generateSalesReportPdf = (reportData) => {
       defaultBorder: false,
       hLineWidth: () => 0,
       vLineWidth: () => 0,
-      paddingLeft: () => 5,
-      paddingRight: () => 5,
-      paddingTop: () => 5,
-      paddingBottom: () => 5
+      paddingLeft: () => 0,
+      paddingRight: () => 0,
+      paddingTop: () => 0,
+      paddingBottom: () => 0
     },
-    margin: [0, 0, 0, 15]
+    margin: [0, 0, 0, 20]
   });
 
-  // ========== 2. PAYMENT BREAKDOWN & KEY METRICS (SIDE BY SIDE) ==========
+  // ========== 2. PAYMENT MIX (WITH BAR CHART) & KEY OPERATIONAL METRICS ==========
   const breakdownBody = [];
   breakdownBody.push([
-    { text: 'Mode', fontSize: 9, bold: true, fillColor: '#1e293b', color: '#fff' },
-    { text: 'Amount', fontSize: 9, bold: true, fillColor: '#1e293b', color: '#fff', alignment: 'right' }
+    { text: 'Method', fontSize: 8, bold: true, fillColor: NAVY_DARK, color: '#fff', margin: [0, 2, 0, 2] },
+    { text: 'Revenue', fontSize: 8, bold: true, fillColor: NAVY_DARK, color: '#fff', alignment: 'right', margin: [0, 2, 0, 2] },
+    { text: 'Mix %', fontSize: 8, bold: true, fillColor: NAVY_DARK, color: '#fff', alignment: 'right', margin: [0, 2, 0, 2] },
+    { text: 'Distribution Share', fontSize: 8, bold: true, fillColor: NAVY_DARK, color: '#fff', margin: [0, 2, 0, 2] }
   ]);
 
+  const rawTotal = (paymentBreakdown.Cash || 0) +
+                       (paymentBreakdown.Card || 0) +
+                       (paymentBreakdown.Nets || 0) +
+                       (paymentBreakdown.PayNow || 0) +
+                       (paymentBreakdown.Member || 0) +
+                       (paymentBreakdown.Credit || 0);
+
   const pModes = [
-    { label: 'Cash', val: paymentBreakdown.Cash || 0, color: '#10b981' },
-    { label: 'Card', val: paymentBreakdown.Card || 0, color: '#818cf8' },
-    { label: 'NETS', val: paymentBreakdown.Nets || 0, color: '#3b82f6' },
-    { label: 'PayNow', val: paymentBreakdown.PayNow || 0, color: '#f59e0b' },
-    { label: 'Member', val: paymentBreakdown.Member || 0, color: '#ec4899' },
-    { label: 'Credit', val: paymentBreakdown.Credit || 0, color: '#e11d48' }
+    { label: 'Cash', val: paymentBreakdown.Cash || 0, color: SUCCESS_COLOR },
+    { label: 'Card', val: paymentBreakdown.Card || 0, color: PURPLE_ACCENT },
+    { label: 'NETS', val: paymentBreakdown.Nets || 0, color: '#0ea5e9' },
+    { label: 'PayNow', val: paymentBreakdown.PayNow || 0, color: WARNING_COLOR },
+    { label: 'Member Wallet', val: paymentBreakdown.Member || 0, color: '#db2777' },
+    { label: 'Credit Outstanding', val: paymentBreakdown.Credit || 0, color: DANGER_COLOR }
   ];
 
   pModes.forEach(p => {
+    const sharePct = rawTotal > 0 ? (p.val / rawTotal) * 100 : 0;
     breakdownBody.push([
-      { text: p.label, fontSize: 9, bold: true, color: p.color },
-      { text: formatVal(p.val), fontSize: 9, bold: true, color: p.color, alignment: 'right' }
+      { text: p.label, fontSize: 8, bold: true, color: TEXT_DARK, margin: [0, 3, 0, 3] },
+      { text: formatVal(p.val), fontSize: 8, bold: true, color: TEXT_DARK, alignment: 'right', margin: [0, 3, 0, 3] },
+      { text: `${sharePct.toFixed(1)}%`, fontSize: 8, color: TEXT_MUTED, alignment: 'right', margin: [0, 3, 0, 3] },
+      { stack: [makeProgressBar(sharePct, p.color)], alignment: 'left', margin: [4, 3, 0, 3] }
     ]);
   });
 
   const keyMetricsBody = [];
   keyMetricsBody.push([
-    { text: 'Metric', fontSize: 9, bold: true, fillColor: '#1e293b', color: '#fff' },
-    { text: 'Value', fontSize: 9, bold: true, fillColor: '#1e293b', color: '#fff', alignment: 'right' }
+    { text: 'Metric Indicator', fontSize: 8, bold: true, fillColor: NAVY_DARK, color: '#fff', margin: [0, 2, 0, 2] },
+    { text: 'Performance Value', fontSize: 8, bold: true, fillColor: NAVY_DARK, color: '#fff', alignment: 'right', margin: [0, 2, 0, 2] }
   ]);
 
   keyMetricsBody.push([
-    { text: 'Avg Check', fontSize: 9, color: '#1e293b' },
-    { text: formatVal(keyMetrics.avgCheck || 0), fontSize: 9, alignment: 'right' }
+    { text: 'Average Bill Value', fontSize: 8, color: TEXT_DARK, margin: [0, 3, 0, 3] },
+    { text: formatVal(keyMetrics.avgCheck || 0), fontSize: 8, bold: true, alignment: 'right', color: BRAND_ACCENT, margin: [0, 3, 0, 3] }
   ]);
   keyMetricsBody.push([
-    { text: 'Conversion', fontSize: 9, color: '#1e293b' },
-    { text: formatVal(keyMetrics.conversion || 0, false), fontSize: 9, alignment: 'right' }
+    { text: 'Conversion Ratio', fontSize: 8, color: TEXT_DARK, margin: [0, 3, 0, 3] },
+    { text: formatVal(keyMetrics.conversion || 0, false), fontSize: 8, alignment: 'right', margin: [0, 3, 0, 3] }
   ]);
   keyMetricsBody.push([
-    { text: 'Avg Items', fontSize: 9, color: '#1e293b' },
-    { text: (Number(keyMetrics.avgItems) || 0).toFixed(1), fontSize: 9, alignment: 'right' }
+    { text: 'Avg Items per Bill', fontSize: 8, color: TEXT_DARK, margin: [0, 3, 0, 3] },
+    { text: (Number(keyMetrics.avgItems) || 0).toFixed(1), fontSize: 8, alignment: 'right', margin: [0, 3, 0, 3] }
   ]);
   keyMetricsBody.push([
-    { text: 'Per Item', fontSize: 9, color: '#1e293b' },
-    { text: formatVal(keyMetrics.perItem || 0), fontSize: 9, alignment: 'right' }
+    { text: 'Average Item Price', fontSize: 8, color: TEXT_DARK, margin: [0, 3, 0, 3] },
+    { text: formatVal(keyMetrics.perItem || 0), fontSize: 8, alignment: 'right', margin: [0, 3, 0, 3] }
   ]);
 
   content.push({
     columns: [
       {
-        width: '50%',
+        width: '58%',
         stack: [
-          { text: '2. Payment Breakdown', fontSize: 11, bold: true, color: '#0f172a', margin: [0, 0, 0, 5] },
+          { text: 'Revenue Distribution Share', fontSize: 9.5, bold: true, color: NAVY_DARK, margin: [0, 0, 0, 5] },
           {
             table: {
-              widths: ['*', 'auto'],
+              widths: ['auto', 'auto', 'auto', '*'],
               body: breakdownBody
             },
             layout: 'lightHorizontalLines'
@@ -209,10 +264,10 @@ const generateSalesReportPdf = (reportData) => {
         ]
       },
       {
-        width: '45%',
-        offset: '5%',
+        width: '38%',
+        offset: '4%',
         stack: [
-          { text: '4. Key Metrics', fontSize: 11, bold: true, color: '#0f172a', margin: [0, 0, 0, 5] },
+          { text: 'Operational Efficiency', fontSize: 9.5, bold: true, color: NAVY_DARK, margin: [0, 0, 0, 5] },
           {
             table: {
               widths: ['*', 'auto'],
@@ -223,36 +278,36 @@ const generateSalesReportPdf = (reportData) => {
         ]
       }
     ],
-    columnGap: 20,
+    columnGap: 15,
     margin: [0, 0, 0, 15]
   });
 
-  // ========== 3. RECONCILIATION SUMMARY & ORDER TYPES (SIDE BY SIDE) ==========
+  // ========== 3. RECONCILIATION SUMMARY & CHANNEL BREAKDOWNS (PROGRESS BARS) ==========
   const reconBody = [];
   reconBody.push([
-    { text: 'Reconciliation Particulars', fontSize: 9, bold: true, fillColor: '#1e293b', color: '#fff' },
-    { text: 'Amount', fontSize: 9, bold: true, fillColor: '#1e293b', color: '#fff', alignment: 'right' }
+    { text: 'Reconciliation Particulars', fontSize: 8, bold: true, fillColor: NAVY_DARK, color: '#fff', margin: [0, 2, 0, 2] },
+    { text: 'Amount', fontSize: 8, bold: true, fillColor: NAVY_DARK, color: '#fff', alignment: 'right', margin: [0, 2, 0, 2] }
   ]);
 
   reconBody.push([
-    { text: 'Total Sales Volume', fontSize: 9, bold: true },
-    { text: formatVal(reconciliation.totalSalesVolume || 0), fontSize: 9, bold: true, alignment: 'right' }
+    { text: 'Gross Sales Volume', fontSize: 8, bold: true, margin: [0, 3, 0, 3] },
+    { text: formatVal(reconciliation.totalSalesVolume || 0), fontSize: 8, bold: true, alignment: 'right', color: PURPLE_ACCENT, margin: [0, 3, 0, 3] }
   ]);
   reconBody.push([
-    { text: 'Member Accounts (Sales)', fontSize: 9, color: '#ec4899' },
-    { text: formatVal(reconciliation.memberSales || 0), fontSize: 9, alignment: 'right', color: '#ec4899' }
+    { text: 'Prepaid Wallet Redemptions', fontSize: 8, color: TEXT_MUTED, margin: [0, 3, 0, 3] },
+    { text: formatVal(reconciliation.memberSales || 0), fontSize: 8, alignment: 'right', color: TEXT_DARK, margin: [0, 3, 0, 3] }
   ]);
   reconBody.push([
-    { text: 'Credit Customers (Collected)', fontSize: 9, color: '#10b981' },
-    { text: formatVal(reconciliation.creditCollected || 0), fontSize: 9, alignment: 'right', color: '#10b981' }
+    { text: 'Credit Customer Collections', fontSize: 8, color: TEXT_MUTED, margin: [0, 3, 0, 3] },
+    { text: formatVal(reconciliation.creditCollected || 0), fontSize: 8, alignment: 'right', color: SUCCESS_COLOR, margin: [0, 3, 0, 3] }
   ]);
   reconBody.push([
-    { text: 'Credit Outstanding (Pending)', fontSize: 9, color: '#e11d48' },
-    { text: formatVal(reconciliation.creditOutstanding || 0), fontSize: 9, alignment: 'right', color: '#e11d48' }
+    { text: 'New Outstanding Credit (Pending)', fontSize: 8, color: TEXT_MUTED, margin: [0, 3, 0, 3] },
+    { text: formatVal(reconciliation.creditOutstanding || 0), fontSize: 8, alignment: 'right', color: DANGER_COLOR, margin: [0, 3, 0, 3] }
   ]);
   reconBody.push([
-    { text: 'Total Collections Volume', fontSize: 9, bold: true, fillColor: '#e2f0d9', color: '#1e293b' },
-    { text: formatVal(reconciliation.totalCollectionsVolume || 0), fontSize: 9, bold: true, alignment: 'right', fillColor: '#e2f0d9', color: '#1e293b' }
+    { text: 'Net Collections Volume', fontSize: 8, bold: true, fillColor: '#e6fffa', color: SUCCESS_COLOR, margin: [0, 3, 0, 3] },
+    { text: formatVal(reconciliation.totalCollectionsVolume || 0), fontSize: 8, bold: true, alignment: 'right', fillColor: '#e6fffa', color: SUCCESS_COLOR, margin: [0, 3, 0, 3] }
   ]);
 
   const ordDineInPct = Number(orderTypes.dineInPct) || 0;
@@ -260,28 +315,28 @@ const generateSalesReportPdf = (reportData) => {
 
   const orderTypesBody = [];
   orderTypesBody.push([
-    { text: 'Order Type', fontSize: 9, bold: true, fillColor: '#1e293b', color: '#fff' },
-    { text: 'Count', fontSize: 9, bold: true, fillColor: '#1e293b', color: '#fff', alignment: 'center' },
-    { text: '%', fontSize: 9, bold: true, fillColor: '#1e293b', color: '#fff', alignment: 'right' }
+    { text: 'Channel', fontSize: 8, bold: true, fillColor: NAVY_DARK, color: '#fff', margin: [0, 2, 0, 2] },
+    { text: 'Share', fontSize: 8, bold: true, fillColor: NAVY_DARK, color: '#fff', alignment: 'center', margin: [0, 2, 0, 2] },
+    { text: 'Share %', fontSize: 8, bold: true, fillColor: NAVY_DARK, color: '#fff', alignment: 'right', margin: [0, 2, 0, 2] }
   ]);
 
   orderTypesBody.push([
-    { text: 'Dine-In', fontSize: 9 },
-    { text: formatVal(orderTypes.dineInCount || 0, false), fontSize: 9, alignment: 'center' },
-    { text: `${ordDineInPct.toFixed(0)}%`, fontSize: 9, alignment: 'right', bold: true }
+    { text: 'Dine-In', fontSize: 8, margin: [0, 3, 0, 3] },
+    { stack: [makeProgressBar(ordDineInPct, BRAND_ACCENT)], alignment: 'center', margin: [0, 3, 0, 3] },
+    { text: `${ordDineInPct.toFixed(0)}%`, fontSize: 8, alignment: 'right', bold: true, color: BRAND_ACCENT, margin: [0, 3, 0, 3] }
   ]);
   orderTypesBody.push([
-    { text: 'Takeaway', fontSize: 9 },
-    { text: formatVal(orderTypes.takeawayCount || 0, false), fontSize: 9, alignment: 'center' },
-    { text: `${ordTakeawayPct.toFixed(0)}%`, fontSize: 9, alignment: 'right', bold: true }
+    { text: 'Takeaway', fontSize: 8, margin: [0, 3, 0, 3] },
+    { stack: [makeProgressBar(ordTakeawayPct, PURPLE_ACCENT)], alignment: 'center', margin: [0, 3, 0, 3] },
+    { text: `${ordTakeawayPct.toFixed(0)}%`, fontSize: 8, alignment: 'right', bold: true, color: PURPLE_ACCENT, margin: [0, 3, 0, 3] }
   ]);
 
   content.push({
     columns: [
       {
-        width: '55%',
+        width: '58%',
         stack: [
-          { text: '3. Reconciliation Summary', fontSize: 11, bold: true, color: '#0f172a', margin: [0, 0, 0, 5] },
+          { text: 'Financial Reconciliation', fontSize: 9.5, bold: true, color: NAVY_DARK, margin: [0, 0, 0, 5] },
           {
             table: {
               widths: ['*', 'auto'],
@@ -292,10 +347,10 @@ const generateSalesReportPdf = (reportData) => {
         ]
       },
       {
-        width: '40%',
-        offset: '5%',
+        width: '38%',
+        offset: '4%',
         stack: [
-          { text: '5. Order Types', fontSize: 11, bold: true, color: '#0f172a', margin: [0, 0, 0, 5] },
+          { text: 'Order Channels Mix', fontSize: 9.5, bold: true, color: NAVY_DARK, margin: [0, 0, 0, 5] },
           {
             table: {
               widths: ['*', 'auto', 'auto'],
@@ -306,24 +361,25 @@ const generateSalesReportPdf = (reportData) => {
         ]
       }
     ],
-    columnGap: 20,
-    margin: [0, 0, 0, 20]
+    columnGap: 15,
+    margin: [0, 0, 0, 15]
   });
 
-  // ========== 6. CATEGORY SALES REPORT (SUMMARIZED BY CATEGORY) ==========
+  // ========== 6. CATEGORY CONTRIBUTIONS (WITH DYNAMIC SHARE PROGRESS BARS) ==========
   content.push({
-    text: '6. Category Sales Report',
-    fontSize: 11,
+    text: 'Sales Performance by Category',
+    fontSize: 9.5,
     bold: true,
-    color: '#0f172a',
+    color: NAVY_DARK,
     margin: [0, 5, 0, 5]
   });
 
   const catTableBody = [];
   catTableBody.push([
-    { text: 'Category', fontSize: 9, bold: true, fillColor: '#34495e', color: '#fff' },
-    { text: 'Qty', fontSize: 9, bold: true, fillColor: '#34495e', color: '#fff', alignment: 'center' },
-    { text: 'Sales', fontSize: 9, bold: true, fillColor: '#34495e', color: '#fff', alignment: 'right' }
+    { text: 'Category Name', fontSize: 8, bold: true, fillColor: '#334155', color: '#fff', margin: [0, 2, 0, 2] },
+    { text: 'Qty Sold', fontSize: 8, bold: true, fillColor: '#334155', color: '#fff', alignment: 'center', margin: [0, 2, 0, 2] },
+    { text: 'Sales Revenue', fontSize: 8, bold: true, fillColor: '#334155', color: '#fff', alignment: 'right', margin: [0, 2, 0, 2] },
+    { text: 'Share Contribution', fontSize: 8, bold: true, fillColor: '#334155', color: '#fff', margin: [0, 2, 0, 2] }
   ]);
 
   let totalCatQty = 0;
@@ -333,70 +389,77 @@ const generateSalesReportPdf = (reportData) => {
     categories.forEach(c => {
       totalCatQty += Number(c.Qty) || 0;
       totalCatSales += Number(c.Sales) || 0;
+    });
+
+    categories.forEach((c, idx) => {
+      const sharePct = totalCatSales > 0 ? (c.Sales / totalCatSales) * 100 : 0;
       catTableBody.push([
-        { text: c.Category || 'Unmapped', fontSize: 9 },
-        { text: formatVal(c.Qty || 0, false), fontSize: 9, alignment: 'center' },
-        { text: formatVal(c.Sales || 0), fontSize: 9, alignment: 'right' }
+        { text: c.Category || 'Unmapped', fontSize: 8, margin: [0, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT },
+        { text: formatVal(c.Qty || 0, false), fontSize: 8, alignment: 'center', margin: [0, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT },
+        { text: formatVal(c.Sales || 0), fontSize: 8, bold: true, alignment: 'right', color: BRAND_ACCENT, margin: [0, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT },
+        { stack: [makeProgressBar(sharePct, BRAND_ACCENT)], alignment: 'left', margin: [4, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT }
       ]);
     });
   } else {
     catTableBody.push([
-      { text: 'No category sales records', colSpan: 3, alignment: 'center', fontSize: 9, italics: true },
+      { text: 'No category sales records', colSpan: 4, alignment: 'center', fontSize: 8, italics: true },
+      {},
       {},
       {}
     ]);
   }
 
   catTableBody.push([
-    { text: 'Total', fontSize: 9, bold: true, fillColor: '#f8fafc' },
-    { text: formatVal(totalCatQty, false), fontSize: 9, bold: true, alignment: 'center', fillColor: '#f8fafc' },
-    { text: formatVal(totalCatSales), fontSize: 9, bold: true, alignment: 'right', fillColor: '#f8fafc' }
+    { text: 'Total Category Contributions', fontSize: 8, bold: true, fillColor: BG_LIGHT, margin: [0, 3.5, 0, 3.5] },
+    { text: formatVal(totalCatQty, false), fontSize: 8, bold: true, alignment: 'center', fillColor: BG_LIGHT, margin: [0, 3.5, 0, 3.5] },
+    { text: formatVal(totalCatSales), fontSize: 8, bold: true, alignment: 'right', color: BRAND_ACCENT, fillColor: BG_LIGHT, margin: [0, 3.5, 0, 3.5] },
+    { text: '100%', fontSize: 8, bold: true, color: TEXT_MUTED, fillColor: BG_LIGHT, margin: [4, 3.5, 0, 3.5] }
   ]);
 
   content.push({
     table: {
-      widths: ['*', 60, 100],
+      widths: ['*', 60, 90, 120],
       body: catTableBody
     },
     layout: 'lightHorizontalLines',
-    margin: [0, 0, 0, 20]
+    margin: [0, 0, 0, 15]
   });
 
   // ========== 7. ITEM SALES REPORT ==========
   content.push({
-    text: '7. Item Sales Report',
-    fontSize: 11,
+    text: 'Detailed Item Sales Ledger',
+    fontSize: 9.5,
     bold: true,
-    color: '#0f172a',
+    color: NAVY_DARK,
     margin: [0, 5, 0, 5],
-    pageBreak: 'before' // Always print detailed item sales on a new page to keep structure clean
+    pageBreak: 'before' // Clean page break to keep tabular list on separate sheets
   });
 
   const itemTableBody = [];
   itemTableBody.push([
-    { text: 'Item', fontSize: 9, bold: true, fillColor: '#34495e', color: '#fff' },
-    { text: 'Category', fontSize: 9, bold: true, fillColor: '#34495e', color: '#fff' },
-    { text: 'Qty', fontSize: 9, bold: true, fillColor: '#34495e', color: '#fff', alignment: 'center' },
-    { text: 'Sales', fontSize: 9, bold: true, fillColor: '#34495e', color: '#fff', alignment: 'right' }
+    { text: 'Item Description', fontSize: 8, bold: true, fillColor: '#334155', color: '#fff', margin: [0, 2.5, 0, 2.5] },
+    { text: 'Category Group', fontSize: 8, bold: true, fillColor: '#334155', color: '#fff', margin: [0, 2.5, 0, 2.5] },
+    { text: 'Qty Sold', fontSize: 8, bold: true, fillColor: '#334155', color: '#fff', alignment: 'center', margin: [0, 2.5, 0, 2.5] },
+    { text: 'Total Revenue', fontSize: 8, bold: true, fillColor: '#334155', color: '#fff', alignment: 'right', margin: [0, 2.5, 0, 2.5] }
   ]);
 
   let totalItemQty = 0;
   let totalItemSales = 0;
 
   if (items && items.length > 0) {
-    items.forEach(i => {
+    items.forEach((i, idx) => {
       totalItemQty += Number(i.Qty) || 0;
       totalItemSales += Number(i.Sales) || 0;
       itemTableBody.push([
-        { text: i.Item || 'Unknown', fontSize: 9 },
-        { text: i.Category || 'Unmapped', fontSize: 9, color: '#64748b' },
-        { text: formatVal(i.Qty || 0, false), fontSize: 9, alignment: 'center' },
-        { text: formatVal(i.Sales || 0), fontSize: 9, alignment: 'right' }
+        { text: i.Item || 'Unknown', fontSize: 8, margin: [0, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT },
+        { text: i.Category || 'Unmapped', fontSize: 8, color: TEXT_MUTED, margin: [0, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT },
+        { text: formatVal(i.Qty || 0, false), fontSize: 8, alignment: 'center', margin: [0, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT },
+        { text: formatVal(i.Sales || 0), fontSize: 8, bold: true, alignment: 'right', color: BRAND_ACCENT, margin: [0, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT }
       ]);
     });
   } else {
     itemTableBody.push([
-      { text: 'No item sales records', colSpan: 4, alignment: 'center', fontSize: 9, italics: true },
+      { text: 'No item sales records', colSpan: 4, alignment: 'center', fontSize: 8, italics: true },
       {},
       {},
       {}
@@ -404,95 +467,97 @@ const generateSalesReportPdf = (reportData) => {
   }
 
   itemTableBody.push([
-    { text: 'Total', fontSize: 9, bold: true, fillColor: '#f8fafc', colSpan: 2 },
+    { text: 'Total Itemized Sales', fontSize: 8, bold: true, fillColor: BG_LIGHT, colSpan: 2, margin: [0, 3.5, 0, 3.5] },
     {},
-    { text: formatVal(totalItemQty, false), fontSize: 9, bold: true, alignment: 'center', fillColor: '#f8fafc' },
-    { text: formatVal(totalItemSales), fontSize: 9, bold: true, alignment: 'right', fillColor: '#f8fafc' }
+    { text: formatVal(totalItemQty, false), fontSize: 8, bold: true, alignment: 'center', fillColor: BG_LIGHT, margin: [0, 3.5, 0, 3.5] },
+    { text: formatVal(totalItemSales), fontSize: 8, bold: true, alignment: 'right', color: BRAND_ACCENT, fillColor: BG_LIGHT, margin: [0, 3.5, 0, 3.5] }
   ]);
 
   content.push({
     table: {
-      widths: ['*', 120, 50, 80],
+      widths: ['*', 140, 60, 100],
       body: itemTableBody
     },
     layout: 'lightHorizontalLines',
-    margin: [0, 0, 0, 20]
+    margin: [0, 0, 0, 15]
   });
 
   // ========== 8. ARTIST TARGET REPORT (IF DATA EXISTS) ==========
   if (artistSales && artistSales.length > 0) {
     content.push({
-      text: '8. Artist Target Report',
-      fontSize: 11,
+      text: 'Artist Performance & KPI Achievements',
+      fontSize: 9.5,
       bold: true,
-      color: '#0f172a',
+      color: NAVY_DARK,
       margin: [0, 5, 0, 5]
     });
 
     const artistTableBody = [];
     artistTableBody.push([
-      { text: 'Artist Name', fontSize: 9, bold: true, fillColor: '#1e293b', color: '#fff' },
-      { text: 'Target Amount', fontSize: 9, bold: true, fillColor: '#1e293b', color: '#fff', alignment: 'right' },
-      { text: 'Actual Sales', fontSize: 9, bold: true, fillColor: '#1e293b', color: '#fff', alignment: 'right' },
-      { text: 'Achievement %', fontSize: 9, bold: true, fillColor: '#1e293b', color: '#fff', alignment: 'right' }
+      { text: 'Artist Name', fontSize: 8, bold: true, fillColor: PURPLE_ACCENT, color: '#fff', margin: [0, 2.5, 0, 2.5] },
+      { text: 'Target Amount', fontSize: 8, bold: true, fillColor: PURPLE_ACCENT, color: '#fff', alignment: 'right', margin: [0, 2.5, 0, 2.5] },
+      { text: 'Actual Sales', fontSize: 8, bold: true, fillColor: PURPLE_ACCENT, color: '#fff', alignment: 'right', margin: [0, 2.5, 0, 2.5] },
+      { text: 'Achievement Share', fontSize: 8, bold: true, fillColor: PURPLE_ACCENT, color: '#fff', margin: [0, 2.5, 0, 2.5] }
     ]);
 
-    artistSales.forEach(a => {
+    artistSales.forEach((a, idx) => {
       const target = Number(a.TargetAmount) || 0;
       const actual = Number(a.ActualSales) || 0;
       const pct = target > 0 ? (actual / target) * 100 : 0;
+      const isTargetMet = actual >= target && target > 0;
       artistTableBody.push([
-        { text: a.Name || '', fontSize: 9 },
-        { text: formatVal(target), fontSize: 9, alignment: 'right' },
-        { text: formatVal(actual), fontSize: 9, alignment: 'right', color: actual >= target && target > 0 ? '#10b981' : '#1e293b' },
-        { text: `${pct.toFixed(0)}%`, fontSize: 9, bold: true, alignment: 'right', color: actual >= target && target > 0 ? '#10b981' : '#64748b' }
+        { text: a.Name || '', fontSize: 8, margin: [0, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT },
+        { text: formatVal(target), fontSize: 8, alignment: 'right', margin: [0, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT },
+        { text: formatVal(actual), fontSize: 8, bold: true, alignment: 'right', color: isTargetMet ? SUCCESS_COLOR : TEXT_DARK, margin: [0, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT },
+        { stack: [makeProgressBar(pct, isTargetMet ? SUCCESS_COLOR : BRAND_ACCENT)], alignment: 'left', margin: [4, 2.5, 0, 2.5], fillColor: idx % 2 === 0 ? '#ffffff' : BG_LIGHT }
       ]);
     });
 
     content.push({
       table: {
-        widths: ['*', 100, 100, 100],
+        widths: ['*', 100, 100, 150],
         body: artistTableBody
       },
       layout: 'lightHorizontalLines',
-      margin: [0, 0, 0, 20]
+      margin: [0, 0, 0, 15]
     });
   }
 
-  // Printed date and powered by in small text at bottom
+  // Footer Branding info
   content.push({
     columns: [
-      {
-        text: `Printed On: ${printedOn} (Singapore Time)`,
-        fontSize: 7.5,
-        color: '#94a3b8'
-      },
-      {
-        text: 'Powered by UNIPRO',
-        fontSize: 7.5,
-        color: '#94a3b8',
-        alignment: 'right'
-      }
+      { text: 'Powered by UNIPRO Enterprise POS Analytics', fontSize: 7, color: TEXT_MUTED },
+      { text: 'CONFIDENTIAL - FOR INTERNAL BOARD REVIEW ONLY', fontSize: 7, color: TEXT_MUTED, alignment: 'right' }
     ],
-    margin: [0, 10, 0, 0]
+    margin: [0, 15, 0, 0]
   });
 
   return {
     content,
     pageSize: 'A4',
-    pageMargins: [30, 30, 30, 40],
+    pageMargins: [35, 35, 35, 40],
     defaultStyle: {
       font: 'Roboto',
-      fontSize: 9,
-      lineHeight: 1.35
+      fontSize: 8.5,
+      lineHeight: 1.3
     },
     footer: function(currentPage, pageCount) {
       return {
-        text: `Page ${currentPage} of ${pageCount}`,
-        alignment: 'center',
-        fontSize: 8,
-        color: '#94a3b8',
-        margin: [0, 15, 0, 0]
+        columns: [
+          {
+            text: `Report Period: ${period} | Printed: ${printedOn || new Date().toLocaleString()}`,
+            fontSize: 7.5,
+            color: TEXT_MUTED,
+            margin: [35, 10, 0, 0]
+          },
+          {
+            text: `Page ${currentPage} of ${pageCount}`,
+            alignment: 'right',
+            fontSize: 7.5,
+            color: TEXT_MUTED,
+            margin: [0, 10, 35, 0]
+          }
+        ]
       };
     }
   };
