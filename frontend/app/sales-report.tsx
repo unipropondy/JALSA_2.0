@@ -2402,10 +2402,15 @@ export default function SalesReport() {
                 style={[
                   styles.breakdownItem,
                   layoutStyle,
+                  {
+                    borderColor: item.color,
+                    borderWidth: 1,
+                    backgroundColor: hexToRgba(item.color, 0.05),
+                  },
                   isActive && {
                     borderColor: item.color,
-                    borderWidth: 1.5,
-                    backgroundColor: hexToRgba(item.color, 0.08),
+                    borderWidth: 1.8,
+                    backgroundColor: hexToRgba(item.color, 0.12),
                   },
                   isInactive && {
                     opacity: 0.4,
@@ -4219,7 +4224,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 10,
     borderRadius: 16,
-    backgroundColor: Theme.bgMuted,
+    backgroundColor: "#ffffff",
     borderWidth: 1,
     borderColor: Theme.border,
     shadowColor: "#000",
