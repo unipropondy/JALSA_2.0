@@ -77,24 +77,6 @@ const makeLogoEmblem = () => {
         h: 20,
         r: 5,
         color: '#f97316' // Orange highlight
-      },
-      {
-        type: 'line',
-        x1: 11,
-        y1: 16,
-        x2: 21,
-        y2: 16,
-        lineWidth: 2.5,
-        lineColor: '#ffffff'
-      },
-      {
-        type: 'line',
-        x1: 16,
-        y1: 11,
-        x2: 16,
-        y2: 21,
-        lineWidth: 2.5,
-        lineColor: '#ffffff'
       }
     ],
     width: 38,
