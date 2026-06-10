@@ -803,41 +803,7 @@ router.get("/dish", async (req, res) => {
 router.get("/artist-target", async (req, res) => {
   try {
     const pool = await poolPromise;
-    const filter = normalizeReportFilter(req.query.filter);
-    const date = req.query.date;
-
-    const request = pool.request();
-    request.input("filter", sql.VarChar(50), filter);
-    if (date) {
-      request.input("dateInput", sql.VarChar(50), date);
-    }
-
-    const result = await request.query(`
-      DECLARE @targetDate DATE = ${date ? "CAST(@dateInput AS DATE)" : "CAST(GETDATE() AS DATE)"};
-      DECLARE @periodStart DATETIME;
-      DECLARE @periodEnd DATETIME;
-
-      IF @filter = 'weekly'
-      BEGIN
-        SET @periodStart = DATEADD(DAY, -6, CAST(@targetDate AS DATETIME));
-        SET @periodEnd = DATEADD(DAY, 1, CAST(@targetDate AS DATETIME));
-      END
-      ELSE IF @filter = 'monthly'
-      BEGIN
-        SET @periodStart = DATEFROMPARTS(YEAR(@targetDate), MONTH(@targetDate), 1);
-        SET @periodEnd = DATEADD(MONTH, 1, @periodStart);
-      END
-      ELSE IF @filter = 'yearly'
-      BEGIN
-        SET @periodStart = DATEFROMPARTS(YEAR(@targetDate), 1, 1);
-        SET @periodEnd = DATEADD(YEAR, 1, @periodStart);
-      END
-      ELSE -- daily
-      BEGIN
-        SET @periodStart = CAST(@targetDate AS DATETIME);
-        SET @periodEnd = DATEADD(DAY, 1, @periodStart);
-      END
-
+    const result = await pool.request().query(`
       SELECT 
         a.Id,
         a.CustomerName,
@@ -868,7 +834,6 @@ router.get("/artist-target", async (req, res) => {
           AND b.OrderDateTime >= CAST(a.FromDate AS DATETIME)
           AND b.OrderDateTime < DATEADD(DAY, 1, CAST(a.ToDate AS DATETIME))
       ) sales
-      WHERE a.FromDate < @periodEnd AND a.ToDate >= @periodStart
       ORDER BY a.CreatedDate DESC, a.CustomerName ASC
     `);
     res.json(result.recordset || []);
