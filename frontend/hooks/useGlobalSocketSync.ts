@@ -34,6 +34,17 @@ export function useGlobalSocketSync() {
       useActiveOrdersStore.getState().fetchActiveKitchenOrders();
     };
 
+    // 🏓 KEEP-ALIVE: Ping the server every 4 minutes to prevent Railway from sleeping.
+    // Railway free tier sleeps after ~30 mins of inactivity causing cold-start timeouts.
+    const keepAliveInterval = setInterval(async () => {
+      try {
+        await fetch(`${API_URL}/health`, { method: 'GET' });
+        console.log('[KeepAlive] Pinged server successfully.');
+      } catch {
+        console.warn('[KeepAlive] Ping failed — server may be sleeping.');
+      }
+    }, 4 * 60 * 1000); // every 4 minutes
+
     const handleConnectError = (error: any) => {
       console.error("🔌 [Socket-Global] CONNECTION ERROR:", error);
     };
@@ -233,6 +244,7 @@ export function useGlobalSocketSync() {
     socket.on("cart_change", handleCartChange);
 
     return () => {
+      clearInterval(keepAliveInterval);
       socket.off("connect", handleConnect);
       socket.off("connect_error", handleConnectError);
       socket.off("new_order", handleNewOrder);

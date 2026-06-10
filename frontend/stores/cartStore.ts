@@ -109,6 +109,36 @@ const getNormalizedModifiers = (item: any): Modifier[] => {
 
 /* ================= HELPERS ================= */
 
+// 🔁 RETRY FETCH: Handles Railway cold-starts (server sleeps after inactivity)
+// Retries up to `maxRetries` times with a 15s timeout per attempt.
+const fetchWithRetry = async (
+  url: string,
+  options: RequestInit,
+  maxRetries = 3,
+  timeoutMs = 15000
+): Promise<Response> => {
+  let lastErr: any;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      console.log(`[fetchWithRetry] Attempt ${attempt}/${maxRetries}: ${url}`);
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timer);
+      return res;
+    } catch (err: any) {
+      clearTimeout(timer);
+      lastErr = err;
+      const isAbort = err?.name === 'AbortError';
+      console.warn(`[fetchWithRetry] Attempt ${attempt} ${isAbort ? 'TIMED OUT' : 'FAILED'}: ${err?.message}`);
+      if (attempt < maxRetries) {
+        await new Promise(r => setTimeout(r, 2000 * attempt)); // 2s, 4s back-off
+      }
+    }
+  }
+  throw lastErr;
+};
+
 // 🚀 HIGH-PERFORMANCE ID GENERATOR: Replaces Crypto.randomUUID() for hot paths
 const fastId = () => {
   try {
@@ -713,7 +743,7 @@ export const useCartStore = create<CartState>()(
             version: newVersion
           });
 
-          const res = await fetch(`${API_URL}/api/orders/save-cart`, {
+          const res = await fetchWithRetry(`${API_URL}/api/orders/save-cart`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -732,9 +762,11 @@ export const useCartStore = create<CartState>()(
             set((state) => ({ isClearing: { ...state.isClearing, [currentContextId]: false } }));
             await fetchCartFromDB(tableId);
           }, 5000);
-        } catch (err) {
+        } catch (err: any) {
           set((state) => ({ isClearing: { ...state.isClearing, [currentContextId]: false } }));
-          if ((err as any).name !== 'AbortError') console.error("❌ [CartStore] Clear failed:", err);
+          if (err?.name !== 'AbortError') {
+            console.error(`❌ [CartStore] Clear failed (all retries exhausted):`, err);
+          }
         }
       },
 
@@ -1263,7 +1295,7 @@ export const useCartStore = create<CartState>()(
       checkoutOrder: async (tableId) => {
         try {
           console.log(`🚀 [CartStore] Initiating Checkout for Table: ${tableId}`);
-          const response = await fetch(`${API_URL}/api/orders/checkout`, {
+          const response = await fetchWithRetry(`${API_URL}/api/orders/checkout`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ tableId }),
@@ -1278,8 +1310,8 @@ export const useCartStore = create<CartState>()(
           const data = await response.json();
           console.log("✅ [CartStore] Checkout Success:", data);
           return { success: true };
-        } catch (err) {
-          console.error("❌ [CartStore] Checkout failed:", err);
+        } catch (err: any) {
+          console.error(`❌ [CartStore] Checkout failed (all retries exhausted):`, err);
           return { success: false };
         }
       },
@@ -1287,7 +1319,7 @@ export const useCartStore = create<CartState>()(
       completeOrder: async (tableId) => {
         try {
           console.log(`🚀 [CartStore] Completing Order for Table: ${tableId}`);
-          const response = await fetch(`${API_URL}/api/orders/complete`, {
+          const response = await fetchWithRetry(`${API_URL}/api/orders/complete`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ tableId }),
@@ -1318,8 +1350,8 @@ export const useCartStore = create<CartState>()(
             return { success: true };
           }
           return { success: false };
-        } catch (err) {
-          console.error("❌ [CartStore] Complete failed:", err);
+        } catch (err: any) {
+          console.error(`❌ [CartStore] Complete failed (all retries exhausted):`, err);
           return { success: false };
         }
       },
