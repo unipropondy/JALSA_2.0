@@ -2330,9 +2330,10 @@ export default function SalesReport() {
           styles.breakdownRow,
           {
             flexWrap: "wrap",
-            justifyContent: SCREEN_W > 768 ? "space-between" : "flex-start",
+            justifyContent: "space-between",
             width: "100%",
-            gap: SCREEN_W < 480 ? 8 : 10
+            rowGap: SCREEN_W < 480 ? 8 : 10,
+            columnGap: SCREEN_W < 480 ? 8 : 10
           }
         ]}>
           {[
@@ -2376,14 +2377,16 @@ export default function SalesReport() {
             },
           ].map((item, idx) => {
             const cardPadding = SCREEN_W > 480 ? 40 : 24;
-            const gaps = SCREEN_W < 480 ? 16 : 20;
+            const numColumns = SCREEN_W > 768 ? 6 : (SCREEN_W > 480 ? 3 : 2);
+            const gap = SCREEN_W < 480 ? 8 : 10;
+            const totalGaps = (numColumns - 1) * gap;
             const itemWidth = (SCREEN_W > 768
               ? 'auto'
-              : (SCREEN_W - cardPadding - gaps) / 3 - 2) as any;
+              : (SCREEN_W - cardPadding - totalGaps) / numColumns - 1) as any;
 
             const layoutStyle = SCREEN_W > 768
               ? { flex: 1, minWidth: 0 }
-              : { width: itemWidth, minWidth: 0, paddingHorizontal: 4, paddingVertical: 12 };
+              : { width: itemWidth, minWidth: 0, paddingHorizontal: 6, paddingVertical: SCREEN_W < 480 ? 8 : 12 };
 
             const modeKey = item.label === "PAY NOW" ? "PAYNOW" : item.label;
             const isSomeFilterApplied = activePaymentModes.length < 8;
