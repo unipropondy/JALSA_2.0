@@ -2376,17 +2376,15 @@ export default function SalesReport() {
               color: "#e11d48",
             },
           ].map((item, idx) => {
-            const cardPadding = SCREEN_W > 480 ? 40 : 24;
             const numColumns = SCREEN_W > 768 ? 6 : (SCREEN_W > 480 ? 3 : 2);
-            const gap = SCREEN_W < 480 ? 8 : 10;
-            const totalGaps = (numColumns - 1) * gap;
-            const itemWidth = (SCREEN_W > 768
-              ? 'auto'
-              : (SCREEN_W - cardPadding - totalGaps) / numColumns - 1) as any;
-
             const layoutStyle = SCREEN_W > 768
               ? { flex: 1, minWidth: 0 }
-              : { width: itemWidth, minWidth: 0, paddingHorizontal: 6, paddingVertical: SCREEN_W < 480 ? 8 : 12 };
+              : {
+                  width: SCREEN_W > 480 ? "31.5%" : "48.5%",
+                  minWidth: 95,
+                  paddingHorizontal: 6,
+                  paddingVertical: SCREEN_W < 480 ? 8 : 12
+                };
 
             const modeKey = item.label === "PAY NOW" ? "PAYNOW" : item.label;
             const isSomeFilterApplied = activePaymentModes.length < 8;
