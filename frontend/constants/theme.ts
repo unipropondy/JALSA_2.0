@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 /**
  * Light Warm Food POS Theme
  * Primary: Orange #F97316
@@ -43,21 +45,21 @@ export const Theme = {
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: Platform.OS === 'android' ? 0 : 2,
   },
   shadowMd: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.10,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: Platform.OS === 'android' ? 0 : 4,
   },
   shadowLg: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.14,
     shadowRadius: 16,
-    elevation: 8,
+    elevation: Platform.OS === 'android' ? 0 : 8,
   },
 
   // ── Semantic Status Colors (kept for table grid) ──
