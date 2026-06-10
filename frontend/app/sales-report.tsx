@@ -2403,17 +2403,19 @@ export default function SalesReport() {
                   styles.breakdownItem,
                   layoutStyle,
                   {
-                    borderColor: item.color,
+                    borderColor: hexToRgba(item.color, 0.25),
                     borderWidth: 1,
-                    backgroundColor: hexToRgba(item.color, 0.05),
+                    backgroundColor: "#ffffff",
                   },
                   isActive && {
                     borderColor: item.color,
-                    borderWidth: 1.8,
-                    backgroundColor: hexToRgba(item.color, 0.12),
+                    borderWidth: 2,
+                    backgroundColor: hexToRgba(item.color, 0.04),
+                    ...Theme.shadowSm,
                   },
                   isInactive && {
                     opacity: 0.4,
+                    borderColor: Theme.border,
                   }
                 ]}
               >
