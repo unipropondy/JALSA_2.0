@@ -294,20 +294,22 @@ async function fetchFullReportData(startDateStr, endDateStr, pool) {
     DECLARE @toDate DATE = '${endDateStr}';
 
     SELECT 
-      d.Name,
-      ISNULL(targets.Amount, 0) as ActualSales,
-      ISNULL(targets.TargetAmount, 0) as TargetAmount
-    FROM DishMaster d
-    LEFT JOIN (
-      SELECT DishId, Amount, TargetAmount
-      FROM dishOrderItemShare
-      WHERE CAST(FromDate as DATE) = @fromDate AND CAST(ToDate as DATE) = @toDate
-    ) targets ON d.DishId = targets.DishId
-    WHERE d.IsActive = 1
-      AND d.IsSplitDish = 1
-      AND d.IsGroupDish = 0
-      AND (targets.Amount > 0 OR targets.TargetAmount > 0)
-    ORDER BY d.Name;
+      a.CustomerName AS Name,
+      COALESCE(a.TargetAmount, a.Amount, 0) AS TargetAmount,
+      ISNULL(sales.Achieved, 0) AS ActualSales
+    FROM dishOrderItemShare a
+    OUTER APPLY (
+      SELECT SUM(CAST(ISNULL(b.Qty, 0) * ISNULL(b.Price, 0) AS decimal(18,2))) AS Achieved
+      FROM settlementitemdetail b
+      INNER JOIN SettlementHeader sh ON b.SettlementID = sh.SettlementID
+      WHERE (b.DishId = a.DishId OR (a.DishId IS NULL AND b.DishName = a.CustomerName))
+        AND sh.IsCancelled = 0
+        AND ISNULL(b.Status, 'NORMAL') <> 'VOIDED'
+        AND b.OrderDateTime >= CAST(a.FromDate AS DATETIME)
+        AND b.OrderDateTime < DATEADD(DAY, 1, CAST(a.ToDate AS DATETIME))
+    ) sales
+    WHERE a.FromDate <= @toDate AND a.ToDate >= @fromDate
+    ORDER BY a.CustomerName ASC;
   `;
 
   const artistResult = await pool.request().query(artistQuery);

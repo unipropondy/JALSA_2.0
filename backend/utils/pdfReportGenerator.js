@@ -420,7 +420,7 @@ const generateSalesReportPdf = (reportData) => {
           { text: 'PAYMENT CHANNEL CONTRIBUTION', fontSize: 9, bold: true, color: BLUE_PRIMARY, margin: [0, 0, 0, 4] },
           {
             table: {
-              widths: ['auto', 'auto', 'auto', '*'],
+              widths: ['*', 70, 110, 50],
               body: payBreakdownBody
             },
             layout: 'lightHorizontalLines'
@@ -434,7 +434,7 @@ const generateSalesReportPdf = (reportData) => {
           { text: 'OPERATIONAL EFFICIENCY', fontSize: 9, bold: true, color: BLUE_PRIMARY, margin: [0, 0, 0, 4] },
           {
             table: {
-              widths: ['*', 'auto'],
+              widths: ['*', 60],
               body: opsBody
             },
             layout: 'lightHorizontalLines'
@@ -486,7 +486,7 @@ const generateSalesReportPdf = (reportData) => {
 
   content.push({
     table: {
-      widths: [40, '*', 140, 60, 90],
+      widths: [30, '*', 110, 50, 70],
       body: rankedItemsBody
     },
     layout: 'lightHorizontalLines',
@@ -544,7 +544,7 @@ const generateSalesReportPdf = (reportData) => {
 
   content.push({
     table: {
-      widths: ['*', 100, 110, 150],
+      widths: ['*', 80, 80, 110],
       body: catTableBody
     },
     layout: 'lightHorizontalLines',
@@ -584,7 +584,7 @@ const generateSalesReportPdf = (reportData) => {
 
     content.push({
       table: {
-        widths: ['*', 100, 100, 150],
+        widths: ['*', 90, 90, 110],
         body: artistTableBody
       },
       layout: 'lightHorizontalLines',
