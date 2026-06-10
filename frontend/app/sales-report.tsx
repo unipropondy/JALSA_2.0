@@ -2380,9 +2380,9 @@ export default function SalesReport() {
             const layoutStyle = (SCREEN_W > 768
               ? { flex: 1, minWidth: 0 }
               : {
-                  width: SCREEN_W > 480 ? "31.5%" : "48.5%",
-                  minWidth: 95,
-                  paddingHorizontal: 6,
+                  width: "31.5%",
+                  minWidth: 0,
+                  paddingHorizontal: 4,
                   paddingVertical: SCREEN_W < 480 ? 8 : 12
                 }) as any;
 
