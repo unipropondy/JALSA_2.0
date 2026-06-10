@@ -803,17 +803,73 @@ router.get("/dish", async (req, res) => {
 router.get("/artist-target", async (req, res) => {
   try {
     const pool = await poolPromise;
-    const result = await pool.request().query(`
+    const filter = normalizeReportFilter(req.query.filter);
+    const date = req.query.date;
+
+    const request = pool.request();
+    request.input("filter", sql.VarChar(50), filter);
+    if (date) {
+      request.input("dateInput", sql.VarChar(50), date);
+    }
+
+    const result = await request.query(`
+      DECLARE @targetDate DATE = ${date ? "CAST(@dateInput AS DATE)" : "CAST(GETDATE() AS DATE)"};
+      DECLARE @periodStart DATETIME;
+      DECLARE @periodEnd DATETIME;
+
+      IF @filter = 'weekly'
+      BEGIN
+        SET @periodStart = DATEADD(DAY, -6, CAST(@targetDate AS DATETIME));
+        SET @periodEnd = DATEADD(DAY, 1, CAST(@targetDate AS DATETIME));
+      END
+      ELSE IF @filter = 'monthly'
+      BEGIN
+        SET @periodStart = DATEFROMPARTS(YEAR(@targetDate), MONTH(@targetDate), 1);
+        SET @periodEnd = DATEADD(MONTH, 1, @periodStart);
+      END
+      ELSE IF @filter = 'yearly'
+      BEGIN
+        SET @periodStart = DATEFROMPARTS(YEAR(@targetDate), 1, 1);
+        SET @periodEnd = DATEADD(YEAR, 1, @periodStart);
+      END
+      ELSE -- daily
+      BEGIN
+        SET @periodStart = CAST(@targetDate AS DATETIME);
+        SET @periodEnd = DATEADD(DAY, 1, @periodStart);
+      END
+
       SELECT 
-        Id,
-        CustomerName,
-        Amount,
-        FromDate,
-        ToDate,
-        TargetAmount,
-        CreatedDate
-      FROM dishOrderItemShare
-      ORDER BY CreatedDate DESC, CustomerName ASC
+        a.Id,
+        a.CustomerName,
+        a.FromDate,
+        a.ToDate,
+        COALESCE(a.TargetAmount, a.Amount, 0) AS TargetAmount,
+        COALESCE(a.TargetAmount, a.Amount, 0) AS Amount, -- Backward compatibility for frontend
+        ISNULL(sales.Achieved, 0) AS Achieved,
+        CASE 
+          WHEN COALESCE(a.TargetAmount, a.Amount, 0) - ISNULL(sales.Achieved, 0) > 0 
+          THEN COALESCE(a.TargetAmount, a.Amount, 0) - ISNULL(sales.Achieved, 0)
+          ELSE 0 
+        END AS [Left],
+        CASE 
+          WHEN ISNULL(sales.Achieved, 0) >= COALESCE(a.TargetAmount, a.Amount, 0) 
+          THEN 'Achieved'
+          ELSE 'Not Achieved'
+        END AS [Status],
+        a.CreatedDate
+      FROM dishOrderItemShare a
+      OUTER APPLY (
+        SELECT SUM(CAST(ISNULL(b.Qty, 0) * ISNULL(b.Price, 0) AS decimal(18,2))) AS Achieved
+        FROM settlementitemdetail b
+        INNER JOIN SettlementHeader sh ON b.SettlementID = sh.SettlementID
+        WHERE (b.DishId = a.DishId OR (a.DishId IS NULL AND b.DishName = a.CustomerName))
+          AND sh.IsCancelled = 0
+          AND ISNULL(b.Status, 'NORMAL') <> 'VOIDED'
+          AND b.OrderDateTime >= CAST(a.FromDate AS DATETIME)
+          AND b.OrderDateTime < DATEADD(DAY, 1, CAST(a.ToDate AS DATETIME))
+      ) sales
+      WHERE a.FromDate < @periodEnd AND a.ToDate >= @periodStart
+      ORDER BY a.CreatedDate DESC, a.CustomerName ASC
     `);
     res.json(result.recordset || []);
   } catch (err) {

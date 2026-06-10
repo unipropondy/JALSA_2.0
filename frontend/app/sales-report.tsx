@@ -374,6 +374,9 @@ export default function SalesReport() {
                 FromDate: row.FromDate,
                 ToDate: row.ToDate,
                 TargetAmount: row.TargetAmount ?? 0,
+                Achieved: row.Achieved ?? 0,
+                Left: row.Left ?? 0,
+                Status: row.Status || "Not Achieved",
               }))
               : [],
           );
@@ -1398,7 +1401,7 @@ export default function SalesReport() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ minWidth: "100%" }}
           >
-            <View style={styles.reportTable}>
+            <View style={[styles.reportTable, isArtistTarget && { minWidth: 700 }]}>
               <View style={styles.reportTableHeader}>
                 <Text style={[styles.reportCell, styles.snoCell]}>S/N</Text>
                 {isSettlement ? (
@@ -1430,6 +1433,15 @@ export default function SalesReport() {
                     </Text>
                     <Text style={[styles.reportCell, styles.sysAmtCell, { textAlign: "right" }]}>
                       Target
+                    </Text>
+                    <Text style={[styles.reportCell, styles.sysAmtCell, { textAlign: "right" }]}>
+                      Achieved
+                    </Text>
+                    <Text style={[styles.reportCell, styles.sysAmtCell, { textAlign: "right" }]}>
+                      Left
+                    </Text>
+                    <Text style={[styles.reportCell, styles.paymodeCell, { textAlign: "center" }]}>
+                      Status
                     </Text>
                   </>
                 ) : (
@@ -1529,8 +1541,42 @@ export default function SalesReport() {
                       >
                         {formatCurrency(Number(row.Amount || 0))}
                       </Text>
+                      <Text
+                        style={[
+                          styles.reportCell,
+                          styles.reportCellText,
+                          styles.sysAmtCell,
+                          { color: Theme.primary, fontWeight: "600", textAlign: "right" }
+                        ]}
+                      >
+                        {formatCurrency(Number(row.Achieved || 0))}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.reportCell,
+                          styles.reportCellText,
+                          styles.sysAmtCell,
+                          { color: Number(row.Left || 0) > 0 ? "#dc2626" : Theme.success, fontWeight: "600", textAlign: "right" }
+                        ]}
+                      >
+                        {formatCurrency(Number(row.Left || 0))}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.reportCell,
+                          styles.reportCellText,
+                          styles.paymodeCell,
+                          { 
+                            color: row.Status === "Achieved" ? Theme.success : "#dc2626", 
+                            fontWeight: "bold", 
+                            textAlign: "center" 
+                          }
+                        ]}
+                      >
+                        {row.Status || "Not Achieved"}
+                      </Text>
                     </View>
-                  ));
+                   ));
                 }
 
                 if (isSettlement || !isDishReport) {
