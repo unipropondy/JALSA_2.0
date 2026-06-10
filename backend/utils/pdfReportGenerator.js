@@ -254,7 +254,6 @@ const generateSalesReportPdf = (reportData) => {
   // ================= 1. PREMIUM HEADER SECTION =================
   content.push({
     columns: [
-      Object.assign(makeLogoEmblem(), { width: 42 }),
       {
         stack: [
           { text: companyName.toUpperCase(), fontSize: 16, bold: true, color: BLUE_PRIMARY, letterSpacing: 1 },
