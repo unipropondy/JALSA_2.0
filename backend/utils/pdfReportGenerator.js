@@ -553,7 +553,7 @@ const generateSalesReportPdf = (reportData) => {
   // ================= 7. STAFF PERFORMANCE (ARTISTS PERFORMANCE / TARGETS) =================
   if (artistSales && artistSales.length > 0) {
     content.push({
-      text: 'STAFF PERFORMANCE & TARGET ACHIEVEMENTS',
+      text: 'TARGET ACHIEVEMENTS',
       fontSize: 9,
       bold: true,
       color: BLUE_PRIMARY,

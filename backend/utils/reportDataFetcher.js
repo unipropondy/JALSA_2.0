@@ -290,9 +290,6 @@ async function fetchFullReportData(startDateStr, endDateStr, pool) {
   const itemsList = dishResult.recordset || [];
 
   const artistQuery = `
-    DECLARE @fromDate DATE = '${startDateStr}';
-    DECLARE @toDate DATE = '${endDateStr}';
-
     SELECT 
       a.CustomerName AS Name,
       COALESCE(a.TargetAmount, a.Amount, 0) AS TargetAmount,
@@ -308,7 +305,6 @@ async function fetchFullReportData(startDateStr, endDateStr, pool) {
         AND b.OrderDateTime >= CAST(a.FromDate AS DATETIME)
         AND b.OrderDateTime < DATEADD(DAY, 1, CAST(a.ToDate AS DATETIME))
     ) sales
-    WHERE a.FromDate <= @toDate AND a.ToDate >= @fromDate
     ORDER BY a.CustomerName ASC;
   `;
 
