@@ -2377,9 +2377,9 @@ export default function SalesReport() {
           ].map((item, idx) => {
             const cardPadding = SCREEN_W > 480 ? 40 : 24;
             const gaps = SCREEN_W < 480 ? 16 : 20;
-            const itemWidth = SCREEN_W > 768
+            const itemWidth = (SCREEN_W > 768
               ? 'auto'
-              : (SCREEN_W - cardPadding - gaps) / 3 - 2;
+              : (SCREEN_W - cardPadding - gaps) / 3 - 2) as any;
 
             const layoutStyle = SCREEN_W > 768
               ? { flex: 1, minWidth: 0 }
