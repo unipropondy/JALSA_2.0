@@ -2377,14 +2377,14 @@ export default function SalesReport() {
             },
           ].map((item, idx) => {
             const numColumns = SCREEN_W > 768 ? 6 : (SCREEN_W > 480 ? 3 : 2);
-            const layoutStyle = SCREEN_W > 768
+            const layoutStyle = (SCREEN_W > 768
               ? { flex: 1, minWidth: 0 }
               : {
                   width: SCREEN_W > 480 ? "31.5%" : "48.5%",
                   minWidth: 95,
                   paddingHorizontal: 6,
                   paddingVertical: SCREEN_W < 480 ? 8 : 12
-                };
+                }) as any;
 
             const modeKey = item.label === "PAY NOW" ? "PAYNOW" : item.label;
             const isSomeFilterApplied = activePaymentModes.length < 8;
