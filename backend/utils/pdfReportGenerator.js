@@ -272,13 +272,13 @@ const generateSalesReportPdf = (reportData) => {
   // ================= 1. PREMIUM HEADER SECTION =================
   content.push({
     columns: [
-      makeLogoEmblem(),
+      Object.assign(makeLogoEmblem(), { width: 42 }),
       {
         stack: [
           { text: companyName.toUpperCase(), fontSize: 16, bold: true, color: BLUE_PRIMARY, letterSpacing: 1 },
           { text: `${companyAddress} ${companyPhone ? ' | Tel: ' + companyPhone : ''}`, fontSize: 7.5, color: SLATE_MUTED }
         ],
-        width: '60%',
+        width: '*',
         margin: [0, 2, 0, 0]
       },
       {
@@ -286,7 +286,7 @@ const generateSalesReportPdf = (reportData) => {
           { text: 'SALES ANALYTICS EXECUTIVE DASHBOARD', fontSize: 9.5, bold: true, color: ORANGE_HIGHLIGHT, alignment: 'right' },
           { text: `Report Period: ${period}`, fontSize: 8, bold: true, color: SLATE_DARK, alignment: 'right', margin: [0, 2, 0, 0] }
         ],
-        width: '40%'
+        width: 220
       }
     ],
     margin: [0, 0, 0, 10]
