@@ -1188,11 +1188,15 @@ router.post("/save", async (req, res) => {
     let settlementId;
     let displayOrderId = null;
     let guidOrderId;
+    let activePaymodes = [];
 
     await runInTransaction(async (transaction) => {
       const settlementIdResult = await transaction.request().query(`SELECT NEWID() AS id`);
       settlementId = settlementIdResult.recordset[0].id;
       let billNo = ""; // Will be set to displayOrderId later
+
+      const paymodesRes = await transaction.request().query("SELECT Position, PayMode FROM [dbo].[Paymode] WHERE Active = 1");
+      activePaymodes = paymodesRes.recordset || [];
 
       const activeOrg = await getActiveOrganization();
       const businessUnitId = activeOrg.businessUnitId;
@@ -1477,47 +1481,81 @@ router.post("/save", async (req, res) => {
         console.log(`[SAVE SALE] Settlement tables updated successfully.`);
       }
 
-      if (items && Array.isArray(items)) {
-        for (const item of items) {
-          console.log(`[SAVE SALE] Step 4: Item [${item.dish_name || item.name}]...`);
-          const dishId = toGuidOrNull(item.dishId || item.id);
-          const dishMeta = await transaction.request()
-            .input("DishId", sql.UniqueIdentifier, dishId)
-            .input("DishName", sql.NVarChar(255), item.dish_name || item.name || "")
-            .query(`
-              SELECT TOP 1 d.DishId, d.DishGroupId, dg.CategoryId, cm.CategoryName, dg.DishGroupName, d.Name as Name, ISNULL(d.IsSplitDish, 0) as IsSplitDish
-              FROM DishMaster d
-              LEFT JOIN DishGroupMaster dg ON d.DishGroupId = dg.DishGroupId
-              LEFT JOIN CategoryMaster cm ON dg.CategoryId = cm.CategoryId
-              WHERE (@DishId IS NOT NULL AND d.DishId = @DishId)
-                 OR (@DishId IS NULL AND LTRIM(RTRIM(LOWER(d.Name))) = LTRIM(RTRIM(LOWER(@DishName))))
-            `);
-          const meta = dishMeta.recordset[0] || {};
-          await transaction.request()
-            .input("SettlementID", sql.UniqueIdentifier, settlementId)
-            .input("DishId", sql.UniqueIdentifier, toGuidOrNull(meta.DishId || dishId))
-            .input("DishGroupId", sql.UniqueIdentifier, toGuidOrNull(meta.DishGroupId))
-            .input("SubCategoryId", sql.UniqueIdentifier, toGuidOrNull(meta.DishGroupId))
-            .input("CategoryId", sql.UniqueIdentifier, toGuidOrNull(meta.CategoryId))
-            .input("DishName", sql.NVarChar(255), item.dish_name || item.name || "Unknown")
-            .input("SongName", sql.NVarChar(255), item.songName || item.SongName || "")
-            .input("CategoryName", sql.NVarChar(255), meta.CategoryName || item.categoryName || "Unmapped")
-            .input("SubCategoryName", sql.NVarChar(255), meta.DishGroupName || "Unmapped")
-            .input("Qty", sql.Int, item.qty || 1)
-            .input("Price", sql.Decimal(18, 2), item.price || 0)
-            .input("ItemDiscountAmount", sql.Decimal(18, 2), Number(item.discountAmount) || null)
-            .input("ItemDiscountType", sql.NVarChar(50), item.discountType || (Number(item.discountAmount) > 0 ? "percentage" : null))
-            .input("Status", sql.NVarChar(50), item.status || "NORMAL")
-            .input("Spicy", sql.NVarChar(50), item.spicy || "")
-            .input("Salt", sql.NVarChar(50), item.salt || "")
-            .input("Oil", sql.NVarChar(50), item.oil || "")
-            .input("Sugar", sql.NVarChar(50), item.sugar || "")
-            .input("OrderDetailId", sql.UniqueIdentifier, toGuidOrNull(item.lineItemId))
-            .query(`
-              INSERT INTO SettlementItemDetail (SettlementID, DishId, DishGroupId, SubCategoryId, CategoryId, DishName, SongName, Qty, Price, OrderDateTime, CategoryName, SubCategoryName, DiscountAmount, DiscountType, Status, Spicy, Salt, Oil, Sugar, OrderDetailId)
-              VALUES (@SettlementID, @DishId, @DishGroupId, @SubCategoryId, @CategoryId, @DishName, @SongName, @Qty, @Price, GETDATE(), @CategoryName, @SubCategoryName, @ItemDiscountAmount, @ItemDiscountType, @Status, @Spicy, @Salt, @Oil, @Sugar, @OrderDetailId)
-            `);
+      if (items && Array.isArray(items) && items.length > 0) {
+        console.log(`[SAVE SALE] Batching ${items.length} items to reduce DB round-trips...`);
+        const dishIds = items.map(item => toGuidOrNull(item.dishId || item.id)).filter(Boolean);
+        const dishNames = items.map(item => item.dish_name || item.name || "").filter(name => name.trim() !== "");
+        
+        let metaMap = {};
+        if (dishIds.length > 0 || dishNames.length > 0) {
+          const req = transaction.request();
+          let whereClauses = [];
+          if (dishIds.length > 0) {
+            dishIds.forEach((id, i) => {
+              req.input(`id_${i}`, sql.UniqueIdentifier, id);
+              whereClauses.push(`d.DishId = @id_${i}`);
+            });
+          }
+          if (dishNames.length > 0) {
+            dishNames.forEach((name, i) => {
+              req.input(`name_${i}`, sql.NVarChar(255), name);
+              whereClauses.push(`LTRIM(RTRIM(LOWER(d.Name))) = LTRIM(RTRIM(LOWER(@name_${i})))`);
+            });
+          }
+          const queryStr = `
+            SELECT d.DishId, d.Name, d.DishGroupId, dg.CategoryId, cm.CategoryName, dg.DishGroupName, ISNULL(d.IsSplitDish, 0) as IsSplitDish
+            FROM DishMaster d WITH (NOLOCK)
+            LEFT JOIN DishGroupMaster dg ON d.DishGroupId = dg.DishGroupId
+            LEFT JOIN CategoryMaster cm ON dg.CategoryId = cm.CategoryId
+            WHERE ${whereClauses.join(" OR ")}
+          `;
+          const metaRes = await req.query(queryStr);
+          metaRes.recordset.forEach(row => {
+            if (row.DishId) {
+              metaMap[String(row.DishId).toLowerCase()] = row;
+            }
+            if (row.Name) {
+              metaMap[row.Name.trim().toLowerCase()] = row;
+            }
+          });
         }
+
+        // Prepare and execute all inserts in a single database round-trip
+        const insertReq = transaction.request();
+        insertReq.input("SettlementID", sql.UniqueIdentifier, settlementId);
+        
+        let insertQueries = [];
+        items.forEach((item, idx) => {
+          const dishId = toGuidOrNull(item.dishId || item.id);
+          const nameKey = (item.dish_name || item.name || "").trim().toLowerCase();
+          const meta = (dishId && metaMap[String(dishId).toLowerCase()]) || metaMap[nameKey] || {};
+          
+          insertReq.input(`DishId_${idx}`, sql.UniqueIdentifier, toGuidOrNull(meta.DishId || dishId));
+          insertReq.input(`DishGroupId_${idx}`, sql.UniqueIdentifier, toGuidOrNull(meta.DishGroupId));
+          insertReq.input(`CategoryId_${idx}`, sql.UniqueIdentifier, toGuidOrNull(meta.CategoryId));
+          insertReq.input(`DishName_${idx}`, sql.NVarChar(255), item.dish_name || item.name || "Unknown");
+          insertReq.input(`SongName_${idx}`, sql.NVarChar(255), item.songName || item.SongName || "");
+          insertReq.input(`CategoryName_${idx}`, sql.NVarChar(255), meta.CategoryName || item.categoryName || "Unmapped");
+          insertReq.input(`SubCategoryName_${idx}`, sql.NVarChar(255), meta.DishGroupName || "Unmapped");
+          insertReq.input(`Qty_${idx}`, sql.Int, item.qty || 1);
+          insertReq.input(`Price_${idx}`, sql.Decimal(18, 2), item.price || 0);
+          insertReq.input(`ItemDiscountAmount_${idx}`, sql.Decimal(18, 2), Number(item.discountAmount) || null);
+          insertReq.input(`ItemDiscountType_${idx}`, sql.NVarChar(50), item.discountType || (Number(item.discountAmount) > 0 ? "percentage" : null));
+          insertReq.input(`Status_${idx}`, sql.NVarChar(50), item.status || "NORMAL");
+          insertReq.input(`Spicy_${idx}`, sql.NVarChar(50), item.spicy || "");
+          insertReq.input(`Salt_${idx}`, sql.NVarChar(50), item.salt || "");
+          insertReq.input(`Oil_${idx}`, sql.NVarChar(50), item.oil || "");
+          insertReq.input(`Sugar_${idx}`, sql.NVarChar(50), item.sugar || "");
+          insertReq.input(`OrderDetailId_${idx}`, sql.UniqueIdentifier, toGuidOrNull(item.lineItemId));
+          
+          insertQueries.push(`
+            INSERT INTO SettlementItemDetail (SettlementID, DishId, DishGroupId, SubCategoryId, CategoryId, DishName, SongName, Qty, Price, OrderDateTime, CategoryName, SubCategoryName, DiscountAmount, DiscountType, Status, Spicy, Salt, Oil, Sugar, OrderDetailId)
+            VALUES (@SettlementID, @DishId_${idx}, @DishGroupId_${idx}, @DishGroupId_${idx}, @CategoryId_${idx}, @DishName_${idx}, @SongName_${idx}, @Qty_${idx}, @Price_${idx}, GETDATE(), @CategoryName_${idx}, @SubCategoryName_${idx}, @ItemDiscountAmount_${idx}, @ItemDiscountType_${idx}, @Status_${idx}, @Spicy_${idx}, @Salt_${idx}, @Oil_${idx}, @Sugar_${idx}, @OrderDetailId_${idx});
+          `);
+        });
+        
+        await insertReq.query(insertQueries.join("\n"));
+        console.log(`[SAVE SALE] Batch insert complete for ${items.length} items.`);
       }
  
       // 4.5 Capture and Insert VOIDED items for reporting
@@ -1648,10 +1686,9 @@ router.post("/save", async (req, res) => {
         console.log(`[SAVE SALE] Step 5: Inserting Payment Data (PayMode: ${normalizedPayMode})...`);
         console.log(`[TRACE] [${Date.now()}] [SETTLEMENT_SYNC] Order: ${displayOrderId} | Settlement: ${settlementId} | Amount: ${totalAmount} | Mode: ${normalizedPayMode}`);
 
-        const paymodeRow = await transaction.request()
-          .input("PayModeCode", sql.VarChar(50), normalizedPayMode)
-          .query(`SELECT TOP 1 ISNULL(Position, 1) AS Position FROM [dbo].[Paymode] WHERE LTRIM(RTRIM(PayMode)) = @PayModeCode`);
-        const paymodePosition = paymodeRow.recordset.length > 0 ? paymodeRow.recordset[0].Position : 1;
+        const paymodePosition = activePaymodes.find(x => 
+          String(x.PayMode).trim().toUpperCase() === normalizedPayMode.toUpperCase()
+        )?.Position || 1;
 
         try {
           const payResult = await transaction.request()

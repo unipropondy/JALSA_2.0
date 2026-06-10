@@ -678,6 +678,7 @@ export default function PaymentScreen() {
     payments?: Array<{ payModeId: number; amount: number; referenceNo?: string }>,
     memberOverride?: any
   ) => {
+    if (processing) return;
     setProcessing(true);
     if (isLedgerCollection) {
       const selectedMode = paymentMethods.find((m) => m.payMode === method);
