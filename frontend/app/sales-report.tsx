@@ -406,7 +406,7 @@ export default function SalesReport() {
         setLoadingReport(false);
       }
     },
-    [selectedFilter],
+    [selectedFilter, selectedDate],
   );
 
   const handleReportPress = (reportType: DetailReportType) => {
