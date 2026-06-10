@@ -2462,7 +2462,7 @@ export default function SalesReport() {
           </View>
 
           <View style={{ backgroundColor: Theme.success + "10", borderRadius: 12, padding: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 4, borderWidth: 1, borderColor: Theme.success + "20" }}>
-            <View>
+            <View style={{ flex: 1, marginRight: 8 }}>
               <Text style={{ fontFamily: Fonts.black, fontSize: 13, color: Theme.success }}>Total Collections Volume</Text>
               <Text style={{ fontFamily: Fonts.medium, fontSize: 9, color: Theme.textMuted, marginTop: 1 }}>Cash Received (excl. Credit Sales) + Payments Collected</Text>
             </View>
