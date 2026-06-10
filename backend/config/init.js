@@ -366,6 +366,14 @@ async function initDB(pool) {
       END
     `);
 
+    // Upgrade: Add CustomerType column for reporting accuracy
+    await runQuery("Upgrade CustomerCreditTransactions - Add CustomerType", `
+      IF COL_LENGTH('dbo.CustomerCreditTransactions', 'CustomerType') IS NULL
+      BEGIN
+          ALTER TABLE [dbo].[CustomerCreditTransactions] ADD [CustomerType] NVARCHAR(20) NULL
+      END
+    `);
+
     await runQuery("Index - CustomerCreditTransactions MemberId", `
       IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_CreditTrans_MemberId' AND object_id = OBJECT_ID('CustomerCreditTransactions'))
       BEGIN

@@ -23,7 +23,6 @@
       },
       "package": "com.javi06.pos1",
       "versionCode": 1,
-      "usesCleartextTraffic": true,
       "permissions": [
         "INTERNET",
         "BLUETOOTH",
@@ -52,7 +51,15 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

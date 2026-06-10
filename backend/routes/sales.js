@@ -1189,6 +1189,8 @@ router.post("/save", async (req, res) => {
     let displayOrderId = null;
     let guidOrderId;
     let activePaymodes = [];
+    let customerType = null;
+    let customerRecord = null;
 
     await runInTransaction(async (transaction) => {
       const settlementIdResult = await transaction.request().query(`SELECT NEWID() AS id`);
@@ -1201,47 +1203,79 @@ router.post("/save", async (req, res) => {
       const activeOrg = await getActiveOrganization();
       const businessUnitId = activeOrg.businessUnitId;
 
-      // 🆕 MEMBER / CREDIT VALIDATION
+      // 🆕 MEMBER / CREDIT LOOKUP & VALIDATION
       if (memberId) {
-        const payUpper = normalizePayMode(paymentMethod);
-        if (payUpper === "CREDIT") {
-          const creditCheck = await transaction.request()
-            .input("CustomerId", sql.UniqueIdentifier, memberId)
-            .query("SELECT CreditLimit, CurrentBalance, IsActive FROM CreditCustomerMaster WITH (UPDLOCK) WHERE CustomerId = @CustomerId");
-          
-          if (creditCheck.recordset.length === 0) {
-            throw new Error("Credit Customer not found");
-          }
-          
-          const customer = creditCheck.recordset[0];
-          if (!customer.IsActive) {
-            throw new Error("Credit Customer is inactive");
-          }
-          
-          const currentBalance = parseFloat(customer.CurrentBalance) || 0;
-          const creditLimit = parseFloat(customer.CreditLimit) || 0;
-          if (currentBalance + parseFloat(totalAmount) > creditLimit) {
-            throw new Error("Credit Limit Exceeded");
-          }
-        } else if (payUpper === "MEMBER") {
-          const memberCheck = await transaction.request()
-            .input("MemberId", sql.UniqueIdentifier, memberId)
-            .query("SELECT CreditLimit, CurrentBalance, IsActive FROM MemberMaster WITH (UPDLOCK) WHERE MemberId = @MemberId");
-          
-          if (memberCheck.recordset.length === 0) {
-            throw new Error("Member not found");
-          }
-          
-          const member = memberCheck.recordset[0];
-          if (!member.IsActive) {
-            throw new Error("Member is inactive");
-          }
-          
-          const currentBalance = parseFloat(member.CurrentBalance) || 0;
-          const creditLimit = parseFloat(member.CreditLimit) || 0;
-          if (currentBalance + parseFloat(totalAmount) > creditLimit) {
-            throw new Error("Credit Limit Exceeded");
-          }
+        const creditCheck = await transaction.request()
+          .input("CustomerId", sql.UniqueIdentifier, memberId)
+          .query("SELECT CreditLimit, CurrentBalance, IsActive FROM CreditCustomerMaster WITH (UPDLOCK) WHERE CustomerId = @CustomerId");
+        const creditCustomer = creditCheck.recordset[0];
+
+        const memberCheck = await transaction.request()
+          .input("MemberId", sql.UniqueIdentifier, memberId)
+          .query("SELECT CreditLimit, CurrentBalance, IsActive FROM MemberMaster WITH (UPDLOCK) WHERE MemberId = @MemberId");
+        const memberCustomer = memberCheck.recordset[0];
+
+        if (creditCustomer && memberCustomer) {
+          throw new Error(`Customer ${memberId} exists in both MemberMaster and CreditCustomerMaster`);
+        } else if (creditCustomer) {
+          customerType = "CREDIT";
+          customerRecord = creditCustomer;
+        } else if (memberCustomer) {
+          customerType = "MEMBER";
+          customerRecord = memberCustomer;
+        } else {
+          throw new Error(`Customer ${memberId} not found`);
+        }
+
+        console.log(`[SAVE SALE DIAGNOSTIC] Customer lookup: memberId=${memberId}, customerType=${customerType}`);
+      }
+
+      // Calculate creditAmount across single and split payments
+      const unifiedPayments = (payments && Array.isArray(payments) && payments.length > 0)
+        ? payments.map(p => {
+            const pmInfo = activePaymodes.find(x => 
+              x.Position === Number(p.payModeId) || 
+              String(x.PayMode).trim().toUpperCase() === String(p.payModeId || p.payMode || p.PaymentMethod || "").trim().toUpperCase()
+            );
+            const pmName = pmInfo ? String(pmInfo.PayMode).trim() : String(p.payMode || p.PaymentMethod || "CASH").trim();
+            return {
+              PaymentMethod: pmName,
+              Amount: p.amount || p.Amount || 0
+            };
+          })
+        : [{
+            PaymentMethod: String(paymentMethod || "CASH").trim(),
+            Amount: totalAmount || 0
+          }];
+
+      const creditAmount = unifiedPayments
+        .filter(
+          p =>
+            ["CREDIT", "MEMBER"].includes(
+              String(p.PaymentMethod || "").trim().toUpperCase()
+            )
+        )
+        .reduce((sum, p) => sum + Number(p.Amount || 0), 0);
+
+      if (creditAmount > 0) {
+        if (!memberId) {
+          throw new Error("Customer/Member selection is required for credit transactions");
+        }
+        if (!customerRecord) {
+          throw new Error(`Customer ${memberId} not found`);
+        }
+        if (!customerRecord.IsActive) {
+          throw new Error(customerType === "CREDIT" ? "Credit Customer is inactive" : "Member is inactive");
+        }
+
+        const currentBalance = Number(customerRecord.CurrentBalance || 0);
+        const creditLimit = Number(customerRecord.CreditLimit || 0);
+        const projectedBalance = currentBalance + creditAmount;
+
+        console.log(`[SAVE SALE DIAGNOSTIC] Validation: memberId=${memberId}, customerType=${customerType}, creditAmount=${creditAmount}, oldBalance=${currentBalance}, projectedBalance=${projectedBalance}`);
+
+        if (projectedBalance > creditLimit) {
+          throw new Error("Credit limit exceeded");
         }
       }
 
@@ -1616,66 +1650,54 @@ router.post("/save", async (req, res) => {
             receiptCount
           });
 
-          // Update member balance if credit was used
-          if (memberId) {
-            const pmRequest = new sql.Request(transaction);
-            const pmRes = await pmRequest.query("SELECT Position, PayMode FROM [dbo].[Paymode] WHERE Active = 1");
-            const activePMs = pmRes.recordset;
+          // Update member/customer balance if credit was used
+          if (memberId && creditAmount > 0) {
+            const oldBalance = Number(customerRecord.CurrentBalance || 0);
+            const newBalance = oldBalance + creditAmount;
 
-            let memberPaidAmt = 0;
-            let creditPaidAmt = 0;
-            for (const p of payments) {
-              const pmInfo = activePMs.find(x => 
-                x.Position === Number(p.payModeId) || 
-                String(x.PayMode).trim().toUpperCase() === String(p.payModeId || p.payMode || "").trim().toUpperCase()
-              );
-              if (pmInfo) {
-                const modeUpper = pmInfo.PayMode.toUpperCase().trim();
-                if (modeUpper === "MEMBER") {
-                  memberPaidAmt += parseFloat(p.amount) || 0;
-                } else if (modeUpper === "CREDIT") {
-                  creditPaidAmt += parseFloat(p.amount) || 0;
-                }
-              }
-            }
+            console.log({
+              memberId,
+              customerType,
+              creditAmount,
+              oldBalance,
+              newBalance
+            });
 
-            if (memberPaidAmt > 0) {
+            if (customerType === "MEMBER") {
               isMemberPayment = true;
               await transaction.request()
                 .input("MemberId", memberId)
-                .input("Amount", memberPaidAmt)
+                .input("Amount", creditAmount)
                 .query(`UPDATE MemberMaster SET CurrentBalance = CurrentBalance + @Amount WHERE MemberId = @MemberId`);
               
               await transaction.request()
                 .input("MemberId", memberId)
                 .input("SettlementId", settlementId)
                 .input("BillNo", finalBillNo)
-                .input("Amount", memberPaidAmt)
+                .input("Amount", creditAmount)
                 .input("CreatedBy", toGuidOrNull(cashierId))
                 .query(`
-                  INSERT INTO CustomerCreditTransactions (MemberId, SettlementId, BillNo, TransactionType, BillAmount, PaidAmount, OutstandingAmount, Status, Remarks, CreatedBy)
-                  VALUES (@MemberId, @SettlementId, @BillNo, 'CREDIT_SALE', @Amount, 0, @Amount, 'OPEN', 'Split member credit purchase', @CreatedBy)
+                  INSERT INTO CustomerCreditTransactions (MemberId, SettlementId, BillNo, TransactionType, BillAmount, PaidAmount, OutstandingAmount, Status, Remarks, CreatedBy, CustomerType)
+                  VALUES (@MemberId, @SettlementId, @BillNo, 'CREDIT_SALE', @Amount, 0, @Amount, 'OPEN', 'Split member credit purchase', @CreatedBy, 'MEMBER')
                 `);
-              console.log(`[SAVE SALE] Updated member balance and wrote split member credit ledger debit: ${memberPaidAmt}`);
-            }
-
-            if (creditPaidAmt > 0) {
+              console.log(`[SAVE SALE DIAGNOSTIC] Balance update success (MEMBER): memberId=${memberId}, oldBalance=${oldBalance}, newBalance=${newBalance}`);
+            } else if (customerType === "CREDIT") {
               await transaction.request()
                 .input("CustomerId", memberId)
-                .input("Amount", creditPaidAmt)
+                .input("Amount", creditAmount)
                 .query(`UPDATE CreditCustomerMaster SET CurrentBalance = CurrentBalance + @Amount WHERE CustomerId = @CustomerId`);
               
               await transaction.request()
                 .input("MemberId", memberId)
                 .input("SettlementId", settlementId)
                 .input("BillNo", finalBillNo)
-                .input("Amount", creditPaidAmt)
+                .input("Amount", creditAmount)
                 .input("CreatedBy", toGuidOrNull(cashierId))
                 .query(`
-                  INSERT INTO CustomerCreditTransactions (MemberId, SettlementId, BillNo, TransactionType, BillAmount, PaidAmount, OutstandingAmount, Status, Remarks, CreatedBy)
-                  VALUES (@MemberId, @SettlementId, @BillNo, 'CREDIT_SALE', @Amount, 0, @Amount, 'OPEN', 'Split credit purchase', @CreatedBy)
+                  INSERT INTO CustomerCreditTransactions (MemberId, SettlementId, BillNo, TransactionType, BillAmount, PaidAmount, OutstandingAmount, Status, Remarks, CreatedBy, CustomerType)
+                  VALUES (@MemberId, @SettlementId, @BillNo, 'CREDIT_SALE', @Amount, 0, @Amount, 'OPEN', 'Split credit purchase', @CreatedBy, 'CREDIT')
                 `);
-              console.log(`[SAVE SALE] Updated credit customer balance and wrote split credit ledger debit: ${creditPaidAmt}`);
+              console.log(`[SAVE SALE DIAGNOSTIC] Balance update success (CREDIT): memberId=${memberId}, oldBalance=${oldBalance}, newBalance=${newBalance}`);
             }
           }
         } catch (payErr) {
@@ -1728,43 +1750,54 @@ router.post("/save", async (req, res) => {
           throw payErr; // Throw to trigger transaction rollback
         }
 
-        if (memberId) {
-          const payUpper = normalizePayMode(paymentMethod);
-          if (payUpper === "CREDIT") {
-            await transaction.request()
-              .input("CustomerId", memberId)
-              .input("Amount", totalAmount || 0)
-              .query(`UPDATE CreditCustomerMaster SET CurrentBalance = CurrentBalance + @Amount WHERE CustomerId = @CustomerId`);
+        // Update member/customer balance if credit was used
+        if (memberId && creditAmount > 0) {
+          const oldBalance = Number(customerRecord.CurrentBalance || 0);
+          const newBalance = oldBalance + creditAmount;
 
-            await transaction.request()
-              .input("MemberId", memberId)
-              .input("SettlementId", settlementId)
-              .input("BillNo", finalBillNo)
-              .input("Amount", totalAmount || 0)
-              .input("CreatedBy", toGuidOrNull(cashierId))
-              .query(`
-                INSERT INTO CustomerCreditTransactions (MemberId, SettlementId, BillNo, TransactionType, BillAmount, PaidAmount, OutstandingAmount, Status, Remarks, CreatedBy)
-                VALUES (@MemberId, @SettlementId, @BillNo, 'CREDIT_SALE', @Amount, 0, @Amount, 'OPEN', 'Credit purchase', @CreatedBy)
-              `);
-            console.log(`[SAVE SALE] Updated credit customer balance and wrote single credit ledger debit: ${totalAmount}`);
-          } else if (payUpper === "MEMBER") {
+          console.log({
+            memberId,
+            customerType,
+            creditAmount,
+            oldBalance,
+            newBalance
+          });
+
+          if (customerType === "MEMBER") {
             isMemberPayment = true;
             await transaction.request()
               .input("MemberId", memberId)
-              .input("Amount", totalAmount || 0)
+              .input("Amount", creditAmount)
               .query(`UPDATE MemberMaster SET CurrentBalance = CurrentBalance + @Amount WHERE MemberId = @MemberId`);
 
             await transaction.request()
               .input("MemberId", memberId)
               .input("SettlementId", settlementId)
               .input("BillNo", finalBillNo)
-              .input("Amount", totalAmount || 0)
+              .input("Amount", creditAmount)
               .input("CreatedBy", toGuidOrNull(cashierId))
               .query(`
-                INSERT INTO CustomerCreditTransactions (MemberId, SettlementId, BillNo, TransactionType, BillAmount, PaidAmount, OutstandingAmount, Status, Remarks, CreatedBy)
-                VALUES (@MemberId, @SettlementId, @BillNo, 'CREDIT_SALE', @Amount, 0, @Amount, 'OPEN', 'Member credit purchase', @CreatedBy)
+                INSERT INTO CustomerCreditTransactions (MemberId, SettlementId, BillNo, TransactionType, BillAmount, PaidAmount, OutstandingAmount, Status, Remarks, CreatedBy, CustomerType)
+                VALUES (@MemberId, @SettlementId, @BillNo, 'CREDIT_SALE', @Amount, 0, @Amount, 'OPEN', 'Member credit purchase', @CreatedBy, 'MEMBER')
               `);
-            console.log(`[SAVE SALE] Updated member balance in MemberMaster and wrote single credit ledger debit: ${totalAmount}`);
+            console.log(`[SAVE SALE DIAGNOSTIC] Balance update success (MEMBER): memberId=${memberId}, oldBalance=${oldBalance}, newBalance=${newBalance}`);
+          } else if (customerType === "CREDIT") {
+            await transaction.request()
+              .input("CustomerId", memberId)
+              .input("Amount", creditAmount)
+              .query(`UPDATE CreditCustomerMaster SET CurrentBalance = CurrentBalance + @Amount WHERE CustomerId = @CustomerId`);
+
+            await transaction.request()
+              .input("MemberId", memberId)
+              .input("SettlementId", settlementId)
+              .input("BillNo", finalBillNo)
+              .input("Amount", creditAmount)
+              .input("CreatedBy", toGuidOrNull(cashierId))
+              .query(`
+                INSERT INTO CustomerCreditTransactions (MemberId, SettlementId, BillNo, TransactionType, BillAmount, PaidAmount, OutstandingAmount, Status, Remarks, CreatedBy, CustomerType)
+                VALUES (@MemberId, @SettlementId, @BillNo, 'CREDIT_SALE', @Amount, 0, @Amount, 'OPEN', 'Credit purchase', @CreatedBy, 'CREDIT')
+              `);
+            console.log(`[SAVE SALE DIAGNOSTIC] Balance update success (CREDIT): memberId=${memberId}, oldBalance=${oldBalance}, newBalance=${newBalance}`);
           }
         }
       }
