@@ -632,7 +632,7 @@ router.post('/artist-cashbox', authenticateToken, async (req, res) => {
       const crypto = require('crypto');
 
       const settlementId = crypto.randomUUID();
-      const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const dateStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Singapore' }).replace(/-/g, '');
       const billNo = `CB-${dateStr}-${Math.floor(1000 + Math.random() * 9000)}`;
 
       const toGuidOrNull = (id) =>
@@ -673,7 +673,6 @@ router.post('/artist-cashbox', authenticateToken, async (req, res) => {
         .input('SubCategoryName', sql.NVarChar(255), dish.SubCategoryName || 'Solo')
         .input('Qty', sql.Int, qty)
         .input('Price', sql.Decimal(18, 2), price)
-        .input('OrderDateTime', sql.DateTime, new Date())
         .input('Status', sql.NVarChar(50), 'NORMAL')
         .query(`
           INSERT INTO SettlementItemDetail (
@@ -683,7 +682,7 @@ router.post('/artist-cashbox', authenticateToken, async (req, res) => {
           ) VALUES (
             @SettlementID, @DishId, @DishGroupId, @CategoryId, @SubCategoryId,
             @DishName, @CategoryName, @SubCategoryName,
-            @Qty, @Price, @OrderDateTime, @Status
+            @Qty, @Price, GETDATE(), @Status
           )
         `);
       console.log('[CASHBOX] STEP 4 OK');
@@ -721,22 +720,21 @@ router.post('/artist-cashbox', authenticateToken, async (req, res) => {
         .input('Amount', sql.Decimal(18, 2), Amount)
         .input('UserId', sql.UniqueIdentifier, userId)
         .input('BizId', sql.UniqueIdentifier, bizId)
-        .input('Now', sql.DateTime, new Date())
         .query(`
           INSERT INTO PaymentDetailCur (
             PaymentId, RestaurantBillId, BilledFor, PaymentCollectedOn, 
             PaymentType, Paymode, Amount, Remarks, BusinessUnitId, CreatedBy, CreatedOn, ModifiedBy, ModifiedOn
           ) VALUES (
-            @PaymentId, @SettlementID, 1, @Now, 
-            1, 1, @Amount, 'Cash Box Entry', @BizId, @UserId, @Now, @UserId, @Now
+            @PaymentId, @SettlementID, 1, GETDATE(), 
+            1, 1, @Amount, 'Cash Box Entry', @BizId, @UserId, GETDATE(), @UserId, GETDATE()
           );
 
           INSERT INTO PaymentDetail (
             PaymentId, RestaurantBillId, SettlementId, InvoiceId, BilledFor, PaymentCollectedOn, 
             PaymentType, Paymode, Amount, Remarks, BusinessUnitId, CreatedBy, CreatedOn, ModifiedBy, ModifiedOn, isSettlement
           ) VALUES (
-            @PaymentId, @SettlementID, @SettlementID, @SettlementID, 1, @Now, 
-            1, 1, @Amount, 'Cash Box Entry', @BizId, @UserId, @Now, @UserId, @Now, 1
+            @PaymentId, @SettlementID, @SettlementID, @SettlementID, 1, GETDATE(), 
+            1, 1, @Amount, 'Cash Box Entry', @BizId, @UserId, GETDATE(), @UserId, GETDATE(), 1
           );
         `);
       console.log('[CASHBOX] STEP 7 OK');

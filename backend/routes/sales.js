@@ -1491,11 +1491,10 @@ router.post("/save", async (req, res) => {
             .input("Salt", sql.NVarChar(50), item.salt || "")
             .input("Oil", sql.NVarChar(50), item.oil || "")
             .input("Sugar", sql.NVarChar(50), item.sugar || "")
-            .input("OrderDateTime", sql.DateTime, new Date())
             .input("OrderDetailId", sql.UniqueIdentifier, toGuidOrNull(item.lineItemId))
             .query(`
               INSERT INTO SettlementItemDetail (SettlementID, DishId, DishGroupId, SubCategoryId, CategoryId, DishName, SongName, Qty, Price, OrderDateTime, CategoryName, SubCategoryName, DiscountAmount, DiscountType, Status, Spicy, Salt, Oil, Sugar, OrderDetailId)
-              VALUES (@SettlementID, @DishId, @DishGroupId, @SubCategoryId, @CategoryId, @DishName, @SongName, @Qty, @Price, @OrderDateTime, @CategoryName, @SubCategoryName, @ItemDiscountAmount, @ItemDiscountType, @Status, @Spicy, @Salt, @Oil, @Sugar, @OrderDetailId)
+              VALUES (@SettlementID, @DishId, @DishGroupId, @SubCategoryId, @CategoryId, @DishName, @SongName, @Qty, @Price, GETDATE(), @CategoryName, @SubCategoryName, @ItemDiscountAmount, @ItemDiscountType, @Status, @Spicy, @Salt, @Oil, @Sugar, @OrderDetailId)
             `);
         }
       }
@@ -1639,7 +1638,6 @@ router.post("/save", async (req, res) => {
             .input("RestaurantBillId", sql.UniqueIdentifier, settlementId)
             .input("OrderId", sql.UniqueIdentifier, guidOrderId)
             .input("BilledFor", sql.Int, 1)
-            .input("PaymentCollectedOn", sql.DateTime, new Date())
             .input("PaymentType", sql.Int, 1)
             .input("Paymode", sql.Int, paymodePosition)
             .input("Amount", sql.Decimal(18, 2), totalAmount || 0)
@@ -1647,15 +1645,13 @@ router.post("/save", async (req, res) => {
             .input("Remarks", sql.VarChar(500), paymentMethod || "")
             .input("BusinessUnitId", sql.UniqueIdentifier, sanitizeGuid(businessUnitId))
             .input("CreatedBy", sql.UniqueIdentifier, sanitizeGuid(cashierId))
-            .input("CreatedOn", sql.DateTime, new Date())
             .input("ModifiedBy", sql.UniqueIdentifier, sanitizeGuid(cashierId))
-            .input("ModifiedOn", sql.DateTime, new Date())
             .query(`
               -- 🛡️ ATOMIC SYNC: Populating both tables in one go for report integrity
               
               -- 1. Current Table (for POS views)
               INSERT INTO [dbo].[PaymentDetailCur] (PaymentId, RestaurantBillId, BilledFor, PaymentCollectedOn, PaymentType, Paymode, Amount, ReferenceNumber, Remarks, BusinessUnitId, CreatedBy, CreatedOn, ModifiedBy, ModifiedOn)
-              VALUES (@PaymentId, @RestaurantBillId, @BilledFor, @PaymentCollectedOn, @PaymentType, @Paymode, @Amount, @ReferenceNumber, @Remarks, @BusinessUnitId, @CreatedBy, @CreatedOn, @ModifiedBy, @ModifiedOn);
+              VALUES (@PaymentId, @RestaurantBillId, @BilledFor, GETDATE(), @PaymentType, @Paymode, @Amount, @ReferenceNumber, @Remarks, @BusinessUnitId, @CreatedBy, GETDATE(), @ModifiedBy, GETDATE());
 
               -- 2. Master Table (CRITICAL for Backoffice Reports: vw_PaymentDetail)
               INSERT INTO [dbo].[PaymentDetail] (
@@ -1663,9 +1659,9 @@ router.post("/save", async (req, res) => {
                 PaymentType, Paymode, Amount, ReferenceNumber, Remarks, BusinessUnitId, 
                 CreatedBy, CreatedOn, ModifiedBy, ModifiedOn, isSettlement
               ) VALUES (
-                @PaymentId, @RestaurantBillId, @RestaurantBillId, @RestaurantBillId, @OrderId, @BilledFor, @PaymentCollectedOn, 
+                @PaymentId, @RestaurantBillId, @RestaurantBillId, @RestaurantBillId, @OrderId, @BilledFor, GETDATE(), 
                 @PaymentType, @Paymode, @Amount, @ReferenceNumber, @Remarks, @BusinessUnitId, 
-                @CreatedBy, @CreatedOn, @ModifiedBy, @ModifiedOn, 1
+                @CreatedBy, GETDATE(), @ModifiedBy, GETDATE(), 1
               );
             `);
           console.log(`[SAVE SALE] PaymentDetail Sync Success. Rows affected: ${payResult.rowsAffected.join(', ')}`);

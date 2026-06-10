@@ -73,7 +73,6 @@ async function processSplitPayments({
         .input("RestaurantBillId", sql.UniqueIdentifier, referenceId)
         .input("OrderId", sql.UniqueIdentifier, orderId)
         .input("BilledFor", sql.Int, 1)
-        .input("PaymentCollectedOn", sql.DateTime, now)
         .input("PaymentType", sql.Int, 1)
         .input("Paymode", sql.Int, payModeId)
         .input("Amount", sql.Decimal(18, 2), amount)
@@ -86,7 +85,7 @@ async function processSplitPayments({
           
           -- 1. Current Table (for POS views)
           INSERT INTO [dbo].[PaymentDetailCur] (PaymentId, RestaurantBillId, BilledFor, PaymentCollectedOn, PaymentType, Paymode, Amount, ReferenceNumber, Remarks, BusinessUnitId, CreatedBy, CreatedOn, ModifiedBy, ModifiedOn)
-          VALUES (@PayId, @RestaurantBillId, @BilledFor, @PaymentCollectedOn, @PaymentType, @Paymode, @Amount, @ReferenceNumber, @Remarks, @BusinessUnitId, @CreatedBy, GETDATE(), @CreatedBy, GETDATE());
+          VALUES (@PayId, @RestaurantBillId, @BilledFor, GETDATE(), @PaymentType, @Paymode, @Amount, @ReferenceNumber, @Remarks, @BusinessUnitId, @CreatedBy, GETDATE(), @CreatedBy, GETDATE());
 
           -- 2. Master Table (CRITICAL for Backoffice Reports)
           INSERT INTO [dbo].[PaymentDetail] (
@@ -94,7 +93,7 @@ async function processSplitPayments({
             PaymentType, Paymode, Amount, ReferenceNumber, Remarks, BusinessUnitId, 
             CreatedBy, CreatedOn, ModifiedBy, ModifiedOn, isSettlement
           ) VALUES (
-            @PayId, @RestaurantBillId, @RestaurantBillId, @RestaurantBillId, @OrderId, @BilledFor, @PaymentCollectedOn, 
+            @PayId, @RestaurantBillId, @RestaurantBillId, @RestaurantBillId, @OrderId, @BilledFor, GETDATE(), 
             @PaymentType, @Paymode, @Amount, @ReferenceNumber, @Remarks, @BusinessUnitId, 
             @CreatedBy, GETDATE(), @CreatedBy, GETDATE(), 1
           );
