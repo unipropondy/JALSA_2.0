@@ -1324,63 +1324,46 @@ const loadDishes = async () => {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
       <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace("/(tabs)/category" as any)} style={styles.backBtn}>
-            <Ionicons name="chevron-back" size={20} color={Theme.textPrimary} />
-          </TouchableOpacity>
+        <View style={[styles.header, !isTablet && { flexDirection: 'column', alignItems: 'stretch', gap: 12, paddingVertical: 12 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace("/(tabs)/category" as any)} style={styles.backBtn}>
+              <Ionicons name="chevron-back" size={20} color={Theme.textPrimary} />
+            </TouchableOpacity>
 
-          <Text style={styles.headerTitle}>Settlement</Text>
+            <Text style={styles.headerTitle}>Settlement</Text>
 
-          {/* <View style={styles.verticalDivider} /> */}
+            {!isTablet && (
+              <TouchableOpacity
+                style={[styles.confirmBtn, { marginLeft: 'auto', paddingVertical: 6, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 6 }]}
+                onPress={handlePrintReport}
+              >
+                <Ionicons name="print-outline" size={16} color="#fff" />
+                <Text style={[styles.confirmBtnText, { fontSize: 12 }]}>Print</Text>
+              </TouchableOpacity>
+            )}
+          </View>
 
-          {/* <View style={styles.filterWrapper}>
-            <Text style={styles.filterTitle}>Terminal</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
-              {terminals.map((t, idx) => (
-                <TouchableOpacity
-                  key={idx}
-                  style={[
-                    styles.filterBtn,
-                    selectedTerminal === t.TerminalCode && styles.filterBtnActive,
-                  ]}
-                  onPress={() => setSelectedTerminal(t.TerminalCode)}
-                >
-                  <Text
-                    style={[
-                      styles.filterBtnText,
-                      selectedTerminal === t.TerminalCode && styles.filterBtnTextActive,
-                    ]}
-                  >
-                    {t.TerminalName || t.TerminalCode}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-              {terminals.length === 0 && (
-                <TouchableOpacity
-                  style={[styles.filterBtn, selectedTerminal === "ALL" && styles.filterBtnActive]}
-                  onPress={() => setSelectedTerminal("ALL")}
-                >
-                  <Text style={[styles.filterBtnText, selectedTerminal === "ALL" && styles.filterBtnTextActive]}>
-                    ALL
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </ScrollView>
-          </View> */}
-          <View style={{ marginLeft: 'auto', flexDirection: 'row', gap: 20, alignItems: 'center', marginRight: 20 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          {/* Date Pickers */}
+          <View style={
+            isTablet 
+              ? { marginLeft: 'auto', flexDirection: 'row', gap: 20, alignItems: 'center', marginRight: 20 }
+              : { flexDirection: 'row', justifyContent: 'space-between', gap: 10 }
+          }>
+            <View style={{ flex: !isTablet ? 1 : undefined, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Text style={{ fontSize: 12, color: Theme.textSecondary, fontFamily: Fonts.medium }}>From:</Text>
               <TouchableOpacity
                 style={{ 
+                  flex: !isTablet ? 1 : undefined,
                   flexDirection: 'row', 
                   alignItems: 'center', 
                   backgroundColor: '#fff', 
                   borderWidth: 1.5, 
                   borderColor: Theme.border, 
                   borderRadius: 10, 
-                  paddingHorizontal: 12,
+                  paddingHorizontal: 8,
                   height: 38,
-                  gap: 8,
+                  gap: 6,
+                  justifyContent: 'space-between',
                   ...Platform.select({
                     web: {
                       boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
@@ -1390,26 +1373,28 @@ const loadDishes = async () => {
                 }}
                 onPress={() => setShowFromPicker(true)}
               >
-                <Text style={{ fontFamily: Fonts.bold, color: Theme.textPrimary, fontSize: 13 }}>
+                <Text style={{ fontFamily: Fonts.bold, color: Theme.textPrimary, fontSize: 11, flexShrink: 1 }} numberOfLines={1}>
                   {formatDateTime(fromDate)}
                 </Text>
-                <Ionicons name="calendar-outline" size={14} color="#6B7280" />
+                <Ionicons name="calendar-outline" size={13} color="#6B7280" />
               </TouchableOpacity>
             </View>
 
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ flex: !isTablet ? 1 : undefined, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Text style={{ fontSize: 12, color: Theme.textSecondary, fontFamily: Fonts.medium }}>To:</Text>
               <TouchableOpacity
                 style={{ 
+                  flex: !isTablet ? 1 : undefined,
                   flexDirection: 'row', 
                   alignItems: 'center', 
                   backgroundColor: '#fff', 
                   borderWidth: 1.5, 
                   borderColor: Theme.border, 
                   borderRadius: 10, 
-                  paddingHorizontal: 12,
+                  paddingHorizontal: 8,
                   height: 38,
-                  gap: 8,
+                  gap: 6,
+                  justifyContent: 'space-between',
                   ...Platform.select({
                     web: {
                       boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
@@ -1419,10 +1404,10 @@ const loadDishes = async () => {
                 }}
                 onPress={() => setShowToPicker(true)}
               >
-                <Text style={{ fontFamily: Fonts.bold, color: Theme.textPrimary, fontSize: 13 }}>
+                <Text style={{ fontFamily: Fonts.bold, color: Theme.textPrimary, fontSize: 11, flexShrink: 1 }} numberOfLines={1}>
                   {formatDateTime(toDate)}
                 </Text>
-                <Ionicons name="calendar-outline" size={14} color="#6B7280" />
+                <Ionicons name="calendar-outline" size={13} color="#6B7280" />
               </TouchableOpacity>
             </View>
 
@@ -1442,15 +1427,17 @@ const loadDishes = async () => {
             />
           </View>
 
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <TouchableOpacity
-              style={[styles.confirmBtn, { paddingVertical: 8, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 6 }]}
-              onPress={handlePrintReport}
-            >
-              <Ionicons name="print-outline" size={18} color="#fff" />
-              <Text style={styles.confirmBtnText}>Print Report</Text>
-            </TouchableOpacity>
-          </View>
+          {isTablet && (
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity
+                style={[styles.confirmBtn, { paddingVertical: 8, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 6 }]}
+                onPress={handlePrintReport}
+              >
+                <Ionicons name="print-outline" size={18} color="#fff" />
+                <Text style={styles.confirmBtnText}>Print Report</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         {loading ? (
@@ -1461,90 +1448,84 @@ const loadDishes = async () => {
         ) : (
           <ScrollView contentContainerStyle={styles.content}>
             {/* Top Overview Cards */}
-            <View style={{ flexDirection: 'row', gap: 15, marginBottom: 15 }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 15 }}>
               <TouchableOpacity
-                style={[styles.card, { flex: 1, padding: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: '#EFF6FF', borderColor: '#BFDBFE', borderWidth: 1 }]}
+                style={[styles.card, { flex: isTablet ? 1 : undefined, minWidth: isTablet ? 0 : '48%', flexGrow: 1, padding: isTablet ? 15 : 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#EFF6FF', borderColor: '#BFDBFE', borderWidth: 1 }]}
                 onPress={() => {
                   setLovMode("OPEN");
                   setShowLov(true);
                 }}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="wallet-outline" size={16} color="#3B82F6" />
-                  <Text style={{ fontFamily: Fonts.bold, color: '#1E3A8A', fontSize: 12 }}>Opening Amount</Text>
+                  <Ionicons name="wallet-outline" size={isTablet ? 16 : 14} color="#3B82F6" />
+                  <Text style={{ fontFamily: Fonts.bold, color: '#1E3A8A', fontSize: isTablet ? 12 : 11 }}>Opening Amount</Text>
                 </View>
-                <Text style={{ fontFamily: Fonts.black, fontSize: 24, color: '#1D4ED8', marginTop: 5 }}>{formatCurrency(displayOpeningAmount)}</Text>
+                <Text style={{ fontFamily: Fonts.black, fontSize: isTablet ? 22 : 16, color: '#1D4ED8', marginTop: 5 }} numberOfLines={1} adjustsFontSizeToFit>{formatCurrency(displayOpeningAmount)}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.card, { flex: 1, padding: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FEF2F2', borderColor: '#FECACA', borderWidth: 1 }]}
+                style={[styles.card, { flex: isTablet ? 1 : undefined, minWidth: isTablet ? 0 : '48%', flexGrow: 1, padding: isTablet ? 15 : 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FEF2F2', borderColor: '#FECACA', borderWidth: 1 }]}
                 onPress={() => setShowCashOutModal(true)}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="remove-circle-outline" size={16} color="#EF4444" />
-                  <Text style={{ fontFamily: Fonts.bold, color: '#991B1B', fontSize: 12 }}>Cash Out</Text>
+                  <Ionicons name="remove-circle-outline" size={isTablet ? 16 : 14} color="#EF4444" />
+                  <Text style={{ fontFamily: Fonts.bold, color: '#991B1B', fontSize: isTablet ? 12 : 11 }}>Cash Out</Text>
                 </View>
-                <Text style={{ fontFamily: Fonts.black, fontSize: 24, color: '#B91C1C', marginTop: 5 }}>{formatCurrency(totalCashOut)}</Text>
+                <Text style={{ fontFamily: Fonts.black, fontSize: isTablet ? 22 : 16, color: '#B91C1C', marginTop: 5 }} numberOfLines={1} adjustsFontSizeToFit>{formatCurrency(totalCashOut)}</Text>
               </TouchableOpacity>
 
-              {/* <View style={[styles.card, { flex: 1, padding: 15, alignItems: 'center', justifyContent: 'center' }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="receipt-outline" size={16} color={Theme.textSecondary} />
-                  <Text style={{ fontFamily: Fonts.bold, color: Theme.textSecondary, fontSize: 12 }}>Total Amount</Text>
+              <TouchableOpacity
+                style={[
+                  styles.card,
+                  {
+                    flex: isTablet ? 1 : undefined,
+                    minWidth: isTablet ? 0 : '48%',
+                    flexGrow: 1,
+                    padding: isTablet ? 15 : 10,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: "#F3F4F6",
+                    borderColor: "#D1D5DB",
+                    borderWidth: 1,
+                  },
+                ]}
+                onPress={() => setShowCashBoxModal(true)}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Ionicons name="cube-outline" size={isTablet ? 16 : 14} color="#374151" />
+                  <Text
+                    style={{
+                      fontFamily: Fonts.bold,
+                      color: "#7f97be",
+                      fontSize: isTablet ? 12 : 11,
+                    }}
+                  >
+                    Cash Box
+                  </Text>
                 </View>
-                <Text style={{ fontFamily: Fonts.black, fontSize: 24, color: Theme.primary, marginTop: 5 }}>{formatCurrency(sysCash)}</Text>
-              </View> */}
+                <Text style={{ fontFamily: Fonts.black, fontSize: isTablet ? 22 : 16, color: '#374151', marginTop: 5 }} numberOfLines={1} adjustsFontSizeToFit>{formatCurrency(cashBoxTotal)}</Text>
+              </TouchableOpacity>
 
-           <TouchableOpacity
-  style={[
-    styles.card,
-    {
-      flex: 1,
-      padding: 15,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: "#F3F4F6",
-      borderColor: "#D1D5DB",
-      borderWidth: 1,
-    },
-  ]}
-  onPress={() => setShowCashBoxModal(true)}
->
-  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-    <Ionicons name="cube-outline" size={16} color="#374151" />
-    <Text
-      style={{
-        fontFamily: Fonts.bold,
-        color: "#7f97be",
-        fontSize: 12,
-      }}
-    >
-      Cash Box
-    </Text>
-  </View>
-  <Text style={{ fontFamily: Fonts.black, fontSize: 24, color: '#374151', marginTop: 5 }}>{formatCurrency(cashBoxTotal)}</Text>
-</TouchableOpacity>
-
-              <View style={[styles.card, { flex: 1, padding: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F0FDF4', borderColor: '#BBF7D0', borderWidth: 1 }]}>
+              <View style={[styles.card, { flex: isTablet ? 1 : undefined, minWidth: isTablet ? 0 : '48%', flexGrow: 1, padding: isTablet ? 15 : 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F0FDF4', borderColor: '#BBF7D0', borderWidth: 1 }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="trending-up-outline" size={16} color="#10B981" />
-                  <Text style={{ fontFamily: Fonts.bold, color: '#166534', fontSize: 12 }}>Net Sales</Text>
+                  <Ionicons name="trending-up-outline" size={isTablet ? 16 : 14} color="#10B981" />
+                  <Text style={{ fontFamily: Fonts.bold, color: '#166534', fontSize: isTablet ? 12 : 11 }}>Net Sales</Text>
                 </View>
-                <Text style={{ fontFamily: Fonts.black, fontSize: 24, color: '#15803D', marginTop: 5 }}>{formatCurrency(netSales)}</Text>
+                <Text style={{ fontFamily: Fonts.black, fontSize: isTablet ? 22 : 16, color: '#15803D', marginTop: 5 }} numberOfLines={1} adjustsFontSizeToFit>{formatCurrency(netSales)}</Text>
               </View>
 
               <TouchableOpacity
-                style={[styles.card, { flex: 1, padding: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF7ED', borderColor: '#FED7AA', borderWidth: 1 }]}
+                style={[styles.card, { flex: isTablet ? 1 : undefined, minWidth: isTablet ? 0 : '48%', flexGrow: 1, padding: isTablet ? 15 : 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF7ED', borderColor: '#FED7AA', borderWidth: 1 }]}
                 onPress={() => {
                   setLovMode("CLOSE");
                   setShowLov(true);
                 }}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="calculator-outline" size={16} color="#F97316" />
-                  <Text style={{ fontFamily: Fonts.bold, color: '#9A3412', fontSize: 12 }}>Closing Amount</Text>
+                  <Ionicons name="calculator-outline" size={isTablet ? 16 : 14} color="#F97316" />
+                  <Text style={{ fontFamily: Fonts.bold, color: '#9A3412', fontSize: isTablet ? 12 : 11 }}>Closing Amount</Text>
                 </View>
-                <Text style={{ fontFamily: Fonts.black, fontSize: 24, color: '#C2410C', marginTop: 5 }}>{formatCurrency(totalClosing)}</Text>
+                <Text style={{ fontFamily: Fonts.black, fontSize: isTablet ? 22 : 16, color: '#C2410C', marginTop: 5 }} numberOfLines={1} adjustsFontSizeToFit>{formatCurrency(totalClosing)}</Text>
               </TouchableOpacity>
             </View>
             

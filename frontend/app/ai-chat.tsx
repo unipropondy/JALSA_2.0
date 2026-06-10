@@ -290,36 +290,36 @@ export default function AIChatScreen() {
     if (isSales) {
       return (
         <View style={styles.kpiContainer}>
-          <View style={[styles.kpiCard, isMobile && { minWidth: 85, padding: 6 }]}>
+          <View style={[styles.kpiCard, isMobile && { minWidth: '47%', padding: 6 }]}>
             <View style={[styles.kpiIconWrapper, { backgroundColor: Theme.success + "15" }, isMobile && { width: 22, height: 22, marginBottom: 4 }]}>
               <Ionicons name="cash-outline" size={isMobile ? 12 : 18} color={Theme.success} />
             </View>
             <Text style={styles.kpiLabel}>Revenue</Text>
-            <Text style={[styles.kpiValue, isMobile && { fontSize: 10 }]}>SGD {Number(data.TotalRevenue || 0).toFixed(2)}</Text>
+            <Text style={[styles.kpiValue, isMobile && { fontSize: 10 }]} numberOfLines={1} adjustsFontSizeToFit>SGD {Number(data.TotalRevenue || 0).toFixed(2)}</Text>
           </View>
           
-          <View style={[styles.kpiCard, isMobile && { minWidth: 85, padding: 6 }]}>
+          <View style={[styles.kpiCard, isMobile && { minWidth: '47%', padding: 6 }]}>
             <View style={[styles.kpiIconWrapper, { backgroundColor: Theme.primary + "15" }, isMobile && { width: 22, height: 22, marginBottom: 4 }]}>
               <Ionicons name="receipt-outline" size={isMobile ? 12 : 18} color={Theme.primary} />
             </View>
             <Text style={styles.kpiLabel}>Bills Count</Text>
-            <Text style={[styles.kpiValue, isMobile && { fontSize: 10 }]}>{data.TotalOrders || 0}</Text>
+            <Text style={[styles.kpiValue, isMobile && { fontSize: 10 }]} numberOfLines={1} adjustsFontSizeToFit>{data.TotalOrders || 0}</Text>
           </View>
 
-          <View style={[styles.kpiCard, isMobile && { minWidth: 85, padding: 6 }]}>
+          <View style={[styles.kpiCard, isMobile && { minWidth: '47%', padding: 6 }]}>
             <View style={[styles.kpiIconWrapper, { backgroundColor: Theme.info + "15" }, isMobile && { width: 22, height: 22, marginBottom: 4 }]}>
               <Ionicons name="analytics-outline" size={isMobile ? 12 : 18} color={Theme.info} />
             </View>
             <Text style={styles.kpiLabel}>Avg Ticket</Text>
-            <Text style={[styles.kpiValue, isMobile && { fontSize: 10 }]}>SGD {Number(data.AvgTicketSize || 0).toFixed(2)}</Text>
+            <Text style={[styles.kpiValue, isMobile && { fontSize: 10 }]} numberOfLines={1} adjustsFontSizeToFit>SGD {Number(data.AvgTicketSize || 0).toFixed(2)}</Text>
           </View>
 
-          <View style={[styles.kpiCard, isMobile && { minWidth: 85, padding: 6 }]}>
+          <View style={[styles.kpiCard, isMobile && { minWidth: '47%', padding: 6 }]}>
             <View style={[styles.kpiIconWrapper, { backgroundColor: Theme.warning + "15" }, isMobile && { width: 22, height: 22, marginBottom: 4 }]}>
               <Ionicons name="pricetag-outline" size={isMobile ? 12 : 18} color={Theme.warning} />
             </View>
             <Text style={styles.kpiLabel}>Discounts</Text>
-            <Text style={[styles.kpiValue, isMobile && { fontSize: 10 }]}>SGD {Number(data.TotalDiscount || 0).toFixed(2)}</Text>
+            <Text style={[styles.kpiValue, isMobile && { fontSize: 10 }]} numberOfLines={1} adjustsFontSizeToFit>SGD {Number(data.TotalDiscount || 0).toFixed(2)}</Text>
           </View>
         </View>
       );
@@ -328,20 +328,20 @@ export default function AIChatScreen() {
     if (isDiscount) {
       return (
         <View style={styles.kpiContainer}>
-          <View style={[styles.kpiCard, isMobile && { minWidth: 100, padding: 8 }]}>
+          <View style={[styles.kpiCard, isMobile && { minWidth: '47%', padding: 8 }]}>
             <View style={[styles.kpiIconWrapper, { backgroundColor: Theme.warning + "15" }, isMobile && { width: 22, height: 22, marginBottom: 4 }]}>
               <Ionicons name="gift-outline" size={isMobile ? 12 : 18} color={Theme.warning} />
             </View>
             <Text style={styles.kpiLabel}>Total Discounts</Text>
-            <Text style={[styles.kpiValue, isMobile && { fontSize: 11 }]}>SGD {Number(data.TotalDiscountGiven || 0).toFixed(2)}</Text>
+            <Text style={[styles.kpiValue, isMobile && { fontSize: 11 }]} numberOfLines={1} adjustsFontSizeToFit>SGD {Number(data.TotalDiscountGiven || 0).toFixed(2)}</Text>
           </View>
 
-          <View style={[styles.kpiCard, isMobile && { minWidth: 100, padding: 8 }]}>
+          <View style={[styles.kpiCard, isMobile && { minWidth: '47%', padding: 8 }]}>
             <View style={[styles.kpiIconWrapper, { backgroundColor: Theme.primary + "15" }, isMobile && { width: 22, height: 22, marginBottom: 4 }]}>
               <Ionicons name="ticket-outline" size={isMobile ? 12 : 18} color={Theme.primary} />
             </View>
             <Text style={styles.kpiLabel}>Discounted Bills</Text>
-            <Text style={[styles.kpiValue, isMobile && { fontSize: 11 }]}>{data.DiscountedBills || 0}</Text>
+            <Text style={[styles.kpiValue, isMobile && { fontSize: 11 }]} numberOfLines={1} adjustsFontSizeToFit>{data.DiscountedBills || 0}</Text>
           </View>
         </View>
       );
@@ -512,7 +512,7 @@ export default function AIChatScreen() {
       </View>
 
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
+        style={{ flex: 1, width: "100%", maxWidth: isTabletOrDesktop ? 1000 : undefined, alignSelf: "center" }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >
