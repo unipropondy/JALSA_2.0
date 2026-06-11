@@ -469,16 +469,16 @@ const generateSalesReportPdf = (reportData) => {
 
   const insightsBody = [];
   insightsBody.push([
-    { text: 'INSIGHTS', fontSize: 7.5, bold: true, fillColor: '#f97316', color: '#fff', colSpan: 2, margin: [0, 2, 0, 2] },
+    { text: 'INSIGHTS', fontSize: 7.5, bold: true, fillColor: BLUE_PRIMARY, color: '#fff', colSpan: 2, margin: [0, 2, 0, 2] },
     {}
   ]);
   insightsBody.push([
     { text: 'Report Period', fontSize: 7.5, color: SLATE_DARK, margin: [0, 3, 0, 3] },
-    { text: period, fontSize: 7.5, bold: true, color: '#f97316', alignment: 'right', margin: [0, 3, 0, 3] }
+    { text: period, fontSize: 7.5, bold: true, color: BLUE_PRIMARY, alignment: 'right', margin: [0, 3, 0, 3] }
   ]);
   insightsBody.push([
     { text: 'Gross Revenue', fontSize: 7.5, color: SLATE_DARK, margin: [0, 3, 0, 3] },
-    { text: formatVal(totalSales), fontSize: 7.5, bold: true, color: '#f97316', alignment: 'right', margin: [0, 3, 0, 3] }
+    { text: formatVal(totalSales), fontSize: 7.5, bold: true, color: BLUE_PRIMARY, alignment: 'right', margin: [0, 3, 0, 3] }
   ]);
   insightsBody.push([
     { text: 'Net Realized Sales', fontSize: 7.5, color: SLATE_DARK, margin: [0, 3, 0, 3] },
@@ -490,7 +490,7 @@ const generateSalesReportPdf = (reportData) => {
   ]);
   insightsBody.push([
     { text: 'Primary Pay Channel', fontSize: 7.5, color: SLATE_DARK, margin: [0, 3, 0, 3] },
-    { text: primaryPayChannel, fontSize: 7.5, bold: true, color: '#f97316', alignment: 'right', margin: [0, 3, 0, 3] }
+    { text: primaryPayChannel, fontSize: 7.5, bold: true, color: BLUE_PRIMARY, alignment: 'right', margin: [0, 3, 0, 3] }
   ]);
   insightsBody.push([
     { text: 'Top Staff', fontSize: 7.5, color: SLATE_DARK, margin: [0, 3, 0, 3] },
@@ -498,7 +498,7 @@ const generateSalesReportPdf = (reportData) => {
   ]);
   insightsBody.push([
     { text: 'Top Menu Item', fontSize: 7.5, color: SLATE_DARK, margin: [0, 3, 0, 3] },
-    { text: topItemText, fontSize: 7.5, bold: true, color: '#f97316', alignment: 'right', margin: [0, 3, 0, 3] }
+    { text: topItemText, fontSize: 7.5, bold: true, color: BLUE_PRIMARY, alignment: 'right', margin: [0, 3, 0, 3] }
   ]);
   insightsBody.push([
     { text: 'Top Category', fontSize: 7.5, color: SLATE_DARK, margin: [0, 3, 0, 3] },
@@ -506,7 +506,7 @@ const generateSalesReportPdf = (reportData) => {
   ]);
   insightsBody.push([
     { text: 'Avg Ticket Value', fontSize: 7.5, color: SLATE_DARK, margin: [0, 3, 0, 3] },
-    { text: formatVal(keyMetrics.avgCheck || 0), fontSize: 7.5, bold: true, color: '#f97316', alignment: 'right', margin: [0, 3, 0, 3] }
+    { text: formatVal(keyMetrics.avgCheck || 0), fontSize: 7.5, bold: true, color: BLUE_PRIMARY, alignment: 'right', margin: [0, 3, 0, 3] }
   ]);
   insightsBody.push([
     { text: 'Avg Items / Bill', fontSize: 7.5, color: SLATE_DARK, margin: [0, 3, 0, 3] },
