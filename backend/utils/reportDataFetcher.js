@@ -97,6 +97,7 @@ async function fetchFullReportData(startDateStr, endDateStr, pool) {
 
   // 2. Compute Metrics matching frontend sales-report.tsx
   let totalSales = 0;
+  let totalTax = 0;
   let totalTransactions = 0;
   let totalItems = 0;
   let totalVoids = 0;
@@ -154,6 +155,7 @@ async function fetchFullReportData(startDateStr, endDateStr, pool) {
       totalItems += (s.ReceiptCount || 0);
       totalVoids += s.VoidQty || 0;
       totalVoidAmount += s.VoidAmount || 0;
+      totalTax += s.TotalTax || 0;
     }
 
     const mode = normalizePayMode(s.RawPayMode);
@@ -328,6 +330,7 @@ async function fetchFullReportData(startDateStr, endDateStr, pool) {
 
     // Summary Metrics
     totalSales,
+    totalTax,
     totalCollections,
     creditPaymentsCollected,
     memberPaymentsCollected,
