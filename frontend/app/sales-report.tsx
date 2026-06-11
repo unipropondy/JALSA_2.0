@@ -972,6 +972,14 @@ export default function SalesReport() {
           } else {
             acc.MemberPaymentsCollected += s.SysAmount || 0;
           }
+          const mode = s.PayMode?.trim().toUpperCase() || "";
+          const isUpi = mode.includes("UPI") || mode.includes("GPAY");
+          if (mode === "CASH") acc.Cash += s.SysAmount;
+          else if (mode === "CARD") acc.Card += s.SysAmount;
+          else if (mode === "NETS") acc.Nets += s.SysAmount;
+          else if (mode === "PAYNOW") acc.PayNow += s.SysAmount;
+          else if (isUpi) acc.Upi += s.SysAmount;
+          else if (mode === "MEMBER") acc.Member += s.SysAmount;
           return acc;
         }
 
@@ -1046,6 +1054,14 @@ export default function SalesReport() {
         }
 
         if (s.OrderType === 'LEDGER') {
+          const mode = s.PayMode?.trim().toUpperCase() || "";
+          const isUpi = mode.includes("UPI") || mode.includes("GPAY");
+          if (mode === "CASH") acc.Cash += s.SysAmount;
+          else if (mode === "CARD") acc.Card += s.SysAmount;
+          else if (mode === "NETS") acc.Nets += s.SysAmount;
+          else if (mode === "PAYNOW") acc.PayNow += s.SysAmount;
+          else if (isUpi) acc.Upi += s.SysAmount;
+          else if (mode === "MEMBER") acc.Member += s.SysAmount;
           return acc;
         }
 
