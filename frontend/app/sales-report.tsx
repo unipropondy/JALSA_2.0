@@ -2491,7 +2491,7 @@ export default function SalesReport() {
               numberOfLines={1}
               adjustsFontSizeToFit
             >
-              {formatCurrency(paymentBreakdownTotal)}
+              {formatCurrency(filteredMetrics.TotalSales)}
             </Text>
           </View>
 
@@ -2548,9 +2548,7 @@ export default function SalesReport() {
               adjustsFontSizeToFit
             >
               {formatCurrency(
-                (paymentBreakdownTotal - paymentBreakdownMetrics.Credit) +
-                filteredMetrics.MemberPaymentsCollected +
-                filteredMetrics.CreditPaymentsCollected
+                paymentBreakdownTotal - paymentBreakdownMetrics.Credit
               )}
             </Text>
           </View>
