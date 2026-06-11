@@ -1806,9 +1806,7 @@ export default function SalesReport() {
       <>
         {/* Dashboard Header moved here for better scroll integration */}
         <View style={styles.dashboardHeader}>
-          {isSalesUserGroup ? (
-            <View style={[styles.backBtn, { borderColor: "transparent", backgroundColor: "transparent" }]} />
-          ) : (
+          {isSalesUserGroup ? null : (
             <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace("/(tabs)/category" as any)} style={styles.backBtn}>
               <Ionicons name="arrow-back" size={20} color={Theme.textPrimary} />
             </TouchableOpacity>
