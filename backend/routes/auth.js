@@ -6,8 +6,15 @@ const JWT_SECRET = process.env.JWT_SECRET || "supersecureposjwttokensecretkey";
 
 /* ================= AUTH - LOGIN ================= */
 router.post("/login", async (req, res) => {
+  const startTime = Date.now();
+  console.log(`⏱️ [LOGIN] [${startTime}] Backend request received`);
+  res.on('finish', () => {
+    console.log(`⏱️ [LOGIN] [${Date.now()}] Response sent`);
+  });
   try {
     const pool = await poolPromise;
+    const poolTime = Date.now();
+    console.log(`⏱️ [LOGIN] [${poolTime}] Pool acquired (took ${poolTime - startTime}ms)`);
     if (!pool) {
       return res.status(503).json({ success: false, message: "Database connection busy or unavailable." });
     }
@@ -21,6 +28,7 @@ router.post("/login", async (req, res) => {
 
     // ✅ SPECIAL KDS LOGIN (HARDCODED)
     if (userName.toUpperCase() === "KDS" && password === "as786") {
+
       console.log(`[AUTH] KDS Special Login Successful`);
       const kdsToken = jwt.sign(
         { userId: "999", role: "KDS" },
@@ -45,6 +53,8 @@ router.post("/login", async (req, res) => {
 
     console.log(`[AUTH] Attempting login for UserName: "${userName}"`);
 
+    const queryStartTime = Date.now();
+    console.log(`⏱️ [LOGIN] [${queryStartTime}] First SQL query started`);
     const result = await pool.request()
       .input("UserName", userName)
       .query(`
@@ -57,6 +67,9 @@ router.post("/login", async (req, res) => {
         LEFT JOIN [dbo].[UserGroupMaster] g ON u.UserGroupid = g.UserGroupId
         WHERE u.UserName = @UserName
       `);
+    const queryEndTime = Date.now();
+    console.log(`⏱️ [LOGIN] [${queryEndTime}] First SQL query completed (took ${queryEndTime - queryStartTime}ms)`);
+
 
     if (result.recordset.length === 0) {
       console.log(`[AUTH] Login failed: UserName "${userName}" not found.`);
@@ -119,7 +132,6 @@ router.post("/login", async (req, res) => {
 
     console.log(`✅ Login Success: ${user.FullName} | Role: ${roleCode}`);
 
-    // 2. Return Comprehensive Auth Response
     return res.json({
       success: true,
       token,

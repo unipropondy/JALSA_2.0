@@ -147,6 +147,13 @@ async function fetchFullReportData(startDateStr, endDateStr, pool) {
       } else {
         memberPaymentsCollected += s.SysAmount || 0;
       }
+      // Add ledger payments to payment breakdown methods!
+      const mode = normalizePayMode(s.RawPayMode);
+      if (mode === "CASH") cash += s.SysAmount || 0;
+      else if (mode === "CARD") card += s.SysAmount || 0;
+      else if (mode === "NETS") nets += s.SysAmount || 0;
+      else if (mode === "PAYNOW" || mode === "UPI") paynow += s.SysAmount || 0;
+      else if (mode === "MEMBER") member += s.SysAmount || 0;
       return;
     }
 
@@ -181,7 +188,7 @@ async function fetchFullReportData(startDateStr, endDateStr, pool) {
   const totalOrders = totalTransactions;
 
   const paymentBreakdownTotal = cash + card + nets + paynow + member + credit;
-  const totalCollections = (paymentBreakdownTotal - credit) + memberPaymentsCollected + creditPaymentsCollected;
+  const totalCollections = (paymentBreakdownTotal - credit);
 
   const avgCheck = totalTransactions > 0 ? totalSales / totalTransactions : 0;
   const avgItems = totalTransactions > 0 ? totalItems / totalTransactions : 0;
@@ -354,7 +361,7 @@ async function fetchFullReportData(startDateStr, endDateStr, pool) {
 
     // Reconciliation Summary
     reconciliation: {
-      totalSalesVolume: paymentBreakdownTotal,
+      totalSalesVolume: totalSales,
       memberSales: member,
       creditCollected: creditPaymentsCollected,
       creditOutstanding: creditOutstanding,
