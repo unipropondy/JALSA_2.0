@@ -56,20 +56,31 @@ export default function RootLayout() {
     const rootSegment = segments[0];
     const isInsideApp = !!rootSegment && rootSegment !== "login";
     
-    if (!user && isInsideApp) {
-      // 1. Not logged in -> Go to Login
-      router.replace("/login");
-    } else if (user && (!rootSegment || rootSegment === "login")) {
-      // 2. Already logged in -> Go to Role-Specific Dashboard
-      const role = user.role;
-      const userName = (user.userName || "").trim().toUpperCase();
+    if (!user) {
+      if (isInsideApp) {
+        // 1. Not logged in -> Go to Login
+        router.replace("/login");
+      }
+    } else {
+      // Check if user belongs to the restricted Sales user group
+      const isSalesUserGroup = user.userGroupId?.toUpperCase() === "DFCF23EE-F6F4-4885-8D26-0056C657595F";
 
-      if (userName === "KDS") {
-        router.replace("/kds" as any);
-      } else if (role === "WAITER") {
-        router.replace("/(tabs)/category"); // Waiter starts at Ordering
-      } else {
-        router.replace("/(tabs)/category"); // Others start at POS
+      if (isSalesUserGroup) {
+        if (rootSegment !== "sales-report") {
+          router.replace("/sales-report");
+        }
+      } else if (!rootSegment || rootSegment === "login") {
+        // 2. Already logged in -> Go to Role-Specific Dashboard
+        const role = user.role;
+        const userName = (user.userName || "").trim().toUpperCase();
+
+        if (userName === "KDS") {
+          router.replace("/kds" as any);
+        } else if (role === "WAITER") {
+          router.replace("/(tabs)/category"); // Waiter starts at Ordering
+        } else {
+          router.replace("/(tabs)/category"); // Others start at POS
+        }
       }
     }
   }, [user, segments, fontsLoaded]);

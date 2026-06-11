@@ -35,6 +35,7 @@ import UniversalPrinter from "../components/UniversalPrinter";
 import { Fonts } from "../constants/Fonts";
 import { Theme } from "../constants/theme";
 import { getSingaporeDateString } from "../utils/timezoneHelper";
+import { useAuthStore } from "../stores/authStore";
 
 type FilterType = "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY" | "CUSTOM";
 type DetailReportType = "CATEGORY" | "DISH" | "SETTLEMENT" | "ARTIST_TARGET";
@@ -152,6 +153,7 @@ function hexToRgba(hex: string, alpha: number): string {
 export default function SalesReport() {
   const router = useRouter();
   const { showToast } = useToast();
+  const { user, logout } = useAuthStore();
   const { width: SCREEN_W } = useWindowDimensions();
   const [sales, setSales] = useState<any[]>([]);
   const [summary, setSummary] = useState<any>(null);
@@ -1401,7 +1403,7 @@ export default function SalesReport() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ minWidth: "100%" }}
           >
-            <View style={[styles.reportTable, isArtistTarget && { minWidth: 700 }]}>
+            <View style={[styles.reportTable, isArtistTarget && { minWidth: 850 }, isSettlement && { minWidth: 650 }]}>
               <View style={styles.reportTableHeader}>
                 <Text style={[styles.reportCell, styles.snoCell]}>S/N</Text>
                 {isSettlement ? (
@@ -1798,13 +1800,19 @@ export default function SalesReport() {
     );
   };
 
-  const renderHeader = () => (
-    <>
-      {/* Dashboard Header moved here for better scroll integration */}
-      <View style={styles.dashboardHeader}>
-        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace("/(tabs)/category" as any)} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={20} color={Theme.textPrimary} />
-        </TouchableOpacity>
+  const renderHeader = () => {
+    const isSalesUserGroup = user?.userGroupId?.toUpperCase() === "DFCF23EE-F6F4-4885-8D26-0056C657595F";
+    return (
+      <>
+        {/* Dashboard Header moved here for better scroll integration */}
+        <View style={styles.dashboardHeader}>
+          {isSalesUserGroup ? (
+            <View style={[styles.backBtn, { borderColor: "transparent", backgroundColor: "transparent" }]} />
+          ) : (
+            <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace("/(tabs)/category" as any)} style={styles.backBtn}>
+              <Ionicons name="arrow-back" size={20} color={Theme.textPrimary} />
+            </TouchableOpacity>
+          )}
         <View style={styles.headerContent}>
           <Text style={styles.dashboardYear}>{new Date().getFullYear()}</Text>
           <Text style={styles.dashboardTitle}>SALES ANALYTICS 📊</Text>
@@ -1813,6 +1821,14 @@ export default function SalesReport() {
           </Text>
         </View>
         <View style={styles.headerActions}>
+          {isSalesUserGroup && (
+            <TouchableOpacity
+              onPress={() => logout()}
+              style={[styles.filterMenuBtn, { borderColor: "#ef4444" }]}
+            >
+              <Ionicons name="log-out-outline" size={20} color="#ef4444" />
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             onPress={() => setShowDownloadPanel(true)}
             style={styles.filterMenuBtn}
@@ -2535,7 +2551,8 @@ export default function SalesReport() {
         </TouchableOpacity>
       </View>
     </>
-  );
+    );
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: Theme.bgMain }}>
@@ -4088,17 +4105,17 @@ const styles = StyleSheet.create({
     textAlign: "left",
   },
   sysAmtCell: {
-    width: 90,
+    width: 120,
     textAlign: "right",
     flexShrink: 0,
   },
   manualAmtCell: {
-    width: 90,
+    width: 120,
     textAlign: "right",
     flexShrink: 0,
   },
   diffCell: {
-    width: 80,
+    width: 100,
     textAlign: "right",
     flexShrink: 0,
   },
