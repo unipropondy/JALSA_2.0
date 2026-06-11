@@ -65,7 +65,8 @@ export default function LoginScreen() {
           logout();
         } else {
           const userName = (user.userName || "").trim().toUpperCase();
-          if (userName === "KDS") {
+          const isKdsUser = userName === "KDS" || user.userGroupId?.toUpperCase() === "94D60EFE-B74E-42E0-85C0-FE2ED15D2297";
+          if (isKdsUser) {
             router.replace("/kds" as any);
           } else {
             router.replace("/(tabs)/category");
@@ -161,7 +162,8 @@ export default function LoginScreen() {
 
         // ✅ Role-Based Navigation
         const role = data.user.role;
-        if (role === "KDS") {
+        const isKdsUser = role === "KDS" || data.user.userGroupId?.toUpperCase() === "94D60EFE-B74E-42E0-85C0-FE2ED15D2297";
+        if (isKdsUser) {
           router.replace("/(tabs)/kds" as any);
         } else {
           router.replace("/(tabs)/category"); // Default for Admin, Manager, Waiter, Cashier

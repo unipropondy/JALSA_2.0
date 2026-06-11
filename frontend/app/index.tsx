@@ -12,7 +12,8 @@ export default function Index() {
     }
 
     const userName = (user.userName || "").trim().toUpperCase();
-    if (userName === "KDS") {
+    const isKdsUser = userName === "KDS" || user.userGroupId?.toUpperCase() === "94D60EFE-B74E-42E0-85C0-FE2ED15D2297";
+    if (isKdsUser) {
       return <Redirect href="/(tabs)/kds" />;
     }
     return <Redirect href="/(tabs)/category" />;

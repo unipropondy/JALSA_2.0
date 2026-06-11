@@ -435,8 +435,9 @@ export default function Category() {
         return;
       }
 
-      // ✅ KDS Guard: Prevent KDS role from accessing table selection
-      if (currentUser.role === "KDS") {
+      // ✅ KDS Guard: Prevent KDS role or user group from accessing table selection
+      const isKdsUser = currentUser.role === "KDS" || currentUser.userGroupId?.toUpperCase() === "94D60EFE-B74E-42E0-85C0-FE2ED15D2297";
+      if (isKdsUser) {
         router.replace("/kds" as any);
         return;
       }

@@ -64,10 +64,15 @@ export default function RootLayout() {
     } else {
       // Check if user belongs to the restricted Sales user group
       const isSalesUserGroup = user.userGroupId?.toUpperCase() === "DFCF23EE-F6F4-4885-8D26-0056C657595F";
+      const isKdsUserGroup = user.userGroupId?.toUpperCase() === "94D60EFE-B74E-42E0-85C0-FE2ED15D2297";
 
       if (isSalesUserGroup) {
         if (rootSegment !== "sales-report") {
           router.replace("/sales-report");
+        }
+      } else if (isKdsUserGroup) {
+        if (segments[0] !== "(tabs)" || segments[1] !== "kds") {
+          router.replace("/kds" as any);
         }
       } else if (!rootSegment || rootSegment === "login") {
         // 2. Already logged in -> Go to Role-Specific Dashboard

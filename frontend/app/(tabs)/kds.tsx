@@ -255,7 +255,7 @@ export default function KDSScreen() {
   const activeOrders = useActiveOrdersStore((s) => s.activeOrders);
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
-  const isKDSUser = user?.userName?.toUpperCase() === "KDS";
+  const isKDSUser = user?.userName?.toUpperCase() === "KDS" || user?.userGroupId?.toUpperCase() === "94D60EFE-B74E-42E0-85C0-FE2ED15D2297";
 
   const flatListRef = useRef<FlatList>(null);
   const scrollOffset = useRef(0);

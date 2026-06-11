@@ -17,14 +17,15 @@ export default function TabLayout() {
 
   // ✅ REDIRECTION GUARD: KDS user cannot stay in /(tabs)
   React.useEffect(() => {
-    if (user?.userName?.toUpperCase() === "KDS" && pathname.startsWith("/(tabs)")) {
+    const isKdsUser = user?.userName?.toUpperCase() === "KDS" || user?.userGroupId?.toUpperCase() === "94D60EFE-B74E-42E0-85C0-FE2ED15D2297";
+    if (isKdsUser && pathname.startsWith("/(tabs)")) {
       router.replace("/kds" as any);
     }
   }, [user, pathname]);
 
   // ✅ Show tabs ONLY inside /(tabs) screens (NOT login "/")
   // 🛑 ALSO hide tabs if user is KDS
-  const isKDS = user?.userName?.toUpperCase() === "KDS";
+  const isKDS = user?.userName?.toUpperCase() === "KDS" || user?.userGroupId?.toUpperCase() === "94D60EFE-B74E-42E0-85C0-FE2ED15D2297";
   const showTabs = pathname.startsWith("/(tabs)") && !isKDS && user !== null;
 
   return (
