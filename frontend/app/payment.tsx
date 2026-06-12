@@ -548,17 +548,11 @@ export default function PaymentScreen() {
         return true;
       });
 
-      const { settings } = usePaymentSettingsStore.getState();
-      const hasUPI = settings.upiId && settings.upiId.trim().length > 0;
-      const hasPayNow = settings.payNowQrUrl && settings.payNowQrUrl.trim().length > 0;
+
 
       const filtered = deduped.filter(m => {
         const mUpper = m.payMode.toUpperCase().trim();
         if (isLedgerCollection && (mUpper === "MEMBER" || mUpper === "CREDIT" || mUpper === "LEDGER")) return false;
-        const isUPI = mUpper.includes("UPI") || mUpper.includes("GPAY") || mUpper.includes("PHONE") || mUpper.includes("PAYTM");
-        const isPayNow = mUpper.includes("PAYNOW") || mUpper.includes("QR") || mUpper.includes("PAY-NOW");
-        if (isUPI && !hasUPI) return false;
-        if (isPayNow && !hasPayNow) return false;
         return true;
       });
 

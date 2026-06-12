@@ -9,6 +9,7 @@ import {
   Alert,
   StatusBar,
   Platform,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -18,6 +19,7 @@ import { Fonts } from "@/constants/Fonts";
 import { API_URL } from "@/constants/Config";
 import { useAuthStore } from "@/stores/authStore";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import CalendarPicker from "../components/CalendarPicker";
 import { 
   format, 
   startOfMonth, 
@@ -213,18 +215,62 @@ export default function DayEndScreen() {
           </View>
 
           {showStartPicker && (
-            <DateTimePicker
-              value={new Date(dateRange.start)}
-              mode="date"
-              onChange={(e: any, d?: Date) => onDateChange(e, d, "start")}
-            />
+            Platform.OS === "web" ? (
+              <Modal transparent visible={showStartPicker} animationType="fade">
+                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowStartPicker(false)}>
+                  <View style={styles.pickerModalContent}>
+                    <View style={styles.pickerHeader}>
+                      <Text style={styles.pickerTitle}>Select Start Date</Text>
+                      <TouchableOpacity onPress={() => setShowStartPicker(false)}>
+                        <Ionicons name="close" size={24} color={Theme.textPrimary} />
+                      </TouchableOpacity>
+                    </View>
+                    <CalendarPicker
+                      selectedDate={dateRange.start}
+                      onDateChange={(d) => {
+                        setDateRange(prev => ({ ...prev, start: d }));
+                        setShowStartPicker(false);
+                      }}
+                    />
+                  </View>
+                </TouchableOpacity>
+              </Modal>
+            ) : (
+              <DateTimePicker
+                value={new Date(dateRange.start)}
+                mode="date"
+                onChange={(e: any, d?: Date) => onDateChange(e, d, "start")}
+              />
+            )
           )}
           {showEndPicker && (
-            <DateTimePicker
-              value={new Date(dateRange.end)}
-              mode="date"
-              onChange={(e: any, d?: Date) => onDateChange(e, d, "end")}
-            />
+            Platform.OS === "web" ? (
+              <Modal transparent visible={showEndPicker} animationType="fade">
+                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowEndPicker(false)}>
+                  <View style={styles.pickerModalContent}>
+                    <View style={styles.pickerHeader}>
+                      <Text style={styles.pickerTitle}>Select End Date</Text>
+                      <TouchableOpacity onPress={() => setShowEndPicker(false)}>
+                        <Ionicons name="close" size={24} color={Theme.textPrimary} />
+                      </TouchableOpacity>
+                    </View>
+                    <CalendarPicker
+                      selectedDate={dateRange.end}
+                      onDateChange={(d) => {
+                        setDateRange(prev => ({ ...prev, end: d }));
+                        setShowEndPicker(false);
+                      }}
+                    />
+                  </View>
+                </TouchableOpacity>
+              </Modal>
+            ) : (
+              <DateTimePicker
+                value={new Date(dateRange.end)}
+                mode="date"
+                onChange={(e: any, d?: Date) => onDateChange(e, d, "end")}
+              />
+            )
           )}
         </View>
 
@@ -582,6 +628,30 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     paddingHorizontal: 20,
     marginBottom: 20,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  pickerModalContent: {
+    backgroundColor: Theme.bgCard,
+    borderRadius: 20,
+    padding: 16,
+    width: 320,
+    ...Theme.shadowLg,
+  },
+  pickerHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  pickerTitle: {
+    fontSize: 16,
+    fontFamily: Fonts.bold,
+    color: Theme.textPrimary,
   },
   emptyText: {
     textAlign: "center",
