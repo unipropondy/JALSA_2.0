@@ -1463,80 +1463,8 @@ export default function SalesReport() {
 
 
   const dateScopedSales = useMemo(() => {
-    let result = sales;
-
-    if (selectedFilter === "DAILY") {
-      result = sales.filter((s) => {
-        if (!s.SettlementDate) return false;
-        const itemDate = getSingaporeDateString(new Date(s.SettlementDate));
-        return itemDate === selectedDate;
-      });
-    } else if (selectedFilter === "WEEKLY") {
-      const parts = selectedDate.split("-");
-      const end = new Date(
-        Number(parts[0]),
-        Number(parts[1]) - 1,
-        Number(parts[2]),
-        23,
-        59,
-        59,
-        999
-      );
-      const start = new Date(end);
-      start.setDate(start.getDate() - 6);
-      start.setHours(0, 0, 0, 0);
-
-      result = sales.filter((s) => {
-        if (!s.SettlementDate) return false;
-        const saleDate = new Date(s.SettlementDate);
-        return saleDate >= start && saleDate <= end;
-      });
-    } else if (selectedFilter === "MONTHLY") {
-      const parts = selectedDate.split("-");
-      const start = new Date(
-        Number(parts[0]),
-        Number(parts[1]) - 1,
-        1,
-        0,
-        0,
-        0,
-        0
-      );
-      const nextMonth = new Date(
-        Number(parts[0]),
-        Number(parts[1]),
-        1,
-        0,
-        0,
-        0,
-        0
-      );
-      const end = new Date(nextMonth.getTime() - 1);
-      result = sales.filter((s) => {
-        if (!s.SettlementDate) return false;
-        const saleDate = new Date(s.SettlementDate);
-        return saleDate >= start && saleDate <= end;
-      });
-    } else if (selectedFilter === "YEARLY") {
-      const parts = selectedDate.split("-");
-      const start = new Date(Number(parts[0]), 0, 1, 0, 0, 0, 0);
-      const nextYear = new Date(Number(parts[0]) + 1, 0, 1, 0, 0, 0, 0);
-      const end = new Date(nextYear.getTime() - 1);
-      result = sales.filter((s) => {
-        if (!s.SettlementDate) return false;
-        const saleDate = new Date(s.SettlementDate);
-        return saleDate >= start && saleDate <= end;
-      });
-    } else if (selectedFilter === "CUSTOM" && rangeStart && rangeEnd) {
-      result = sales.filter((s) => {
-        if (!s.SettlementDate) return false;
-        const saleDate = new Date(s.SettlementDate);
-        return saleDate >= rangeStart && saleDate <= rangeEnd;
-      });
-    }
-
-    return result;
-  }, [sales, selectedFilter, selectedDate, rangeStart, rangeEnd]);
+    return sales;
+  }, [sales]);
 
   const baseFilteredSales = useMemo(() => {
     return dateScopedSales.filter((s) => {
