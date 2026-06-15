@@ -898,6 +898,14 @@ export default function SalesReport() {
     ])
   );
 
+  // Auto-refresh immediately when custom datetime range is applied
+  useEffect(() => {
+    if (selectedFilter === 'CUSTOM') {
+      fetchData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rangeStart, rangeEnd]);
+
   const fetchData = async () => {
     try {
       if (sales.length === 0) setLoading(true);
