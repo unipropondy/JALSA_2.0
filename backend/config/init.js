@@ -200,6 +200,9 @@ async function initDB(pool) {
     await runQuery("Index - TableMaster SortCode", "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_TableMaster_SortCode') CREATE INDEX IX_TableMaster_SortCode ON [dbo].[TableMaster] (SortCode)");
     await runQuery("Index - TableMaster TableNumber", "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_TableMaster_TableNumber') CREATE INDEX IX_TableMaster_TableNumber ON [dbo].[TableMaster] (TableNumber)");
     await runQuery("Index - RestaurantOrder Tableno", "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_RestaurantOrder_Tableno') CREATE INDEX IX_RestaurantOrder_Tableno ON [dbo].[RestaurantOrder] (Tableno)");
+    await runQuery("Index - CustomerCreditTransactions CreatedDate", "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_CreditTrans_CreatedDate') CREATE INDEX IX_CreditTrans_CreatedDate ON [dbo].[CustomerCreditTransactions] (CreatedDate)");
+    await runQuery("Index - RestaurantOrder OrderDateTime", "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_RestaurantOrder_OrderDateTime') CREATE INDEX IX_RestaurantOrder_OrderDateTime ON [dbo].[RestaurantOrder] (OrderDateTime)");
+    await runQuery("Index - PaymentTransactionDetails CreatedDate", "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_PaymentTransactionDetails_CreatedDate') CREATE INDEX IX_PaymentTransactionDetails_CreatedDate ON [dbo].[PaymentTransactionDetails] (CreatedDate)");
 
     // 11. CompanySettings
     await runQuery("Create CompanySettings", `

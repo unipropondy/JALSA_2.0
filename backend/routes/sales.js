@@ -79,6 +79,10 @@ const getReportDateWhereSql = (filter = "daily", saleDateColumn = "sh.LastSettle
 };
 
 const getReportDateWhereSqlForRange = (startDateStr, endDateStr, saleDateColumn = "sh.LastSettlementDate") => {
+  const isDateTime = (str) => typeof str === "string" && (str.includes(" ") || str.includes("T") || str.includes(":"));
+  if (isDateTime(startDateStr) || isDateTime(endDateStr)) {
+    return `${saleDateColumn} >= CAST('${startDateStr}' AS DATETIME) AND ${saleDateColumn} <= CAST('${endDateStr}' AS DATETIME)`;
+  }
   const sgtStart = `CAST('${startDateStr}' AS DATETIME)`;
   const sgtEnd = `DATEADD(DAY, 1, CAST('${endDateStr}' AS DATETIME))`;
   return `${saleDateColumn} >= ${sgtStart} AND ${saleDateColumn} < ${sgtEnd}`;
@@ -174,8 +178,14 @@ router.get("/all", async (req, res) => {
     const pool = await poolPromise;
     const { startDate, endDate } = req.query;
 
-    const isDateStr = (str) => typeof str === "string" && /^\d{4}-\d{2}-\d{2}$/.test(str);
-    const useRange = isDateStr(startDate) && isDateStr(endDate);
+    const isDateOrDateTimeStr = (str) => {
+      if (typeof str !== "string") return false;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return true;
+      if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(str)) return true;
+      if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(str)) return true;
+      return false;
+    };
+    const useRange = isDateOrDateTimeStr(startDate) && isDateOrDateTimeStr(endDate);
 
     let queryStr = "";
     if (useRange) {
@@ -642,11 +652,20 @@ router.get("/category", async (req, res) => {
   try {
     res.set("Cache-Control", "no-store");
     const pool = await poolPromise;
-    const filter = normalizeReportFilter(req.query.filter);
-    const date = req.query.date;
-    const appDateWhereSql = await getReportDateWhereSql(filter, "sh.LastSettlementDate", date);
-    const legacyDateWhereSql = await getReportDateWhereSql(filter, "InvoiceDate", date);
-    console.log(`[REPORT API] type=category filter=${filter} date=${date || 'today'}`);
+    const { filter, date, startDate, endDate } = req.query;
+    
+    let appDateWhereSql, legacyDateWhereSql, proWhereSql;
+    if (startDate && endDate) {
+      appDateWhereSql = getReportDateWhereSqlForRange(startDate, endDate, "sh.LastSettlementDate");
+      legacyDateWhereSql = getReportDateWhereSqlForRange(startDate, endDate, "InvoiceDate");
+      proWhereSql = getReportDateWhereSqlForRange(startDate, endDate, "ro.OrderDateTime");
+    } else {
+      const normalizedFilter = normalizeReportFilter(filter);
+      appDateWhereSql = await getReportDateWhereSql(normalizedFilter, "sh.LastSettlementDate", date);
+      legacyDateWhereSql = await getReportDateWhereSql(normalizedFilter, "InvoiceDate", date);
+      proWhereSql = appDateWhereSql.replace(/sh\.OrderDate|sh\.LastSettlementDate/g, 'ro.OrderDateTime');
+    }
+    console.log(`[REPORT API] type=category filter=${filter} date=${date || 'today'} startDate=${startDate} endDate=${endDate}`);
 
     const result = await pool.request().query(`
         WITH AppReport AS (
@@ -685,7 +704,7 @@ router.get("/category", async (req, res) => {
           LEFT JOIN DishMaster d ON rod.DishId = d.DishId
           LEFT JOIN DishGroupMaster dg ON d.DishGroupId = dg.DishGroupId
           LEFT JOIN CategoryMaster cm ON dg.CategoryId = cm.CategoryId
-          WHERE ${appDateWhereSql.replace(/sh\.OrderDate|sh\.LastSettlementDate/g, 'ro.OrderDateTime')}
+          WHERE ${proWhereSql}
             AND ISNULL(ro.StatusCode, 0) = 3
             AND NOT EXISTS (
               SELECT 1 FROM SettlementHeader sh_dup 
@@ -718,11 +737,20 @@ router.get("/dish", async (req, res) => {
   try {
     res.set("Cache-Control", "no-store");
     const pool = await poolPromise;
-    const filter = normalizeReportFilter(req.query.filter);
-    const date = req.query.date;
-    const appDateWhereSql = await getReportDateWhereSql(filter, "sh.LastSettlementDate", date);
-    const legacyDateWhereSql = await getReportDateWhereSql(filter, "InvoiceDate", date);
-    console.log(`[REPORT API] type=dish filter=${filter} date=${date || 'today'}`);
+    const { filter, date, startDate, endDate } = req.query;
+    
+    let appDateWhereSql, legacyDateWhereSql, proWhereSql;
+    if (startDate && endDate) {
+      appDateWhereSql = getReportDateWhereSqlForRange(startDate, endDate, "sh.LastSettlementDate");
+      legacyDateWhereSql = getReportDateWhereSqlForRange(startDate, endDate, "InvoiceDate");
+      proWhereSql = getReportDateWhereSqlForRange(startDate, endDate, "ro.OrderDateTime");
+    } else {
+      const normalizedFilter = normalizeReportFilter(filter);
+      appDateWhereSql = await getReportDateWhereSql(normalizedFilter, "sh.LastSettlementDate", date);
+      legacyDateWhereSql = await getReportDateWhereSql(normalizedFilter, "InvoiceDate", date);
+      proWhereSql = appDateWhereSql.replace(/sh\.OrderDate|sh\.LastSettlementDate/g, 'ro.OrderDateTime');
+    }
+    console.log(`[REPORT API] type=dish filter=${filter} date=${date || 'today'} startDate=${startDate} endDate=${endDate}`);
 
     const result = await pool.request().query(`
         WITH AppReport AS (
@@ -768,7 +796,7 @@ router.get("/dish", async (req, res) => {
           LEFT JOIN DishMaster d ON rod.DishId = d.DishId
           LEFT JOIN DishGroupMaster dg ON d.DishGroupId = dg.DishGroupId
           LEFT JOIN CategoryMaster cm ON dg.CategoryId = cm.CategoryId
-          WHERE ${appDateWhereSql.replace(/sh\.OrderDate|sh\.LastSettlementDate/g, 'ro.OrderDateTime')}
+          WHERE ${proWhereSql}
             AND ISNULL(ro.StatusCode, 0) = 3
             AND NOT EXISTS (
               SELECT 1 FROM SettlementHeader sh_dup 

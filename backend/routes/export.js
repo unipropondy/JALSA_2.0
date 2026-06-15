@@ -24,13 +24,27 @@ router.post('/download-pdf', async (req, res) => {
     const { reportData } = req.body;
     if (!reportData) return res.status(400).json({ error: 'Report data is required' });
 
-    let startDateStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Singapore' });
-    let endDateStr = startDateStr;
-    if (reportData.period) {
-      const dates = reportData.period.match(/\d{4}-\d{2}-\d{2}/g);
-      if (dates && dates.length > 0) {
-        startDateStr = dates[0];
-        endDateStr = dates[1] || dates[0];
+    let startDateStr = reportData.startDate;
+    let endDateStr = reportData.endDate;
+    if (!startDateStr || !endDateStr) {
+      startDateStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Singapore' });
+      endDateStr = startDateStr;
+      if (reportData.period) {
+        let dates = reportData.period.match(/\d{4}-\d{2}-\d{2}/g);
+        if (dates && dates.length > 0) {
+          startDateStr = dates[0];
+          endDateStr = dates[1] || dates[0];
+        } else {
+          dates = reportData.period.match(/\d{2}[-/]\d{2}[-/]\d{4}/g);
+          if (dates && dates.length > 0) {
+            const convert = (dStr) => {
+              const parts = dStr.split(/[-/]/);
+              return `${parts[2]}-${parts[1]}-${parts[0]}`;
+            };
+            startDateStr = convert(dates[0]);
+            endDateStr = convert(dates[1] || dates[0]);
+          }
+        }
       }
     }
 
@@ -40,7 +54,8 @@ router.post('/download-pdf', async (req, res) => {
     const docDef = generateSalesReportPdf(enrichedData);
     const pdfBuffer = await createPdfBinary(docDef);
 
-    const filename = `Sales_Report_${reportData.filterType || 'Report'}_${startDateStr}.pdf`;
+    const sanitizedStart = String(startDateStr || '').replace(/[: ]/g, '_');
+    const filename = `Sales_Report_${reportData.filterType || 'Report'}_${sanitizedStart}.pdf`;
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -180,19 +195,35 @@ function isInvalidRecipientError(mailErr) {
 
 router.post('/email-pdf', async (req, res) => {
   let pdfBuffer;
-  let startDateStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Singapore' });
-  let endDateStr = startDateStr;
+  let startDateStr;
+  let endDateStr;
   try {
     const { reportData, email } = req.body;
     if (!reportData) {
       return res.status(400).json({ success: false, error: 'Report data is required' });
     }
 
-    if (reportData.period) {
-      const dates = reportData.period.match(/\d{4}-\d{2}-\d{2}/g);
-      if (dates && dates.length > 0) {
-        startDateStr = dates[0];
-        endDateStr = dates[1] || dates[0];
+    startDateStr = reportData.startDate;
+    endDateStr = reportData.endDate;
+    if (!startDateStr || !endDateStr) {
+      startDateStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Singapore' });
+      endDateStr = startDateStr;
+      if (reportData.period) {
+        let dates = reportData.period.match(/\d{4}-\d{2}-\d{2}/g);
+        if (dates && dates.length > 0) {
+          startDateStr = dates[0];
+          endDateStr = dates[1] || dates[0];
+        } else {
+          dates = reportData.period.match(/\d{2}[-/]\d{2}[-/]\d{4}/g);
+          if (dates && dates.length > 0) {
+            const convert = (dStr) => {
+              const parts = dStr.split(/[-/]/);
+              return `${parts[2]}-${parts[1]}-${parts[0]}`;
+            };
+            startDateStr = convert(dates[0]);
+            endDateStr = convert(dates[1] || dates[0]);
+          }
+        }
       }
     }
 
@@ -222,7 +253,8 @@ router.post('/email-pdf', async (req, res) => {
       });
     }
 
-    const filename = `Sales_Report_${reportData.filterType || 'Report'}_${startDateStr}.pdf`;
+    const sanitizedStart = String(startDateStr || '').replace(/[: ]/g, '_');
+    const filename = `Sales_Report_${reportData.filterType || 'Report'}_${sanitizedStart}.pdf`;
     console.log(`[export/email-pdf] PDF ready: ${filename} (${pdfBuffer.length} bytes)`);
 
     let transporter;

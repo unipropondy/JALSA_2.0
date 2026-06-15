@@ -240,9 +240,17 @@ function CustomDateTimePicker({ visible, onClose, selectedDate, onApply, title }
                   <TouchableOpacity onPress={() => adjustHour(1)} style={pickerStyles.arrowBtn}>
                     <Ionicons name="chevron-up" size={18} color="#44403C" />
                   </TouchableOpacity>
-                  <View style={pickerStyles.timeInputBox}>
-                    <Text style={pickerStyles.timeValueText}>{hour.toString().padStart(2, '0')}</Text>
-                  </View>
+                  <TextInput
+                    style={[pickerStyles.timeInputBox, { fontSize: 18, fontFamily: Fonts.black, color: Theme.textPrimary, textAlign: 'center' }]}
+                    value={hour.toString().padStart(2, '0')}
+                    onChangeText={(v) => {
+                      const n = parseInt(v.replace(/[^0-9]/g, ''), 10);
+                      if (!isNaN(n) && n >= 1 && n <= 12) setHour(n);
+                    }}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    selectTextOnFocus
+                  />
                   <TouchableOpacity onPress={() => adjustHour(-1)} style={pickerStyles.arrowBtn}>
                     <Ionicons name="chevron-down" size={18} color="#44403C" />
                   </TouchableOpacity>
@@ -257,9 +265,17 @@ function CustomDateTimePicker({ visible, onClose, selectedDate, onApply, title }
                   <TouchableOpacity onPress={() => adjustMinute(1)} style={pickerStyles.arrowBtn}>
                     <Ionicons name="chevron-up" size={18} color="#44403C" />
                   </TouchableOpacity>
-                  <View style={pickerStyles.timeInputBox}>
-                    <Text style={pickerStyles.timeValueText}>{minute.toString().padStart(2, '0')}</Text>
-                  </View>
+                  <TextInput
+                    style={[pickerStyles.timeInputBox, { fontSize: 18, fontFamily: Fonts.black, color: Theme.textPrimary, textAlign: 'center' }]}
+                    value={minute.toString().padStart(2, '0')}
+                    onChangeText={(v) => {
+                      const n = parseInt(v.replace(/[^0-9]/g, ''), 10);
+                      if (!isNaN(n) && n >= 0 && n <= 59) setMinute(n);
+                    }}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    selectTextOnFocus
+                  />
                   <TouchableOpacity onPress={() => adjustMinute(-1)} style={pickerStyles.arrowBtn}>
                     <Ionicons name="chevron-down" size={18} color="#44403C" />
                   </TouchableOpacity>

@@ -22,13 +22,24 @@ const normalizePayMode = (paymentMethod = "CASH") => {
 async function fetchFullReportData(startDateStr, endDateStr, pool) {
   const companySettings = await getCompanySettings();
 
-  // 1. Fetch combined sales list (same logic as /all endpoint)
-  // Note: sh.LastSettlementDate in database stores local SGT timestamps natively.
-  // We use the same date range format: LastSettlementDate >= start AND LastSettlementDate < end_day_plus_1
-  const sgtStart = `CAST('${startDateStr}' AS DATETIME)`;
-  const sgtEnd = `DATEADD(DAY, 1, CAST('${endDateStr}' AS DATETIME))`;
-  const shWhere = `sh.LastSettlementDate >= ${sgtStart} AND sh.LastSettlementDate < ${sgtEnd}`;
-  const cctWhere = `cct.CreatedDate >= ${sgtStart} AND cct.CreatedDate < ${sgtEnd}`;
+  const isDateTime = (str) => typeof str === "string" && (str.includes(" ") || str.includes("T") || str.includes(":"));
+
+  let shWhere, cctWhere, roWhere;
+  let sgtStart, sgtEnd;
+
+  if (isDateTime(startDateStr) || isDateTime(endDateStr)) {
+    sgtStart = `CAST('${startDateStr}' AS DATETIME)`;
+    sgtEnd = `CAST('${endDateStr}' AS DATETIME)`;
+    shWhere = `sh.LastSettlementDate >= ${sgtStart} AND sh.LastSettlementDate <= ${sgtEnd}`;
+    cctWhere = `cct.CreatedDate >= ${sgtStart} AND cct.CreatedDate <= ${sgtEnd}`;
+    roWhere = `ro.OrderDateTime >= ${sgtStart} AND ro.OrderDateTime <= ${sgtEnd}`;
+  } else {
+    sgtStart = `CAST('${startDateStr}' AS DATETIME)`;
+    sgtEnd = `DATEADD(DAY, 1, CAST('${endDateStr}' AS DATETIME))`;
+    shWhere = `sh.LastSettlementDate >= ${sgtStart} AND sh.LastSettlementDate < ${sgtEnd}`;
+    cctWhere = `cct.CreatedDate >= ${sgtStart} AND cct.CreatedDate < ${sgtEnd}`;
+    roWhere = `ro.OrderDateTime >= ${sgtStart} AND ro.OrderDateTime < ${sgtEnd}`;
+  }
 
   const salesQuery = `
     SELECT 
@@ -225,7 +236,7 @@ async function fetchFullReportData(startDateStr, endDateStr, pool) {
       LEFT JOIN DishMaster d ON rod.DishId = d.DishId
       LEFT JOIN DishGroupMaster dg ON d.DishGroupId = dg.DishGroupId
       LEFT JOIN CategoryMaster cm ON dg.CategoryId = cm.CategoryId
-      WHERE ro.OrderDateTime >= ${sgtStart} AND ro.OrderDateTime < ${sgtEnd}
+      WHERE ${roWhere}
         AND ISNULL(ro.StatusCode, 0) = 3
         AND NOT EXISTS (
           SELECT 1 FROM SettlementHeader sh_dup 
@@ -276,7 +287,7 @@ async function fetchFullReportData(startDateStr, endDateStr, pool) {
       LEFT JOIN DishMaster d ON rod.DishId = d.DishId
       LEFT JOIN DishGroupMaster dg ON d.DishGroupId = dg.DishGroupId
       LEFT JOIN CategoryMaster cm ON dg.CategoryId = cm.CategoryId
-      WHERE ro.OrderDateTime >= ${sgtStart} AND ro.OrderDateTime < ${sgtEnd}
+      WHERE ${roWhere}
         AND ISNULL(ro.StatusCode, 0) = 3
         AND NOT EXISTS (
           SELECT 1 FROM SettlementHeader sh_dup 

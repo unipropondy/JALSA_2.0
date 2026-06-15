@@ -34,7 +34,8 @@ import TransactionCard from "../components/TransactionCard";
 import UniversalPrinter from "../components/UniversalPrinter";
 import { Fonts } from "../constants/Fonts";
 import { Theme } from "../constants/theme";
-import { getSingaporeDateString } from "../utils/timezoneHelper";
+import { getSingaporeDateString, getSingaporeDateTimeString, formatToSingaporeDateTime12h } from "../utils/timezoneHelper";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useAuthStore } from "../stores/authStore";
 
 type FilterType = "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY" | "CUSTOM";
@@ -150,6 +151,553 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+interface CustomDateTimePickerProps {
+  visible: boolean;
+  onClose: () => void;
+  selectedDate: Date;
+  onApply: (date: Date) => void;
+  title: string;
+}
+
+function CustomDateTimePicker({ visible, onClose, selectedDate, onApply, title }: CustomDateTimePickerProps) {
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 640;
+
+  const [viewDate, setViewDate] = useState(() => new Date(selectedDate));
+  const [selectedDay, setSelectedDay] = useState(() => new Date(selectedDate));
+  
+  // Time states
+  const [hour, setHour] = useState(() => {
+    let h = selectedDate.getHours();
+    h = h % 12;
+    return h === 0 ? 12 : h;
+  });
+  const [minute, setMinute] = useState(() => selectedDate.getMinutes());
+  const [amPm, setAmPm] = useState<"AM" | "PM">(() => selectedDate.getHours() >= 12 ? "PM" : "AM");
+
+  // Sync state when selectedDate changes or modal opens
+  useEffect(() => {
+    if (visible) {
+      setViewDate(new Date(selectedDate));
+      setSelectedDay(new Date(selectedDate));
+      let h = selectedDate.getHours();
+      const ampm = h >= 12 ? "PM" : "AM";
+      h = h % 12;
+      setHour(h === 0 ? 12 : h);
+      setMinute(selectedDate.getMinutes());
+      setAmPm(ampm);
+    }
+  }, [visible, selectedDate]);
+
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+
+  // Navigation handlers
+  const prevMonth = () => {
+    setViewDate(new Date(year, month - 1, 1));
+  };
+  const nextMonth = () => {
+    setViewDate(new Date(year, month + 1, 1));
+  };
+
+  // Days list computation
+  const days = useMemo(() => {
+    const firstDay = new Date(year, month, 1);
+    const startDayOfWeek = firstDay.getDay(); // 0 = Sunday
+    const totalDaysInMonth = new Date(year, month + 1, 0).getDate();
+    const prevMonthDays = new Date(year, month, 0).getDate();
+
+    const arr = [];
+    // Prev month padding
+    for (let i = startDayOfWeek - 1; i >= 0; i--) {
+      arr.push({
+        day: prevMonthDays - i,
+        month: month === 0 ? 11 : month - 1,
+        year: month === 0 ? year - 1 : year,
+        isCurrentMonth: false,
+      });
+    }
+    // Current month days
+    for (let i = 1; i <= totalDaysInMonth; i++) {
+      arr.push({
+        day: i,
+        month: month,
+        year: year,
+        isCurrentMonth: true,
+      });
+    }
+    // Next month padding
+    const totalCells = arr.length;
+    const remaining = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+    for (let i = 1; i <= remaining; i++) {
+      arr.push({
+        day: i,
+        month: month === 11 ? 0 : month + 1,
+        year: month === 11 ? year + 1 : year,
+        isCurrentMonth: false,
+      });
+    }
+    return arr;
+  }, [year, month]);
+
+  const handleDaySelect = (dayObj: typeof days[0]) => {
+    setSelectedDay(new Date(dayObj.year, dayObj.month, dayObj.day));
+  };
+
+  // Time adjustment helpers
+  const adjustHour = (amount: number) => {
+    setHour(prev => {
+      let next = prev + amount;
+      if (next > 12) return 1;
+      if (next < 1) return 12;
+      return next;
+    });
+  };
+
+  const adjustMinute = (amount: number) => {
+    setMinute(prev => {
+      let next = prev + amount;
+      if (next > 59) return 0;
+      if (next < 0) return 59;
+      return next;
+    });
+  };
+
+  const handleApply = () => {
+    const finalDate = new Date(selectedDay);
+    let finalHours = hour % 12;
+    if (amPm === "PM") {
+      finalHours += 12;
+    }
+    finalDate.setHours(finalHours, minute, 0, 0);
+    onApply(finalDate);
+    onClose();
+  };
+
+  const formatSummaryStr = () => {
+    const d = selectedDay.getDate().toString().padStart(2, '0');
+    const m = (selectedDay.getMonth() + 1).toString().padStart(2, '0');
+    const y = selectedDay.getFullYear();
+    const h = hour.toString().padStart(2, '0');
+    const minStr = minute.toString().padStart(2, '0');
+    return `${d}-${m}-${y} ${h}:${minStr} ${amPm}`;
+  };
+
+  const monthNames = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+
+  if (!visible) return null;
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={pickerStyles.overlay}>
+        <View style={[pickerStyles.modalContainer, !isTablet && { flexDirection: 'column', width: '95%', padding: 16 }]}>
+          {/* Header */}
+          <View style={pickerStyles.header}>
+            <Text style={pickerStyles.headerTitle}>{title}</Text>
+            <TouchableOpacity style={pickerStyles.closeBtn} onPress={onClose}>
+              <Ionicons name="close" size={18} color="#44403C" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Columns Container */}
+          <View style={{ flexDirection: isTablet ? 'row' : 'column', gap: 20 }}>
+            {/* Left Side: Calendar */}
+            <View style={{ flex: 1 }}>
+              {/* Calendar Navigator */}
+              <View style={pickerStyles.calNavigator}>
+                <TouchableOpacity onPress={prevMonth} style={pickerStyles.navBtn}>
+                  <Ionicons name="chevron-back" size={16} color="#44403C" />
+                </TouchableOpacity>
+                <Text style={pickerStyles.monthYearText}>{monthNames[month]} {year}</Text>
+                <TouchableOpacity onPress={nextMonth} style={pickerStyles.navBtn}>
+                  <Ionicons name="chevron-forward" size={16} color="#44403C" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Weekdays Row */}
+              <View style={pickerStyles.weekdaysRow}>
+                {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((wd, i) => (
+                  <Text key={i} style={pickerStyles.weekdayText}>{wd}</Text>
+                ))}
+              </View>
+
+              {/* Days Grid */}
+              <View style={pickerStyles.daysGrid}>
+                {days.map((dObj, idx) => {
+                  const isSelected = selectedDay.getDate() === dObj.day &&
+                    selectedDay.getMonth() === dObj.month &&
+                    selectedDay.getFullYear() === dObj.year;
+
+                  return (
+                    <TouchableOpacity
+                      key={idx}
+                      onPress={() => handleDaySelect(dObj)}
+                      style={[
+                        pickerStyles.dayBtn,
+                        isSelected && pickerStyles.dayBtnSelected
+                      ]}
+                    >
+                      <Text style={[
+                        pickerStyles.dayText,
+                        !dObj.isCurrentMonth && pickerStyles.dayTextInactive,
+                        isSelected && pickerStyles.dayTextSelected
+                      ]}>
+                        {dObj.day}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Vertical Divider */}
+            {isTablet && <View style={pickerStyles.verticalDivider} />}
+
+            {/* Right Side: Time */}
+            <View style={[pickerStyles.timePanel, !isTablet && { width: '100%', marginTop: 10 }]}>
+              <Text style={pickerStyles.setTimeTitle}>SET TIME</Text>
+
+              {/* Picker Blocks */}
+              <View style={pickerStyles.timePickersRow}>
+                {/* Hour */}
+                <View style={pickerStyles.timeBlock}>
+                  <TouchableOpacity onPress={() => adjustHour(1)} style={pickerStyles.arrowBtn}>
+                    <Ionicons name="chevron-up" size={18} color="#44403C" />
+                  </TouchableOpacity>
+                  <TextInput
+                    style={[pickerStyles.timeInputBox, { fontSize: 18, fontFamily: Fonts.black, color: Theme.textPrimary, textAlign: 'center' }]}
+                    value={hour.toString().padStart(2, '0')}
+                    onChangeText={(v) => {
+                      const n = parseInt(v.replace(/[^0-9]/g, ''), 10);
+                      if (!isNaN(n) && n >= 1 && n <= 12) setHour(n);
+                    }}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    selectTextOnFocus
+                  />
+                  <TouchableOpacity onPress={() => adjustHour(-1)} style={pickerStyles.arrowBtn}>
+                    <Ionicons name="chevron-down" size={18} color="#44403C" />
+                  </TouchableOpacity>
+                  <Text style={pickerStyles.timeLabel}>Hour</Text>
+                </View>
+
+                {/* Separator */}
+                <Text style={pickerStyles.timeSeparator}>:</Text>
+
+                {/* Minute */}
+                <View style={pickerStyles.timeBlock}>
+                  <TouchableOpacity onPress={() => adjustMinute(1)} style={pickerStyles.arrowBtn}>
+                    <Ionicons name="chevron-up" size={18} color="#44403C" />
+                  </TouchableOpacity>
+                  <TextInput
+                    style={[pickerStyles.timeInputBox, { fontSize: 18, fontFamily: Fonts.black, color: Theme.textPrimary, textAlign: 'center' }]}
+                    value={minute.toString().padStart(2, '0')}
+                    onChangeText={(v) => {
+                      const n = parseInt(v.replace(/[^0-9]/g, ''), 10);
+                      if (!isNaN(n) && n >= 0 && n <= 59) setMinute(n);
+                    }}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    selectTextOnFocus
+                  />
+                  <TouchableOpacity onPress={() => adjustMinute(-1)} style={pickerStyles.arrowBtn}>
+                    <Ionicons name="chevron-down" size={18} color="#44403C" />
+                  </TouchableOpacity>
+                  <Text style={pickerStyles.timeLabel}>Min</Text>
+                </View>
+
+                {/* AM/PM */}
+                <View style={[pickerStyles.timeBlock, { justifyContent: 'center' }]}>
+                  <TouchableOpacity 
+                    onPress={() => setAmPm(prev => prev === "AM" ? "PM" : "AM")} 
+                    style={[pickerStyles.ampmBtn, pickerStyles.ampmBtnActive]}
+                  >
+                    <Text style={pickerStyles.ampmBtnTextActive}>{amPm}</Text>
+                  </TouchableOpacity>
+                  <Text style={[pickerStyles.timeLabel, { marginTop: 12 }]}>AM/PM</Text>
+                </View>
+              </View>
+
+              {/* Summary Display */}
+              <View style={pickerStyles.summaryCard}>
+                <Text style={pickerStyles.summaryLabel}>Selected Date-Time:</Text>
+                <Text style={pickerStyles.summaryValue}>{formatSummaryStr()}</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Footer Actions */}
+          <View style={pickerStyles.footer}>
+            <TouchableOpacity style={pickerStyles.cancelBtn} onPress={onClose}>
+              <Text style={pickerStyles.cancelBtnText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={pickerStyles.applyBtn} onPress={handleApply}>
+              <Text style={pickerStyles.applyBtnText}>Apply</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const pickerStyles = StyleSheet.create({
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999,
+  },
+  modalContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    width: 620,
+    maxWidth: '95%',
+    padding: 24,
+    ...Platform.select({
+      web: {
+        boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+      }
+    }) as any,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    paddingBottom: 16,
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontFamily: Fonts.black,
+    color: Theme.textPrimary,
+  },
+  closeBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  calNavigator: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 8,
+  },
+  navBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F9FAFB',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  monthYearText: {
+    fontSize: 14,
+    fontFamily: Fonts.black,
+    color: Theme.textPrimary,
+  },
+  weekdaysRow: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  weekdayText: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 12,
+    fontFamily: Fonts.bold,
+    color: '#9CA3AF',
+  },
+  daysGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  dayBtn: {
+    width: '14.28%',
+    aspectRatio: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginVertical: 2,
+    borderRadius: 8,
+  },
+  dayBtnSelected: {
+    backgroundColor: '#F97316',
+  },
+  dayText: {
+    fontSize: 13,
+    fontFamily: Fonts.bold,
+    color: Theme.textPrimary,
+  },
+  dayTextInactive: {
+    color: '#D1D5DB',
+  },
+  dayTextSelected: {
+    color: '#fff',
+  },
+  verticalDivider: {
+    width: 1,
+    backgroundColor: '#F3F4F6',
+    alignSelf: 'stretch',
+    marginHorizontal: 8,
+  },
+  timePanel: {
+    width: 250,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  setTimeTitle: {
+    fontSize: 12,
+    fontFamily: Fonts.black,
+    color: Theme.textSecondary,
+    letterSpacing: 1,
+    marginBottom: 16,
+  },
+  timePickersRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 20,
+  },
+  timeBlock: {
+    alignItems: 'center',
+  },
+  arrowBtn: {
+    padding: 2,
+  },
+  timeInputBox: {
+    width: 50,
+    height: 44,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  timeValueText: {
+    fontSize: 18,
+    fontFamily: Fonts.black,
+    color: Theme.textPrimary,
+  },
+  timeSeparator: {
+    fontSize: 22,
+    fontFamily: Fonts.black,
+    color: Theme.textPrimary,
+    marginTop: -18,
+  },
+  ampmBtn: {
+    width: 60,
+    height: 44,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 22,
+  },
+  ampmBtnActive: {
+    backgroundColor: '#FFF7ED',
+    borderColor: '#FED7AA',
+  },
+  ampmBtnTextActive: {
+    fontSize: 15,
+    fontFamily: Fonts.black,
+    color: '#F97316',
+  },
+  timeLabel: {
+    fontSize: 10,
+    fontFamily: Fonts.medium,
+    color: '#9CA3AF',
+    marginTop: 4,
+  },
+  summaryCard: {
+    width: '100%',
+    padding: 10,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    alignItems: 'center',
+  },
+  summaryLabel: {
+    fontSize: 10,
+    fontFamily: Fonts.medium,
+    color: '#9CA3AF',
+    marginBottom: 2,
+  },
+  summaryValue: {
+    fontSize: 13,
+    fontFamily: Fonts.black,
+    color: '#F97316',
+  },
+  footer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 20,
+  },
+  cancelBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: '#F5F5F4',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cancelBtnText: {
+    fontSize: 13,
+    fontFamily: Fonts.black,
+    color: '#44403C',
+  },
+  applyBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: '#F97316',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  applyBtnText: {
+    fontSize: 13,
+    fontFamily: Fonts.black,
+    color: '#fff',
+  },
+});
+
+const getLocalDateString = (date: Date): string => {
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
+
+const formatDateTime = (date: Date) => {
+  const d = date.getDate().toString().padStart(2, '0');
+  const m = (date.getMonth() + 1).toString().padStart(2, '0');
+  const y = date.getFullYear();
+  let hours = date.getHours();
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  const h = hours.toString().padStart(2, '0');
+  return `${d}-${m}-${y} ${h}:${minutes} ${ampm}`;
+};
+
+const formatDateTimeToSql = (d: Date) => {
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+};
+
 export default function SalesReport() {
   const router = useRouter();
   const { showToast } = useToast();
@@ -191,8 +739,14 @@ export default function SalesReport() {
   const [showPrintPrompt, setShowPrintPrompt] = useState(false);
   const [isReprinting, setIsReprinting] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [rangeStart, setRangeStart] = useState<string | null>(null);
-  const [rangeEnd, setRangeEnd] = useState<string | null>(null);
+  const [rangeStart, setRangeStart] = useState<Date>(() => {
+    const todayStr = getSingaporeDateString();
+    return new Date(`${todayStr}T00:00:00`);
+  });
+  const [rangeEnd, setRangeEnd] = useState<Date>(() => {
+    const todayStr = getSingaporeDateString();
+    return new Date(`${todayStr}T23:59:59`);
+  });
   const [pickerMode, setPickerMode] = useState<"SINGLE" | "START" | "END">(
     "SINGLE",
   );
@@ -202,10 +756,71 @@ export default function SalesReport() {
   const [showDownloadPanel, setShowDownloadPanel] = useState(false);
   const [downloadFilter, setDownloadFilter] = useState<FilterType>("DAILY");
   const [isDownloading, setIsDownloading] = useState(false);
-  const [downloadRangeStart, setDownloadRangeStart] = useState<string | null>(null);
-  const [downloadRangeEnd, setDownloadRangeEnd] = useState<string | null>(null);
+  const [downloadRangeStart, setDownloadRangeStart] = useState<Date>(() => {
+    const todayStr = getSingaporeDateString();
+    return new Date(`${todayStr}T00:00:00`);
+  });
+  const [downloadRangeEnd, setDownloadRangeEnd] = useState<Date>(() => {
+    const todayStr = getSingaporeDateString();
+    return new Date(`${todayStr}T23:59:59`);
+  });
   const [showDownloadDatePicker, setShowDownloadDatePicker] = useState(false);
   const [downloadPickerMode, setDownloadPickerMode] = useState<"START" | "END">("START");
+
+  // Custom datetime picker states
+  const [showFromPicker, setShowFromPicker] = useState(false);
+  const [showToPicker, setShowToPicker] = useState(false);
+  const [showDownloadFromPicker, setShowDownloadFromPicker] = useState(false);
+  const [showDownloadToPicker, setShowDownloadToPicker] = useState(false);
+
+  const applySelectedDateTime = (target: "MAIN_START" | "MAIN_END" | "DOWNLOAD_START" | "DOWNLOAD_END", selectedDateTime: Date) => {
+    let start: Date;
+    let end: Date;
+
+    if (target === "MAIN_START") {
+      start = selectedDateTime;
+      end = rangeEnd;
+    } else if (target === "MAIN_END") {
+      start = rangeStart;
+      end = selectedDateTime;
+    } else if (target === "DOWNLOAD_START") {
+      start = selectedDateTime;
+      end = downloadRangeEnd;
+    } else {
+      start = downloadRangeStart;
+      end = selectedDateTime;
+    }
+
+    if (start > end) {
+      showToast({
+        type: "error",
+        message: "From Date/Time cannot be later than To Date/Time.",
+      });
+      return;
+    }
+
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    if (diffDays > 90) {
+      showToast({
+        type: "error",
+        message: "Selected period exceeds maximum allowed range.",
+      });
+      return;
+    }
+
+    if (target === "MAIN_START") {
+      setRangeStart(selectedDateTime);
+    } else if (target === "MAIN_END") {
+      setRangeEnd(selectedDateTime);
+    } else if (target === "DOWNLOAD_START") {
+      setDownloadRangeStart(selectedDateTime);
+    } else {
+      setDownloadRangeEnd(selectedDateTime);
+    }
+  };
+
+  // Removed old native date pickers logic in favor of unified CustomDateTimePicker
   const [emailAddress, setEmailAddress] = useState("");
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [emailFieldTouched, setEmailFieldTouched] = useState(false);
@@ -300,11 +915,16 @@ export default function SalesReport() {
       try {
         setLoadingReport(true);
         const reportFilter = filterType.toLowerCase();
-        const params = new URLSearchParams({
-          filter: reportFilter,
-          date: selectedDate,
-          t: Date.now().toString(),
-        });
+        const params = new URLSearchParams();
+        params.append("filter", reportFilter);
+        params.append("t", Date.now().toString());
+
+        if (filterType === "CUSTOM") {
+          params.append("startDate", formatDateTimeToSql(rangeStart));
+          params.append("endDate", formatDateTimeToSql(rangeEnd));
+        } else {
+          params.append("date", selectedDate);
+        }
 
         const endpoint =
           reportType === "CATEGORY"
@@ -411,7 +1031,7 @@ export default function SalesReport() {
         setLoadingReport(false);
       }
     },
-    [selectedFilter, selectedDate],
+    [selectedFilter, selectedDate, rangeStart, rangeEnd],
   );
 
   const handleReportPress = (reportType: DetailReportType) => {
@@ -433,25 +1053,29 @@ export default function SalesReport() {
 
   const fetchSales = async () => {
     try {
-      const end = new Date(selectedDate);
-      const start = new Date(selectedDate);
+      let startStr: string;
+      let endStr: string;
 
-      if (selectedFilter === "WEEKLY") {
-        start.setDate(start.getDate() - 6);
-      } else if (selectedFilter === "MONTHLY") {
-        start.setDate(1);
-        end.setMonth(end.getMonth() + 1);
-        end.setDate(0);
-      } else if (selectedFilter === "YEARLY") {
-        start.setMonth(0, 1);
-        end.setMonth(11, 31);
-      } else if (selectedFilter === "CUSTOM" && rangeStart && rangeEnd) {
-        start.setTime(new Date(rangeStart).getTime());
-        end.setTime(new Date(rangeEnd).getTime());
+      if (selectedFilter === "CUSTOM") {
+        startStr = formatDateTimeToSql(rangeStart);
+        endStr = formatDateTimeToSql(rangeEnd);
+      } else {
+        const end = new Date(selectedDate);
+        const start = new Date(selectedDate);
+
+        if (selectedFilter === "WEEKLY") {
+          start.setDate(start.getDate() - 6);
+        } else if (selectedFilter === "MONTHLY") {
+          start.setDate(1);
+          end.setMonth(end.getMonth() + 1);
+          end.setDate(0);
+        } else if (selectedFilter === "YEARLY") {
+          start.setMonth(0, 1);
+          end.setMonth(11, 31);
+        }
+        startStr = getLocalDateString(start);
+        endStr = getLocalDateString(end);
       }
-
-      const startStr = getSingaporeDateString(start);
-      const endStr = getSingaporeDateString(end);
 
       const response = await fetch(`${API_URL}/api/sales/all?startDate=${startStr}&endDate=${endStr}`, {
         headers: { "Content-Type": "application/json" },
@@ -475,25 +1099,30 @@ export default function SalesReport() {
 
   const fetchSummary = async () => {
     try {
-      const end = new Date(selectedDate);
-      const start = new Date(selectedDate);
+      let startStr: string;
+      let endStr: string;
 
-      if (selectedFilter === "WEEKLY") {
-        start.setDate(start.getDate() - 6);
-      } else if (selectedFilter === "MONTHLY") {
-        start.setDate(1);
-        end.setMonth(end.getMonth() + 1);
-        end.setDate(0);
-      } else if (selectedFilter === "YEARLY") {
-        start.setMonth(0, 1);
-        end.setMonth(11, 31);
-      } else if (selectedFilter === "CUSTOM" && rangeStart && rangeEnd) {
-        start.setTime(new Date(rangeStart).getTime());
-        end.setTime(new Date(rangeEnd).getTime());
+      if (selectedFilter === "CUSTOM") {
+        startStr = formatDateTimeToSql(rangeStart);
+        endStr = formatDateTimeToSql(rangeEnd);
+      } else {
+        const end = new Date(selectedDate);
+        const start = new Date(selectedDate);
+
+        if (selectedFilter === "WEEKLY") {
+          start.setDate(start.getDate() - 6);
+        } else if (selectedFilter === "MONTHLY") {
+          start.setDate(1);
+          end.setMonth(end.getMonth() + 1);
+          end.setDate(0);
+        } else if (selectedFilter === "YEARLY") {
+          start.setMonth(0, 1);
+          end.setMonth(11, 31);
+        }
+        startStr = getLocalDateString(start);
+        endStr = getLocalDateString(end);
       }
 
-      const startStr = getSingaporeDateString(start);
-      const endStr = getSingaporeDateString(end);
       const url = `${API_URL}/api/sales/range?startDate=${startStr}&endDate=${endStr}`;
       const response = await fetch(url);
       const data = await response.json();
@@ -505,25 +1134,29 @@ export default function SalesReport() {
   };
 
   const fetchReportData = async () => {
-    const endObj = new Date();
-    const startObj = new Date();
+    let startStr: string;
+    let endStr: string;
 
-    if (downloadFilter === "WEEKLY") {
-      startObj.setDate(startObj.getDate() - 6);
-    } else if (downloadFilter === "MONTHLY") {
-      startObj.setDate(1);
-      endObj.setMonth(endObj.getMonth() + 1);
-      endObj.setDate(0);
-    } else if (downloadFilter === "YEARLY") {
-      startObj.setMonth(0, 1);
-      endObj.setMonth(11, 31);
-    } else if (downloadFilter === "CUSTOM" && downloadRangeStart && downloadRangeEnd) {
-      startObj.setTime(new Date(downloadRangeStart).getTime());
-      endObj.setTime(new Date(downloadRangeEnd).getTime());
+    if (downloadFilter === "CUSTOM") {
+      startStr = formatDateTimeToSql(downloadRangeStart);
+      endStr = formatDateTimeToSql(downloadRangeEnd);
+    } else {
+      const endObj = new Date();
+      const startObj = new Date();
+
+      if (downloadFilter === "WEEKLY") {
+        startObj.setDate(startObj.getDate() - 6);
+      } else if (downloadFilter === "MONTHLY") {
+        startObj.setDate(1);
+        endObj.setMonth(endObj.getMonth() + 1);
+        endObj.setDate(0);
+      } else if (downloadFilter === "YEARLY") {
+        startObj.setMonth(0, 1);
+        endObj.setMonth(11, 31);
+      }
+      startStr = getLocalDateString(startObj);
+      endStr = getLocalDateString(endObj);
     }
-
-    const startStr = getSingaporeDateString(startObj);
-    const endStr = getSingaporeDateString(endObj);
 
     const userName = await AsyncStorage.getItem("userName") || "SR";
 
@@ -535,16 +1168,15 @@ export default function SalesReport() {
       throw new Error("Failed to fetch report data");
     }
 
-    // We fetch dish report for item-wise data
-    const dishUrl = `${API_URL}/api/reports/dish?filter=custom&date=${startStr}`;
-    // wait, api/reports/dish expects a filter like daily, weekly, monthly, yearly, custom
-    // and for custom it might use the same logic?
-    // actually, api/reports/dish uses getReportDateWhereSql, which doesn't fully support custom dates unless handled.
-    // I'll just pass the filter if it's not custom, otherwise pass daily for now or omit items.
     let items: any[] = [];
     try {
-      const dishFilter = downloadFilter === "CUSTOM" ? "daily" : downloadFilter.toLowerCase();
-      const dRes = await fetch(`${API_URL}/api/reports/dish?filter=${dishFilter}&date=${startStr}`);
+      let dishUrl = `${API_URL}/api/reports/dish?filter=${downloadFilter.toLowerCase()}`;
+      if (downloadFilter === "CUSTOM") {
+        dishUrl += `&startDate=${startStr}&endDate=${endStr}`;
+      } else {
+        dishUrl += `&date=${startStr}`;
+      }
+      const dRes = await fetch(dishUrl);
       const dData = await dRes.json();
       if (Array.isArray(dData)) {
         items = dData.map((d: any) => ({
@@ -564,9 +1196,6 @@ export default function SalesReport() {
     const paymentBreakdown: any[] = [];
     let memberPaymentsCollected = 0;
     let creditPaymentsCollected = 0;
-    // Track credit *sales* (deferred revenue — not yet collected at point of sale)
-    // so they can be excluded from Total Collections to prevent double-counting
-    // when the same credit bill is also paid within the report period.
     let creditSalesTotal = 0;
     summaryData.paymodeDetail?.forEach((p: any) => {
       const paymodeName = String(p.Paymode || 'CASH').toUpperCase();
@@ -585,7 +1214,6 @@ export default function SalesReport() {
           amount: p.Amount || 0
         });
       } else {
-        // Capture credit sales (paymode = 'CREDIT') separately
         if (paymodeName === 'CREDIT') {
           creditSalesTotal += p.Amount || 0;
         }
@@ -601,6 +1229,8 @@ export default function SalesReport() {
     const vd = summaryData.voidDetail || {};
 
     return {
+      startDate: startStr,
+      endDate: endStr,
       filterType: downloadFilter,
       period: downloadFilter === "DAILY" ? startStr : `${startStr} to ${endStr}`,
       companyName: summaryData.orgInfo?.Name || 'AL-HAZIMA RESTAURANT PTE LTD',
@@ -608,7 +1238,6 @@ export default function SalesReport() {
       companyPhone: summaryData.orgInfo?.Address1_Telephone1 || '65130000',
       cashierName: userName,
 
-      // Match backend generatePdfDocDefinition expectations
       netSales: sa.baseSales || 0,
       serviceCharge: sa.totalServiceCharge || 0,
       taxCollected: sa.totalTax || 0,
@@ -618,9 +1247,6 @@ export default function SalesReport() {
       totalDiscount: sa.totalDiscount || 0,
       memberPaymentsCollected: Number(memberPaymentsCollected),
       creditPaymentsCollected: Number(creditPaymentsCollected),
-      // Total Collections = actual cash/card received.
-      // Credit *sales* are deferred revenue (not collected at point of sale),
-      // so subtract them before adding credit payment collections.
       totalCollections: (Number(sa.totalSales || 0) - creditSalesTotal) + Number(memberPaymentsCollected) + Number(creditPaymentsCollected),
 
       totalOrders: sa.billCount || 0,
@@ -894,13 +1520,10 @@ export default function SalesReport() {
         return saleDate >= start && saleDate <= end;
       });
     } else if (selectedFilter === "CUSTOM" && rangeStart && rangeEnd) {
-      const start = new Date(rangeStart);
-      const end = new Date(rangeEnd);
-      end.setHours(23, 59, 59, 999);
       result = sales.filter((s) => {
         if (!s.SettlementDate) return false;
         const saleDate = new Date(s.SettlementDate);
-        return saleDate >= start && saleDate <= end;
+        return saleDate >= rangeStart && saleDate <= rangeEnd;
       });
     }
 
@@ -1919,44 +2542,74 @@ export default function SalesReport() {
           </TouchableOpacity>
         </View>
       ) : (
-        <View style={styles.dateControl}>
-          <TouchableOpacity
-            onPress={() => {
-              setPickerMode("START");
-              setShowDatePicker(true);
-            }}
-            style={[
-              styles.dateDisplay,
-              { flex: 1 },
-              pickerMode === "START" && { borderColor: Theme.primary },
-            ]}
-          >
-            <View>
-              <Text style={styles.rangeLabel}>FROM DATE</Text>
-              <Text style={styles.dateText}>
-                {rangeStart ? format(new Date(rangeStart), "dd-MM-yy") : "Select"}
+        <View style={{
+          flexDirection: 'column',
+          gap: 8,
+          marginBottom: 20,
+        }}>
+          {/* FROM */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={{ fontSize: 12, color: Theme.textSecondary, fontFamily: Fonts.bold, width: 44, textAlign: 'right' }}>From:</Text>
+            <TouchableOpacity
+              style={{
+                flex: 1,
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: '#fff',
+                borderWidth: 1.5,
+                borderColor: Theme.primary + '55',
+                borderRadius: 10,
+                paddingHorizontal: 12,
+                height: 44,
+                gap: 8,
+                justifyContent: 'space-between',
+                ...Platform.select({
+                  web: {
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+                    cursor: 'pointer',
+                  }
+                }) as any
+              }}
+              onPress={() => setShowFromPicker(true)}
+            >
+              <Text style={{ fontFamily: Fonts.black, color: Theme.textPrimary, fontSize: 13, flex: 1 }} numberOfLines={1}>
+                {rangeStart ? formatDateTime(rangeStart) : "Select date & time"}
               </Text>
-            </View>
-          </TouchableOpacity>
-          <View style={{ width: 10 }} />
-          <TouchableOpacity
-            onPress={() => {
-              setPickerMode("END");
-              setShowDatePicker(true);
-            }}
-            style={[
-              styles.dateDisplay,
-              { flex: 1 },
-              pickerMode === "END" && { borderColor: Theme.primary },
-            ]}
-          >
-            <View>
-              <Text style={styles.rangeLabel}>TO DATE</Text>
-              <Text style={styles.dateText}>
-                {rangeEnd ? format(new Date(rangeEnd), "dd-MM-yy") : "Select"}
+              <Ionicons name="calendar-outline" size={16} color={Theme.primary} />
+            </TouchableOpacity>
+          </View>
+
+          {/* TO */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={{ fontSize: 12, color: Theme.textSecondary, fontFamily: Fonts.bold, width: 44, textAlign: 'right' }}>To:</Text>
+            <TouchableOpacity
+              style={{
+                flex: 1,
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: '#fff',
+                borderWidth: 1.5,
+                borderColor: Theme.primary + '55',
+                borderRadius: 10,
+                paddingHorizontal: 12,
+                height: 44,
+                gap: 8,
+                justifyContent: 'space-between',
+                ...Platform.select({
+                  web: {
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+                    cursor: 'pointer',
+                  }
+                }) as any
+              }}
+              onPress={() => setShowToPicker(true)}
+            >
+              <Text style={{ fontFamily: Fonts.black, color: Theme.textPrimary, fontSize: 13, flex: 1 }} numberOfLines={1}>
+                {rangeEnd ? formatDateTime(rangeEnd) : "Select date & time"}
               </Text>
-            </View>
-          </TouchableOpacity>
+              <Ionicons name="calendar-outline" size={16} color={Theme.primary} />
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
@@ -2565,6 +3218,8 @@ export default function SalesReport() {
     </>
     );
   };
+
+  // Removed renderDateTimePickerWeb helper since CustomDateTimePicker modal is now used universally
 
   return (
     <View style={{ flex: 1, backgroundColor: Theme.bgMain }}>
@@ -3408,7 +4063,7 @@ export default function SalesReport() {
                 style={styles.modalDismiss}
                 onPress={() => !isDownloading && setShowDownloadPanel(false)}
               />
-              <View style={[styles.downloadModalContent, { width: SCREEN_W > 600 ? 380 : "92%" }]}>
+              <View style={[styles.downloadModalContent, { width: SCREEN_W > 600 ? 450 : "95%" }]}>
                 <View style={styles.modalHeader}>
                   <View>
                     <Text style={styles.modalTitle}>Sales Report</Text>
@@ -3458,32 +4113,74 @@ export default function SalesReport() {
                     </View>
 
                     {downloadFilter === "CUSTOM" && (
-                      <View style={styles.customDateRow}>
-                        <TouchableOpacity
-                          onPress={() => {
-                            setDownloadPickerMode("START");
-                            setShowDownloadDatePicker(true);
-                          }}
-                          style={[styles.dateInput, downloadPickerMode === "START" && styles.activeDateInput]}
-                        >
-                          <Text style={styles.dateInputLabel}>FROM</Text>
-                          <Text style={styles.dateInputValue}>
-                            {downloadRangeStart ? format(new Date(downloadRangeStart), "dd MMM yyyy") : "Select"}
-                          </Text>
-                        </TouchableOpacity>
-                        <Ionicons name="arrow-forward" size={16} color={Theme.textMuted} />
-                        <TouchableOpacity
-                          onPress={() => {
-                            setDownloadPickerMode("END");
-                            setShowDownloadDatePicker(true);
-                          }}
-                          style={[styles.dateInput, downloadPickerMode === "END" && styles.activeDateInput]}
-                        >
-                          <Text style={styles.dateInputLabel}>TO</Text>
-                          <Text style={styles.dateInputValue}>
-                            {downloadRangeEnd ? format(new Date(downloadRangeEnd), "dd MMM yyyy") : "Select"}
-                          </Text>
-                        </TouchableOpacity>
+                      <View style={{
+                        flexDirection: 'column',
+                        gap: 8,
+                        marginTop: 12,
+                      }}>
+                        {/* FROM */}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <Text style={{ fontSize: 12, color: Theme.textSecondary, fontFamily: Fonts.bold, width: 44, textAlign: 'right' }}>From:</Text>
+                          <TouchableOpacity
+                            style={{
+                              flex: 1,
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              backgroundColor: '#fff',
+                              borderWidth: 1.5,
+                              borderColor: Theme.primary + '55',
+                              borderRadius: 10,
+                              paddingHorizontal: 12,
+                              height: 44,
+                              gap: 8,
+                              justifyContent: 'space-between',
+                              ...Platform.select({
+                                web: {
+                                  boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+                                  cursor: 'pointer',
+                                }
+                              }) as any
+                            }}
+                            onPress={() => setShowDownloadFromPicker(true)}
+                          >
+                            <Text style={{ fontFamily: Fonts.black, color: Theme.textPrimary, fontSize: 13, flex: 1 }} numberOfLines={1}>
+                              {downloadRangeStart ? formatDateTime(downloadRangeStart) : "Select date & time"}
+                            </Text>
+                            <Ionicons name="calendar-outline" size={16} color={Theme.primary} />
+                          </TouchableOpacity>
+                        </View>
+
+                        {/* TO */}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <Text style={{ fontSize: 12, color: Theme.textSecondary, fontFamily: Fonts.bold, width: 44, textAlign: 'right' }}>To:</Text>
+                          <TouchableOpacity
+                            style={{
+                              flex: 1,
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              backgroundColor: '#fff',
+                              borderWidth: 1.5,
+                              borderColor: Theme.primary + '55',
+                              borderRadius: 10,
+                              paddingHorizontal: 12,
+                              height: 44,
+                              gap: 8,
+                              justifyContent: 'space-between',
+                              ...Platform.select({
+                                web: {
+                                  boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+                                  cursor: 'pointer',
+                                }
+                              }) as any
+                            }}
+                            onPress={() => setShowDownloadToPicker(true)}
+                          >
+                            <Text style={{ fontFamily: Fonts.black, color: Theme.textPrimary, fontSize: 13, flex: 1 }} numberOfLines={1}>
+                              {downloadRangeEnd ? formatDateTime(downloadRangeEnd) : "Select date & time"}
+                            </Text>
+                            <Ionicons name="calendar-outline" size={16} color={Theme.primary} />
+                          </TouchableOpacity>
+                        </View>
                       </View>
                     )}
                   </View>
@@ -3502,7 +4199,7 @@ export default function SalesReport() {
 
                     <TouchableOpacity
                       onPress={handleDownloadPdf}
-                      disabled={isDownloading || isSendingEmail || (downloadFilter === "CUSTOM" && (!downloadRangeStart || !downloadRangeEnd || new Date(downloadRangeEnd) < new Date(downloadRangeStart)))}
+                      disabled={isDownloading || isSendingEmail || (downloadFilter === "CUSTOM" && downloadRangeEnd < downloadRangeStart)}
                       activeOpacity={0.8}
                     >
                       <LinearGradient
@@ -3511,7 +4208,7 @@ export default function SalesReport() {
                         end={{ x: 1, y: 0 }}
                         style={[
                           styles.premiumActionBtn,
-                          (isDownloading || isSendingEmail || (downloadFilter === "CUSTOM" && (!downloadRangeStart || !downloadRangeEnd || new Date(downloadRangeEnd) < new Date(downloadRangeStart)))) && { opacity: 0.5 }
+                          (isDownloading || isSendingEmail || (downloadFilter === "CUSTOM" && downloadRangeEnd < downloadRangeStart)) && { opacity: 0.5 }
                         ]}
                       >
                         {isDownloading ? (
@@ -3585,7 +4282,7 @@ export default function SalesReport() {
 
                     <TouchableOpacity
                       onPress={handleEmailPdf}
-                      disabled={isDownloading || isSendingEmail || !emailValidation.isValid || (downloadFilter === "CUSTOM" && (!downloadRangeStart || !downloadRangeEnd || new Date(downloadRangeEnd) < new Date(downloadRangeStart)))}
+                      disabled={isDownloading || isSendingEmail || !emailValidation.isValid || (downloadFilter === "CUSTOM" && downloadRangeEnd < downloadRangeStart)}
                       activeOpacity={0.8}
                     >
                       <LinearGradient
@@ -3594,7 +4291,7 @@ export default function SalesReport() {
                         end={{ x: 1, y: 0 }}
                         style={[
                           styles.premiumActionBtn,
-                          (isDownloading || isSendingEmail || !emailValidation.isValid || (downloadFilter === "CUSTOM" && (!downloadRangeStart || !downloadRangeEnd || new Date(downloadRangeEnd) < new Date(downloadRangeStart)))) && { opacity: 0.5 }
+                          (isDownloading || isSendingEmail || !emailValidation.isValid || (downloadFilter === "CUSTOM" && downloadRangeEnd < downloadRangeStart)) && { opacity: 0.5 }
                         ]}
                       >
                         {isSendingEmail ? (
@@ -3613,74 +4310,6 @@ export default function SalesReport() {
             </View>
           </Modal>
 
-          {showDownloadDatePicker && (
-            <Modal transparent visible={showDownloadDatePicker} animationType="fade">
-              <View style={styles.modalOverlay}>
-                <TouchableOpacity
-                  style={styles.modalDismiss}
-                  onPress={() => setShowDownloadDatePicker(false)}
-                />
-                <View
-                  style={[
-                    styles.modalContent,
-                    { width: SCREEN_W > 600 ? 330 : "85%" },
-                  ]}
-                >
-                  <View style={styles.modalHeader}>
-                    <Text style={styles.modalTitle}>
-                      {downloadPickerMode === "START" ? "Select From Date" : "Select To Date"}
-                    </Text>
-                    <TouchableOpacity onPress={() => setShowDownloadDatePicker(false)}>
-                      <Ionicons name="close" size={24} color={Theme.danger} />
-                    </TouchableOpacity>
-                  </View>
-                  <CalendarPicker
-                    selectedDate={
-                      downloadPickerMode === "START" && downloadRangeStart
-                        ? downloadRangeStart
-                        : downloadPickerMode === "END" && downloadRangeEnd
-                          ? downloadRangeEnd
-                          : new Date().toISOString().split("T")[0]
-                    }
-                    rangeStart={downloadRangeStart}
-                    rangeEnd={downloadRangeEnd}
-                    isRangeMode={true}
-                    onModeChange={() => { }}
-                    onRangeChange={(start, end) => {
-                      setDownloadRangeStart(start);
-                      setDownloadRangeEnd(end);
-                      if (start && end) {
-                        setShowDownloadDatePicker(false);
-                      }
-                    }}
-                    onDateChange={(date) => {
-                      if (downloadPickerMode === "START") {
-                        setDownloadRangeStart(date);
-                      } else {
-                        setDownloadRangeEnd(date);
-                      }
-                      setShowDownloadDatePicker(false);
-                    }}
-                  />
-                  <TouchableOpacity
-                    onPress={() => {
-                      const today = new Date().toISOString().split("T")[0];
-                      if (downloadPickerMode === "START") {
-                        setDownloadRangeStart(today);
-                      } else {
-                        setDownloadRangeEnd(today);
-                      }
-                      setShowDownloadDatePicker(false);
-                    }}
-                    style={{ alignSelf: "center", marginTop: 15, paddingBottom: 5 }}
-                  >
-                    <Text style={{ color: Theme.primary, fontFamily: Fonts.black, fontSize: 13, textDecorationLine: "underline" }}>GO TO TODAY</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </Modal>
-          )}
-
           {showDatePicker && (
             <Modal transparent visible={showDatePicker} animationType="fade">
               <View style={styles.modalOverlay}>
@@ -3695,11 +4324,7 @@ export default function SalesReport() {
                   ]}
                 >
                   <View style={styles.modalHeader}>
-                    <Text style={styles.modalTitle}>
-                      {selectedFilter === "CUSTOM"
-                        ? (rangeStart && !rangeEnd ? "Select End Date" : "Select Start Date")
-                        : "Select Date"}
-                    </Text>
+                    <Text style={styles.modalTitle}>Select Date</Text>
                     <TouchableOpacity onPress={() => setShowDatePicker(false)}>
                       <Ionicons name="close" size={24} color={Theme.danger} />
                     </TouchableOpacity>
@@ -3707,21 +4332,21 @@ export default function SalesReport() {
                   <CalendarPicker
                     selectedDate={
                       pickerMode === "START" && rangeStart
-                        ? rangeStart
+                        ? getLocalDateString(rangeStart)
                         : pickerMode === "END" && rangeEnd
-                          ? rangeEnd
+                          ? getLocalDateString(rangeEnd)
                           : selectedDate
                     }
-                    rangeStart={rangeStart}
-                    rangeEnd={rangeEnd}
+                    rangeStart={getLocalDateString(rangeStart)}
+                    rangeEnd={getLocalDateString(rangeEnd)}
                     isRangeMode={selectedFilter === "CUSTOM"}
                     onModeChange={(isRange) => {
                       if (isRange) {
                         setSelectedFilter("CUSTOM");
                         setPickerMode("START");
                         if (!rangeStart) {
-                          setRangeStart(selectedDate);
-                          setRangeEnd(selectedDate);
+                          setRangeStart(new Date(`${selectedDate}T00:00:00`));
+                          setRangeEnd(new Date(`${selectedDate}T23:59:59`));
                         }
                       } else {
                         setSelectedFilter("DAILY");
@@ -3729,9 +4354,9 @@ export default function SalesReport() {
                       }
                     }}
                     onRangeChange={(start, end) => {
-                      setRangeStart(start);
-                      setRangeEnd(end);
                       if (start && end) {
+                        setRangeStart(new Date(`${start}T00:00:00`));
+                        setRangeEnd(new Date(`${end}T23:59:59`));
                         setShowDatePicker(false);
                       }
                     }}
@@ -3742,13 +4367,13 @@ export default function SalesReport() {
                   />
                   <TouchableOpacity
                     onPress={() => {
-                      const today = new Date().toISOString().split("T")[0];
+                      const today = getSingaporeDateString();
                       if (pickerMode === "SINGLE") {
                         setSelectedDate(today);
                       } else if (pickerMode === "START") {
-                        setRangeStart(today);
+                        setRangeStart(new Date(`${today}T00:00:00`));
                       } else {
-                        setRangeEnd(today);
+                        setRangeEnd(new Date(`${today}T23:59:59`));
                       }
                       setShowDatePicker(false);
                     }}
@@ -3760,6 +4385,35 @@ export default function SalesReport() {
               </View>
             </Modal>
           )}
+
+          <CustomDateTimePicker
+            visible={showFromPicker}
+            onClose={() => setShowFromPicker(false)}
+            selectedDate={rangeStart}
+            onApply={(date) => applySelectedDateTime("MAIN_START", date)}
+            title="Select Start Date & Time"
+          />
+          <CustomDateTimePicker
+            visible={showToPicker}
+            onClose={() => setShowToPicker(false)}
+            selectedDate={rangeEnd}
+            onApply={(date) => applySelectedDateTime("MAIN_END", date)}
+            title="Select End Date & Time"
+          />
+          <CustomDateTimePicker
+            visible={showDownloadFromPicker}
+            onClose={() => setShowDownloadFromPicker(false)}
+            selectedDate={downloadRangeStart}
+            onApply={(date) => applySelectedDateTime("DOWNLOAD_START", date)}
+            title="Select Start Date & Time"
+          />
+          <CustomDateTimePicker
+            visible={showDownloadToPicker}
+            onClose={() => setShowDownloadToPicker(false)}
+            selectedDate={downloadRangeEnd}
+            onApply={(date) => applySelectedDateTime("DOWNLOAD_END", date)}
+            title="Select End Date & Time"
+          />
         </View>
       </SafeAreaView>
     </View>
